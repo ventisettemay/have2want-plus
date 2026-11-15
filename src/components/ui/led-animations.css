@@ -1,0 +1,25 @@
+/* LED Animazioni - Have2Want */
+@keyframes led-pulse-led {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(34, 197, 94, 0.4), 0 0 16px rgba(34, 197, 94, 0.2);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.8), 0 0 35px rgba(34, 197, 94, 0.5);
+    transform: scale(1.1);
+  }
+}
+
+@keyframes led-blink-led {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@layer utilities {
+  .animate-pulse-led {
+    animation: led-pulse-led 2s ease-in-out infinite;
+  }
+  .animate-blink-led {
+    animation: led-blink-led 1s ease-in-out infinite;
+  }
+}

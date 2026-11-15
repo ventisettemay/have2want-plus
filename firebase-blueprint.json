@@ -1,0 +1,87 @@
+{
+  "entities": {
+    "Listing": {
+      "title": "Listing",
+      "description": "Have2Want Marketplace Listing",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "intent": { "type": "string" },
+        "category": { "type": "string" },
+        "subcategory": { "type": "string" },
+        "price": { "type": "number" },
+        "piPrice": { "type": "number" },
+        "imageUrl": { "type": "string" },
+        "images": { "type": "array" },
+        "city": { "type": "string" },
+        "country": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "originType": { "type": "string" },
+        "isExternal": { "type": "boolean" },
+        "handshake_confirmed": { "type": "boolean" },
+        "status": { "type": "string" },
+        "visibility_level": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["title", "intent"]
+    },
+    "Shop": {
+      "title": "Shop",
+      "description": "Registered Local Shop or Artisan",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "type": { "type": "string" },
+        "city": { "type": "string" },
+        "region": { "type": "string" },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "description": { "type": "string" },
+        "acceptsPi": { "type": "boolean" },
+        "piAccepted": { "type": "boolean" },
+        "hasAd": { "type": "boolean" },
+        "featuredOffer": { "type": "string" },
+        "promo": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "Wallet": {
+      "title": "Wallet",
+      "description": "Unified Pioneer Community Points & Merchant Balance State",
+      "type": "object",
+      "properties": {
+        "walletId": { "type": "string" },
+        "pointsBalance": { "type": "number" },
+        "totalPointsEarned": { "type": "number" },
+        "merchantPiBalance": { "type": "number" },
+        "pioneerUsername": { "type": "string" },
+        "pioneerWalletAddress": { "type": "string" },
+        "adStreamEnabled": { "type": "boolean" },
+        "adCompletedStreak": { "type": "number" },
+        "history": { "type": "array" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["pointsBalance", "totalPointsEarned", "pioneerUsername"]
+    }
+  },
+  "firestore": {
+    "/listings/{listingId}": {
+      "schema": "Listing",
+      "description": "Public marketplace listings across the world"
+    },
+    "/shops/{shopId}": {
+      "schema": "Shop",
+      "description": "Registered local shops, commerce, and artisans"
+    },
+    "/wallets/{walletId}": {
+      "schema": "Wallet",
+      "description": "Per-user community points balance, merchant balance, and transaction ledger"
+    }
+  }
+}

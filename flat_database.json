@@ -1,0 +1,32 @@
+[
+  {
+    "product_id": "TXT-001",
+    "product_name": "BMW X5",
+    "current_category": "Varie",
+    "is_18_plus": true,
+    "technical_specs": {
+      "anno": "2023",
+      "chilometraggio": "45.000 km"
+    },
+    "location": {
+      "latitude": 45.4642,
+      "longitude": 9.19
+    },
+    "image_url": "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=800&auto=format&fit=crop&q=80"
+  },
+  {
+    "product_id": "TXT-002",
+    "product_name": "Audi Q5",
+    "current_category": "Varie",
+    "is_18_plus": false,
+    "technical_specs": {
+      "anno": "2022",
+      "chilometraggio": "30.000 km"
+    },
+    "location": {
+      "latitude": 45.0703,
+      "longitude": 7.6869
+    },
+    "image_url": "https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?w=800&auto=format&fit=crop&q=80"
+  }
+]

@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HAVE2WANT — Master Specification v1.0</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    :root {
+      --bg: #ffffff;
+      --text: #1a1e24;
+      --muted: #5c6470;
+      --border: #e2e6eb;
+      --gold: #b38728;
+      --gold-light: #fbf7ee;
+      --primary: #0f172a;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #f8fafc;
+      color: var(--text);
+      line-height: 1.65;
+      font-size: 15px;
+      padding: 40px 20px;
+    }
+
+    .document-container {
+      max-width: 860px;
+      margin: 0 auto;
+      background: #ffffff;
+      padding: 60px 70px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .header-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--gold);
+      background: var(--gold-light);
+      padding: 4px 12px;
+      border-radius: 4px;
+      border: 1px solid rgba(179, 135, 40, 0.2);
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      font-family: 'Cinzel', serif;
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--primary);
+      letter-spacing: 0.05em;
+      line-height: 1.25;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 24px;
+    }
+
+    .meta-box {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--gold);
+      padding: 16px 20px;
+      border-radius: 4px;
+      margin-bottom: 36px;
+      font-size: 13.5px;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 24px;
+    }
+
+    .meta-item strong {
+      color: var(--primary);
+    }
+
+    h2 {
+      font-family: 'Cinzel', serif;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-top: 36px;
+      margin-bottom: 14px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h3 {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--primary);
+      margin-top: 20px;
+      margin-bottom: 8px;
+    }
+
+    p {
+      margin-bottom: 14px;
+      color: #334155;
+    }
+
+    ul, ol {
+      margin-left: 20px;
+      margin-bottom: 16px;
+      color: #334155;
+    }
+
+    li {
+      margin-bottom: 6px;
+    }
+
+    .diagram {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11.5px;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 20px;
+      border-radius: 6px;
+      overflow-x: auto;
+      line-height: 1.4;
+      margin: 20px 0;
+      white-space: pre;
+    }
+
+    .formula-box {
+      background: #f1f5f9;
+      padding: 12px 18px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 13.5px;
+      color: #0f172a;
+      text-align: center;
+      margin: 16px 0;
+      border: 1px solid #cbd5e1;
+    }
+
+    .legal-box {
+      border: 1px solid #cbd5e1;
+      background: #fafafa;
+      padding: 24px;
+      border-radius: 6px;
+      margin: 28px 0;
+      font-size: 13.5px;
+    }
+
+    .legal-box pre {
+      font-family: 'JetBrains Mono', monospace;
+      white-space: pre-wrap;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .signature-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 30px;
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px dashed #cbd5e1;
+    }
+
+    .sign-line {
+      margin-top: 40px;
+      border-top: 1px solid #64748b;
+      padding-top: 6px;
+      font-size: 12px;
+      color: #64748b;
+    }
+
+    .action-bar {
+      position: sticky;
+      top: 20px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-bottom: 20px;
+      max-width: 860px;
+      margin: 0 auto 20px auto;
+    }
+
+    .btn {
+      background: #0f172a;
+      color: white;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+
+    .btn:hover {
+      background: #1e293b;
+      transform: translateY(-1px);
+    }
+
+    .btn-gold {
+      background: #b38728;
+    }
+
+    .btn-gold:hover {
+      background: #966f1e;
+    }
+
+    @media print {
+      body {
+        background: white;
+        padding: 0;
+      }
+      .action-bar {
+        display: none !important;
+      }
+      .document-container {
+        box-shadow: none;
+        border: none;
+        padding: 0;
+        max-width: 100%;
+      }
+      h2 {
+        page-break-after: avoid;
+      }
+      .diagram, .legal-box {
+        page-break-inside: avoid;
+      }
+      @page {
+        margin: 20mm;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="action-bar">
+    <button class="btn btn-gold" onclick="window.print()">🖨️ Stampa o Salva PDF (anche su Google Drive)</button>
+    <button class="btn" onclick="copyDocumentText()">📋 Copia Testo</button>
+  </div>
+
+  <div class="document-container" id="doc-content">
+    <div class="header-badge">MASTER SPECIFICATION v1.0 — RATIFICATA</div>
+    <h1>HAVE2WANT</h1>
+    <div class="subtitle">Documento Ufficiale di Consolidamento, Architettura, Modello Economico e Tutela della Proprietà Intellettuale</div>
+
+    <div class="meta-box">
+      <div class="meta-grid">
+        <div class="meta-item"><strong>Data di Creazione:</strong> 30 agosto 2026</div>
+        <div class="meta-item"><strong>Denominazione Originaria:</strong> BIS</div>
+        <div class="meta-item"><strong>Denominazione Definitiva:</strong> HAVE2WANT (H2W)</div>
+        <div class="meta-item"><strong>Tagline:</strong> Simply Discreet</div>
+        <div class="meta-item"><strong>Principio Guida:</strong> What you have → What you want</div>
+        <div class="meta-item"><strong>Ambiente:</strong> The HAVE2WANT Universe</div>
+        <div class="meta-item"><strong>Titolare Originario:</strong> brandoriginalword@gmail.com</div>
+        <div class="meta-item"><strong>Stato Documento:</strong> Consolidato e Vincolante</div>
+      </div>
+    </div>
+
+    <h2>1. Origine e Concezione Iniziale del Progetto (Ex BIS)</h2>
+    <p>Il progetto nasce dalla necessità di superare i limiti dei marketplace commerciali e delle piattaforme di annunci tradizionali, creando un ambiente digitale orientato alla comunità, alla fiducia e alle relazioni autentiche tra persone.</p>
+    <ul>
+      <li><strong>La Premessa Fondativa:</strong> In ogni comunità umana, una persona possiede risorse, tempo, conoscenze, esperienze o abilità che possono essere di vitale utilità per un'altra persona; contemporaneamente, la stessa persona può trovarsi in una condizione di bisogno materiale o immateriale.</li>
+      <li><strong>La Denominazione di Origine:</strong> Nella fase di genesi concettuale e nei primi studi di fattibilità tecnica, il progetto è stato denominato e strutturato provvisoriamente con il nome <strong>BIS</strong>.</li>
+      <li><strong>Il Ruolo della Tecnologia:</strong> La tecnologia non deve porsi come intermediario commerciale aggressivo, ma come un abilitatore discreto capace di far emergere possibilità di incontro, reciprocità e collaborazione.</li>
+    </ul>
+
+    <h2>2. Visione, Filosofia e Principi Fondanti</h2>
+    <p>HAVE2WANT ribalta la logica transazionale dei marketplace tradizionali mettendo la persona al centro:</p>
+    <div class="formula-box">
+      PERSONA → VITA/PRESENZA → CONVERSAZIONE → BISOGNO/POSSIBILITÀ → CONNESSIONE → INTERAZIONE LIBERA
+    </div>
+    <p><strong>I Principi Fondamentali:</strong></p>
+    <ol>
+      <li><strong>La Conversazione come Radice:</strong> Le persone entrano nell'ecosistema per vivere una normale esperienza sociale: parlare, ascoltare, informarsi e partecipare. Bisogni e disponibilità emergono spontaneamente.</li>
+      <li><strong>Il Senso di Fiducia:</strong> L'esperienza rievoca la naturalezza delle reti umane di prossimità (famiglia, buon vicino, artigiano di fiducia, chi ha già superato lo stesso problema).</li>
+      <li><strong>Il Principio di Reciprocità:</strong> <em>"Vediamo se possiamo essere utili l'uno all'altro."</em> Coesistenza armonica di interazioni gratuite e opportunità economiche e professionali.</li>
+    </ol>
+
+    <h2>3. Evoluzione Identitaria: BIS → HAVE2WANT</h2>
+    <p>La transizione da <strong>BIS</strong> a <strong>HAVE2WANT</strong> rappresenta l'evoluzione organica dell'identità del medesimo progetto, senza alcuna soluzione di continuità nella visione, nell'architettura concettuale, nei modelli dati e nei diritti d'autore del Creatore originario.</p>
+    <ul>
+      <li><strong>Brand Name:</strong> HAVE2WANT (H2W)</li>
+      <li><strong>Tagline:</strong> Simply Discreet</li>
+      <li><strong>Principio Guida:</strong> What you have → What you want</li>
+      <li><strong>Ambiente Visivo:</strong> The HAVE2WANT Universe</li>
+    </ul>
+
+    <h2>4. L'Ontologia del Valore: HAVE, WANT e le 9 Forme di Interazione</h2>
+    <p>Il valore abbraccia l'intero patrimonio umano materiale e immateriale:</p>
+    <ul>
+      <li><strong>HAVE:</strong> Oggetti, strumenti, tempo libero, competenze artigianali o professionali, esperienze di vita, consigli, storie, ricordi e disponibilità all'ascolto.</li>
+      <li><strong>WANT:</strong> Qualsiasi necessità espressa o latente, materiale o di supporto.</li>
+    </ul>
+    <p><strong>Le 9 Forme di Interazione Libera:</strong></p>
+    <ol>
+      <li><strong>AIUTO:</strong> Supporto solidale e disinteressato.</li>
+      <li><strong>DONO:</strong> Cessione gratuita di beni o risorse.</li>
+      <li><strong>PRESTITO:</strong> Concessione temporanea con impegno alla restituzione.</li>
+      <li><strong>CONDIVISIONE:</strong> Fruizione comune e contemporanea di una risorsa.</li>
+      <li><strong>COLLABORAZIONE:</strong> Unione sinergica di forze per un fine condiviso.</li>
+      <li><strong>CONOSCENZA:</strong> Trasmissione di saperi e consigli pratici.</li>
+      <li><strong>SCAMBIO:</strong> Baratto paritario o scambio di tempo.</li>
+      <li><strong>SERVIZIO:</strong> Prestazione tecnica o professionale qualificata.</li>
+      <li><strong>VENDITA / ACQUISTO:</strong> Transazione economica volontaria regolata in valuta nativa Pi.</li>
+    </ol>
+    <p><em>Regola vincolante:</em> Le prime 8 forme non economiche sono <strong>sempre gratuite e libere da commissioni</strong>.</p>
+
+    <h2>5. Salvavatutto: La Memoria Collettiva</h2>
+    <p><strong>Salvavatutto</strong> custodisce in modo permanente soluzioni pratiche, guide, racconti ed esperienze vissute dalla comunità, indicizzandole semanticamente per renderle ritrovabili in ogni momento futuro.</p>
+
+    <h2>6. Assistente AI Discreto (Simply Discreet)</h2>
+    <p>L'AI opera come mediatore silenzioso: non interrompe le conversazioni private e accende la <em>"Stella delle Possibilità"</em> solo quando riscontra correlazioni rilevanti tra bisogni, disponibilità o memorie di Salvavatutto, lasciando all'utente la totale libertà di interagire.</p>
+
+    <h2>7. L'Universo HAVE2WANT (Sole → Pianeti → Satelliti → Spazi Operativi)</h2>
+    <div class="diagram">
+                              ┌───────────────────────────────┐
+                              │            IL SOLE            │
+                              │ (Il Tutto: La Vita di H2W,    │
+                              │  Persone, Energia Relazionale)│
+                              └───────────────┬───────────────┘
+                                              │
+                                      Orbita Primaria
+                                              │
+                     ┌────────────────────────┴────────────────────────┐
+                     ▼                                                 ▼
+        ┌─────────────────────────┐                       ┌─────────────────────────┐
+        │        PIANETA          │                       │        PIANETA          │
+        │   (Macro-Dimensione)    │                       │   (Macro-Dimensione)    │
+        └────────────┬────────────┘                       └────────────┬────────────┘
+                     │                                                 │
+               Orbita Locale                                     Orbita Locale
+                     │                                                 │
+          ┌──────────┴──────────┐                           ┌──────────┴──────────┐
+          ▼                     ▼                           ▼                     ▼
+   ┌──────────────┐      ┌──────────────┐            ┌──────────────┐      ┌──────────────┐
+   │  SATELLITE   │      │  SATELLITE   │            │  SATELLITE   │      │  SATELLITE   │
+   │(Sotto-dimens)│      │ (Strumento)  │            │(Sotto-dimens)│      │ (Strumento)  │
+   └──────┬───────┘      └──────┬───────┘            └──────┬───────┘      └──────┬───────┘
+          │                     │                           │                     │
+          └─────────────────────┼───────────────────────────┴─────────────────────┘
+                                │
+                                ▼
+                   ┌─────────────────────────┐
+                   │   SPAZIO OPERATIVO      │
+                   │ (Chat, Bacheca, Azione) │
+                   └─────────────────────────┘</div>
+    <p><strong>I 3 Pianeti Fondamentali dell'MVP:</strong></p>
+    <ul>
+      <li><strong>Pianeta 1: VITA & RELAZIONI</strong> (Chat spontanea, stanze di dialogo, profili People).</li>
+      <li><strong>Pianeta 2: POSSIBILITÀ</strong> (Bacheca integrata HAVE & WANT).</li>
+      <li><strong>Pianeta 3: SALVAVATUTTO</strong> (Memoria comunitaria, guide ed esperienze).</li>
+    </ul>
+
+    <h2>8. Modello di Emergenza Controllata dell'Universo</h2>
+    <p>L'Universo si espande organicamente secondo la matrice a 3 casi:</p>
+    <ul>
+      <li><strong>Caso A:</strong> Bisogno in struttura attiva → Nessuna modifica.</li>
+      <li><strong>Caso B:</strong> Bisogno ricorrente affine a un pianeta → Proposta di un nuovo <strong>Satellite</strong>.</li>
+      <li><strong>Caso C:</strong> Dominio inedito e rilevante → Proposta di un nuovo <strong>Pianeta</strong>.</li>
+    </ul>
+    <p><em>Governance:</em> L'AI propone; la comunità manifesta interesse; il Creatore approva e attiva la nuova dimensione nel catalogo dinamico.</p>
+
+    <h2>9. Integrazione Nativa con Pi Network</h2>
+    <p>HAVE2WANT valorizza l'infrastruttura di Pi Network:</p>
+    <ul>
+      <li><strong>Pi Auth SDK:</strong> Login nativo con 1 tocco e verifica Pioneer KYC.</li>
+      <li><strong>Pi Payments API:</strong> Regolamento in valuta nativa Pi.</li>
+      <li><strong>Pi Ads Platform:</strong> Monetizzazione ufficiale tramite circuiti pubblicitari Pi.</li>
+      <li><strong>Pi Browser WebView:</strong> Ambiente prioritario di distribuzione.</li>
+    </ul>
+
+    <h2>10. Modello Economico in Pi e Sostenibilità del Creatore</h2>
+    <p>Quattro flussi armonici:</p>
+    <ol>
+      <li><strong>Eco-Fee su Vendite/Servizi con Cap Massimo a 15 Pi:</strong> Aliquota degressiva equa (2.5% → 1.5%) con tetto a 15 Pi a tutela dell'utente.</li>
+      <li><strong>Pro-Tools Modulari per Professionisti:</strong> Strumenti avanzati (agenda Pi, report, ranking semantico) in abbonamento periodico in Pi.</li>
+      <li><strong>Badge di Qualifica:</strong> Quota simbolica una tantum in Pi per la verifica delle competenze.</li>
+      <li><strong>Pi Ads Ufficiali e Donazioni Comunitarie:</strong> Sostegno libero della rete.</li>
+    </ol>
+    <p><em>La remunerazione del Creatore è parte strutturale e garantita dei flussi di sostenibilità.</em></p>
+
+    <h2>11. Dichiarazione di Creazione e Titolarità</h2>
+    <div class="legal-box">
+      <pre>========================================================================================
+                      ATTO DI SOTTOSCRIZIONE E CONSOLIDAMENTO DOCUMENTALE
+
+Progetto: HAVE2WANT (già BIS)
+Versione: Master Specification v1.0
+Data di creazione, consolidamento e datazione: 30 agosto 2026
+
+Creatore e Titolare Originario: brandoriginalword@gmail.com
+
+Formula Identitaria:
+HAVE2WANT — Simply Discreet
+What you have → What you want
+The HAVE2WANT Universe
+========================================================================================</pre>
+      <div class="signature-grid">
+        <div>
+          <strong>Creatore e Titolare del Progetto</strong>
+          <div class="sign-line">Firma per ratifica e consolidamento documentale</div>
+        </div>
+        <div>
+          <strong>Data di Esecuzione e Riferimento</strong>
+          <div class="sign-line">30 agosto 2026 — Master Specification v1.0</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function copyDocumentText() {
+      const content = document.getElementById('doc-content').innerText;
+      navigator.clipboard.writeText(content).then(() => {
+        alert('Testo completo del Documento Maestro copiato negli appunti!');
+      });
+    }
+  </script>
+</body>
+</html>

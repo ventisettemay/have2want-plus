@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+
+    match /listings/{listingId} {
+      allow read: if true;
+      allow create: if isValidId(listingId)
+        && request.resource.data.title is string
+        && request.resource.data.title.size() <= 200;
+      allow update, delete: if isValidId(listingId);
+    }
+
+    match /shops/{shopId} {
+      allow read: if true;
+      allow create, update: if isValidId(shopId)
+        && request.resource.data.name is string
+        && request.resource.data.name.size() <= 200;
+      allow delete: if isValidId(shopId);
+    }
+
+    match /wallets/{walletId} {
+      allow read: if isValidId(walletId);
+      allow create, update: if isValidId(walletId)
+        && request.resource.data.pointsBalance is number
+        && request.resource.data.pointsBalance >= 0
+        && request.resource.data.pointsBalance <= 10000000
+        && request.resource.data.totalPointsEarned is number
+        && request.resource.data.totalPointsEarned >= 0
+        && request.resource.data.pioneerUsername is string
+        && request.resource.data.pioneerUsername.size() <= 120;
+      allow delete: if false;
+    }
+  }
+}

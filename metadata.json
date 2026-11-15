@@ -1,0 +1,6 @@
+{
+  "name": "HAVE2WANT PLUS",
+  "description": "HAVE2WANT PLUS — Simply Discreet. WHAT YOU HAVE → WHAT YOU WANT. Piattaforma etica con mappa e globo 3D interattivo, integrazione Pi App Studio e note vocali per inserzionisti.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
