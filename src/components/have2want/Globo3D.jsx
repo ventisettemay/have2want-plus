@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { COUNTRIES, getCountryForListing } from '@/data/countries';
 import { ITALIAN_REGIONS, SPONSORED_BUSINESSES } from '@/data/regions';
-import { WORLD_COUNTRIES, findNearestCountry } from '@/lib/worldAtlas';
+import { WORLD_COUNTRIES, findNearestCountry, findCountryByNameOrCode, isValidCoord } from '@/lib/worldAtlas';
 import { createPoliticalGlobeTexture } from '@/lib/politicalGlobeTexture';
 import { classifyMerchantPin } from '@/lib/merchantPinClassifier';
 import { ACTIVE_CHAT_USERS } from '@/data/chatUsers';
@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { INITIAL_SATELLITES_CATALOG, satelliteEngine } from '@/lib/satelliteModularEngine';
 import { buildEngineeredSpacecraft, createSharedAerospaceMaterials } from '@/components/have2want/spacecraft3D/SpacecraftModelsBuilder';
 import { composeRainViewerGlobeCanvas } from '@/lib/rainViewerGlobeLayer';
+import { getGlobalHubWeatherSnapshots } from '@/lib/weatherService';
 
 // Database unificato ad altissima copertura per il raycasting su qualsiasi territorio del pianeta
 const ALL_COUNTRIES_DATA = (() => {
@@ -61,6 +62,95 @@ const ALL_COUNTRIES_DATA = (() => {
 
   return Array.from(map.values());
 })();
+
+export function resolveGlobeCountryById(countryId) {
+  if (!countryId) return null;
+  const idNorm = String(countryId).trim().toLowerCase();
+  if (!idNorm || idNorm === 'all' || idNorm === 'globo') return null;
+
+  const fromUnified = ALL_COUNTRIES_DATA.find(
+    (c) =>
+      (c.id || '').toLowerCase() === idNorm ||
+      (c.code || '').toLowerCase() === idNorm ||
+      (c.name || '').toLowerCase() === idNorm
+  );
+  if (fromUnified) return fromUnified;
+
+  const fromRegion = ITALIAN_REGIONS.find(
+    (r) => (r.id || '').toLowerCase() === idNorm || (r.name || '').toLowerCase() === idNorm
+  );
+  if (fromRegion) {
+    return {
+      ...fromRegion,
+      countryName: 'Italia',
+      flag: '🇮🇹',
+    };
+  }
+
+  const fromAtlas = findCountryByNameOrCode(countryId);
+  if (fromAtlas) {
+    return {
+      id: fromAtlas.code.toLowerCase(),
+      code: fromAtlas.code,
+      name: fromAtlas.name,
+      countryName: fromAtlas.name,
+      capital: fromAtlas.capital,
+      flag: fromAtlas.flag,
+      lat: fromAtlas.lat,
+      lng: fromAtlas.lng,
+      currency: `${fromAtlas.currency?.code || 'EUR'} (${fromAtlas.currency?.symbol || '€'})`,
+      currencyData: fromAtlas.currency,
+      lang: fromAtlas.language?.name || 'Locale',
+      language: fromAtlas.language,
+      timezone: fromAtlas.timezone,
+      regions: fromAtlas.regions || [],
+    };
+  }
+
+  return null;
+}
+
+export function resolveGlobeUrbanTarget({ activeZone, selectedCountryId, fallbackCoords = null }) {
+  if (
+    activeZone &&
+    typeof activeZone.lat === 'number' &&
+    !Number.isNaN(activeZone.lat) &&
+    typeof activeZone.lng === 'number' &&
+    !Number.isNaN(activeZone.lng) &&
+    !(activeZone.lat === 0 && activeZone.lng === 0)
+  ) {
+    return activeZone;
+  }
+
+  const byId = resolveGlobeCountryById(selectedCountryId);
+  if (byId && !(byId.lat === 0 && byId.lng === 0)) {
+    return byId;
+  }
+
+  if (
+    fallbackCoords &&
+    typeof fallbackCoords.lat === 'number' &&
+    !Number.isNaN(fallbackCoords.lat) &&
+    typeof fallbackCoords.lng === 'number' &&
+    !Number.isNaN(fallbackCoords.lng)
+  ) {
+    const nearest = findNearestCountry(fallbackCoords.lat, fallbackCoords.lng);
+    if (nearest && !(nearest.lat === 0 && nearest.lng === 0)) {
+      return {
+        id: nearest.code.toLowerCase(),
+        code: nearest.code,
+        name: nearest.name,
+        countryName: nearest.name,
+        capital: nearest.capital,
+        flag: nearest.flag,
+        lat: nearest.lat,
+        lng: nearest.lng,
+      };
+    }
+  }
+
+  return null;
+}
 
 export const SATELLITES_CONFIG = [
   {
@@ -223,8 +313,16 @@ export default function Globo3D({
   const [isMacroZoom, setIsMacroZoom] = useState(true);
   const isMacroRef = useRef(true);
 
-  // Active identified zone state for floating UI
+  // Active identified zone state for floating UI (con ref sincronizzato contro stale closures in Three.js)
   const [activeZone, setActiveZone] = useState(null);
+  const activeZoneRef = useRef(null);
+  activeZoneRef.current = activeZone;
+  const selectedCountryIdRef = useRef(selectedCountryId);
+  selectedCountryIdRef.current = selectedCountryId;
+  const setActiveZoneSynced = (zone) => {
+    activeZoneRef.current = zone;
+    setActiveZone(zone);
+  };
   const [isZoomingIn, setIsZoomingIn] = useState(false);
 
   // Callback refs to always access latest callbacks inside Three.js loop without re-running useEffect
@@ -255,6 +353,10 @@ export default function Globo3D({
   const toggleWeatherRef = useRef(null);
   const [isPoliticalRevealed, setIsPoliticalRevealed] = useState(false);
   const [isWeatherActive, setIsWeatherActive] = useState(true);
+  const [showWeatherLegend, setShowWeatherLegend] = useState(true);
+  const globeListingEntriesRef = useRef([]);
+  const globeMerchantGroupsRef = useRef([]);
+  const globeChatGroupsRef = useRef([]);
 
   // Helper per creare badge compatto per la bandiera e il nome nazione (con indicatore annunci presenti)
   const createCountrySprite = (country, isSelected, listingsCount = 0) => {
@@ -263,11 +365,9 @@ export default function Globo3D({
     canvas.height = 56;
     const ctx = canvas.getContext('2d');
 
-    const isItaly = country.id === 'it';
-
-    // Sfondo del badge con angoli arrotondati (Nero Puro #000000, Bordo Neon #00ff66)
+    // Sfondo del badge con angoli arrotondati (Nero Puro #000000, Bordo Neon #00ff66 solo se selezionato)
     ctx.fillStyle = '#000000';
-    ctx.strokeStyle = isSelected ? '#00ff66' : isItaly ? '#00ff66' : '#ffffff';
+    ctx.strokeStyle = isSelected ? '#00ff66' : '#ffffff';
     ctx.lineWidth = 2.5;
 
     const x = 3, y = 3, w = 204, h = 50, r = 10;
@@ -324,7 +424,7 @@ export default function Globo3D({
     });
     const sprite = new THREE.Sprite(spriteMat);
     // Scala compatta ed elegante (non copre interi continenti)
-    sprite.scale.set(4.1, 1.15, 1);
+    sprite.scale.set(2.8, 0.78, 1);
     sprite.userData = { ...country, isNationalMarker: true, listingsCount, baseOpacity: 0.95 };
     return { sprite, texture, material: spriteMat };
   };
@@ -391,7 +491,7 @@ export default function Globo3D({
       opacity: 0.95,
     });
     const sprite = new THREE.Sprite(spriteMat);
-    sprite.scale.set(3.4, 0.92, 1);
+    sprite.scale.set(2.7, 0.72, 1);
     sprite.userData = { isListingMarker: true, listing, baseOpacity: 0.95 };
     return { sprite, texture, material: spriteMat };
   };
@@ -457,7 +557,7 @@ export default function Globo3D({
       opacity: 0.98,
     });
     const sprite = new THREE.Sprite(spriteMat);
-    sprite.scale.set(4.4, 1.15, 1);
+    sprite.scale.set(3.1, 0.82, 1);
     sprite.userData = { isMerchantPin: true, biz, pinVisual, name: biz.name, lat: biz.lat, lng: biz.lng };
     return { sprite, texture, material: spriteMat };
   };
@@ -511,14 +611,93 @@ export default function Globo3D({
       opacity: 0.95,
     });
     const sprite = new THREE.Sprite(spriteMat);
-    sprite.scale.set(3.8, 1.05, 1);
+    sprite.scale.set(2.9, 0.80, 1);
     sprite.userData = { isChatUserPin: true, user, name: user.displayName, lat: user.lat, lng: user.lng };
+    return { sprite, texture, material: spriteMat };
+  };
+
+  // Helper per creare badge meteo live leggibile sul globo (Sole, Nubi, Pioggia, Neve, Temporale)
+  const createWeatherHubSprite = (snap) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 200;
+    canvas.height = 52;
+    const ctx = canvas.getContext('2d');
+
+    const borderColor =
+      snap.badgeType === 'storm'
+        ? '#a855f7'
+        : snap.badgeType === 'snow'
+          ? '#e0f2fe'
+          : snap.badgeType === 'rain'
+            ? '#38bdf8'
+            : snap.badgeType === 'cloudy'
+              ? '#94a3b8'
+              : '#f59e0b';
+
+    ctx.fillStyle = 'rgba(6, 11, 20, 0.92)';
+    ctx.strokeStyle = borderColor;
+    ctx.lineWidth = 2.6;
+
+    const x = 3, y = 3, w = 194, h = 46, r = 10;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.font = '21px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(snap.icon || '🌤️', 10, 26);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
+    const cityName = (snap.name || '').length > 10 ? snap.name.slice(0, 9) + '…' : (snap.name || '');
+    ctx.fillText(cityName, 40, 18);
+
+    ctx.fillStyle = borderColor;
+    ctx.font = '900 13px system-ui, -apple-system, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(`${snap.temp}°`, 188, 18);
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = borderColor;
+    ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
+    ctx.fillText(snap.shortLabel || 'Meteo', 40, 36);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    const spriteMat = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthTest: true,
+      depthWrite: false,
+      opacity: 0.96,
+    });
+    const sprite = new THREE.Sprite(spriteMat);
+    sprite.scale.set(3.4, 0.88, 1);
+    sprite.userData = {
+      isWeatherMarker: true,
+      weather: snap,
+      name: snap.name,
+      lat: snap.lat,
+      lng: snap.lng,
+    };
     return { sprite, texture, material: spriteMat };
   };
 
   useEffect(() => {
     if (!containerRef.current) return;
 
+    let isAlive = true;
     const container = containerRef.current;
     let width = container.clientWidth || window.innerWidth;
     let height = container.clientHeight || window.innerHeight;
@@ -539,9 +718,9 @@ export default function Globo3D({
     // 3. RENDERER WEBGL
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
     renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.2;
+    renderer.toneMappingExposure = 1.32;
     renderer.domElement.style.touchAction = 'none';
     container.appendChild(renderer.domElement);
 
@@ -552,7 +731,7 @@ export default function Globo3D({
     controls.enableDamping = true;
     controls.dampingFactor = 0.05; // Frena dolcemente, previene scivolamenti o oscillazioni eccessive
     controls.rotateSpeed = 0.35; // Risposta controllata, fluida e precisa senza scatti repentini
-    controls.minDistance = 61; // Permette zoom super ravvicinato sul territorio senza bloccarsi
+    controls.minDistance = 82; // Mantiene sempre la Terra nitida evitando texture sfocate su zoom ravvicinato
     controls.maxDistance = 260; // Vista panoramica macro
     controls.zoomSpeed = 1.25; // Zoom touch/pinch e rotella reattivo ed immediato
     controls.enablePan = false;
@@ -720,11 +899,11 @@ export default function Globo3D({
           float twilight = clamp(1.0 - abs(sunDot) / 0.28, 0.0, 1.0);
           vec3 sunsetGlow = vec3(1.0, 0.52, 0.18) * pow(twilight, 2.5) * 0.60;
 
-          // Fondo oceanico notturno visibile (chiaro contrasto contro lo spazio profondo, mai buco nero invisibile)
-          vec3 deepNight = dayColor * vec3(0.24, 0.30, 0.45) + vec3(0.02, 0.04, 0.08);
+          // Fondo oceanico notturno chiaramente leggibile (continenti e oceani sempre distinguibili anche di notte)
+          vec3 deepNight = dayColor * vec3(0.46, 0.56, 0.78) + vec3(0.05, 0.09, 0.16);
 
-          // Superficie diurna illuminata dal sole con ambient
-          vec3 sunlitDay = dayColor * (0.85 + 0.35 * max(sunDot, 0.0));
+          // Superficie diurna illuminata dal sole, nitida e luminosa
+          vec3 sunlitDay = dayColor * (1.06 + 0.34 * max(sunDot, 0.0));
 
           vec3 finalColor = mix(deepNight + cityLights, sunlitDay + specularColor + sunsetGlow, dayFactor);
 
@@ -803,7 +982,24 @@ export default function Globo3D({
     }
     globeGroup.add(atmosMesh);
 
-    // 9. RADAR METEOROLOGICO REALE RAINVIEWER (Doppler Precipitazioni + Infrarosso Satellitare)
+    // 9. NUVOLE ATMOSFERICHE PULITE + RADAR METEOROLOGICO RAINVIEWER MORBIDO
+    // con dissolvenza allo zoom per evitare blocchi pixelati e fallback automatico su earth_clouds_1024.png
+    const softCloudsTexture = textureLoader.load('/textures/earth_clouds_1024.png');
+    softCloudsTexture.colorSpace = THREE.SRGBColorSpace;
+    const softCloudsGeo = new THREE.SphereGeometry(raggioGlobo + 0.44, 64, 48);
+    const softCloudsMat = new THREE.MeshStandardMaterial({
+      map: softCloudsTexture,
+      transparent: true,
+      opacity: 0.38,
+      blending: THREE.NormalBlending,
+      depthWrite: false,
+    });
+    const softCloudsMesh = new THREE.Mesh(softCloudsGeo, softCloudsMat);
+    if (initialGeo) {
+      softCloudsMesh.visible = false;
+    }
+    globeGroup.add(softCloudsMesh);
+
     const radarCanvas = document.createElement('canvas');
     radarCanvas.width = 1024;
     radarCanvas.height = 512;
@@ -812,11 +1008,30 @@ export default function Globo3D({
     radarTexture.minFilter = THREE.LinearFilter;
     radarTexture.magFilter = THREE.LinearFilter;
 
-    const cloudsGeo = new THREE.SphereGeometry(raggioGlobo + 0.58, 64, 48);
+    let hasRadarTiles = false;
+    let staticCloudsTexture = null;
+    const applyStaticCloudsFallback = () => {
+      if (!isAlive) return;
+      hasRadarTiles = false;
+      if (!staticCloudsTexture) {
+        staticCloudsTexture = textureLoader.load('/textures/earth_clouds_1024.png', () => {
+          if (isAlive) {
+            staticCloudsTexture.needsUpdate = true;
+            cloudsMat.needsUpdate = true;
+          }
+        });
+        staticCloudsTexture.colorSpace = THREE.SRGBColorSpace;
+      }
+      cloudsMat.map = staticCloudsTexture;
+      cloudsMat.opacity = 0.24;
+      cloudsMat.needsUpdate = true;
+    };
+
+    const cloudsGeo = new THREE.SphereGeometry(raggioGlobo + 0.62, 64, 48);
     const cloudsMat = new THREE.MeshStandardMaterial({
       map: radarTexture,
       transparent: true,
-      opacity: 0.85,
+      opacity: 0.72,
       blending: THREE.NormalBlending,
       depthWrite: false,
     });
@@ -826,19 +1041,35 @@ export default function Globo3D({
     }
     globeGroup.add(cloudsMesh);
 
+    // Mostra subito nuvole statiche pulite mentre RainViewer carica i tasselli radar
+    applyStaticCloudsFallback();
+
     const refreshRealRadarOverlay = async () => {
       try {
         const result = await composeRainViewerGlobeCanvas(radarCanvas);
-        if (isAlive && result.tilesLoaded > 0) {
+        if (!isAlive) return;
+        if (result && result.tilesLoaded > 0) {
+          hasRadarTiles = true;
+          cloudsMat.map = radarTexture;
+          cloudsMat.opacity = 0.72;
           radarTexture.needsUpdate = true;
           cloudsMat.needsUpdate = true;
+        } else {
+          applyStaticCloudsFallback();
         }
       } catch {
-        // Fallback silenzioso in assenza rete
+        applyStaticCloudsFallback();
       }
     };
-    refreshRealRadarOverlay();
+    const radarInitTimeout = setTimeout(refreshRealRadarOverlay, 600);
     const radarRefreshInterval = setInterval(refreshRealRadarOverlay, 5 * 60 * 1000);
+
+    // Gruppo badge meteo live (☀️ Sole, ☁️ Nubi, 🌧️ Pioggia, ❄️ Neve, ⛈️ Temporale)
+    const weatherMarkersGroup = new THREE.Group();
+    if (initialGeo) {
+      weatherMarkersGroup.visible = false;
+    }
+    globeGroup.add(weatherMarkersGroup);
 
     // Weather state reference inside Three.js
     let weatherEnabled = true;
@@ -846,8 +1077,11 @@ export default function Globo3D({
       const next = typeof forceValue === 'boolean' ? forceValue : !weatherEnabled;
       weatherEnabled = next;
       setIsWeatherActive(next);
+      if (next) setShowWeatherLegend(true);
       if (!isPoliticalActiveRef.current) {
         cloudsMesh.visible = next;
+        softCloudsMesh.visible = next;
+        weatherMarkersGroup.visible = next;
       }
       return next;
     };
@@ -871,6 +1105,8 @@ export default function Globo3D({
 
     if (initialGeo) {
       cloudsMesh.visible = false;
+      softCloudsMesh.visible = false;
+      weatherMarkersGroup.visible = false;
       atmosMesh.visible = false;
       sunLight.intensity = 0.95;
       spaceAmbient.intensity = 0.85;
@@ -935,12 +1171,16 @@ export default function Globo3D({
           atmosMesh.visible = !nextActive;
           if (nextActive) {
             cloudsMesh.visible = false;
+            softCloudsMesh.visible = false;
+            weatherMarkersGroup.visible = false;
             atmosMesh.visible = false;
             sunLight.intensity = 0.95;
             spaceAmbient.intensity = 0.85;
             cyanRimLight.intensity = 0.15;
           } else {
             cloudsMesh.visible = weatherEnabled;
+            softCloudsMesh.visible = weatherEnabled;
+            weatherMarkersGroup.visible = weatherEnabled;
             atmosMesh.visible = true;
             sunLight.intensity = 1.25;
             spaceAmbient.intensity = 0.75;
@@ -1012,7 +1252,7 @@ export default function Globo3D({
       createdResources.push({ geo: orbitGeo, mat: orbitMat });
 
       // 2. Modello ingegneristico 3D del veicolo spaziale
-      const { craftGroup, clickables, strobeBeacons, radarPulse } = buildEngineeredSpacecraft(
+      const { craftGroup, clickables, strobeBeacons, radarPulse, lightMode } = buildEngineeredSpacecraft(
         sat,
         sharedAerospaceMaterials,
         textureLoader
@@ -1034,6 +1274,7 @@ export default function Globo3D({
         orbitLine,
         strobeBeacons: strobeBeacons || [],
         radarPulse,
+        lightMode,
         angle: sat.startAngle ?? sat.angle ?? 0,
         orbitRadius: sat.orbitRadius,
         inclination: sat.inclination,
@@ -1068,19 +1309,20 @@ export default function Globo3D({
     });
 
     COUNTRIES.forEach((country) => {
+      if (!isValidCoord(country.lat, country.lng)) return;
       const countryItems = countryListingsMap.get(country.id) || [];
       const listingsCount = countryItems.length;
 
       // Mostriamo la bandiera se ci sono annunci nel paese, oppure per i paesi pioniere principali
-      const isKeyHub = ['it', 'fr', 'es', 'de', 'gb', 'ch', 'us', 'jp', 'eg', 'za', 'ng', 'ke', 'ma', 'gh', 'ci', 'sn', 'dz', 'tn'].includes(country.id);
+      const isKeyHub = ['it', 'fr', 'es', 'de', 'gb', 'ch', 'us', 'jp', 'eg', 'za', 'ng', 'ke', 'ma', 'gh', 'ci', 'sn', 'dz', 'tn', 'cg', 'cd'].includes(country.id);
       if (listingsCount === 0 && !isKeyHub) return;
 
       const pos = convertiCoordinate(country.lat, country.lng, raggioGlobo);
       const normal = pos.clone().normalize();
 
       const isSelected = selectedCountryId === country.id;
-      // Bianco e Verde Neon ad alto contrasto (#00ff66)
-      const pinColor = isSelected ? 0x00ff66 : (country.id === 'it' ? 0x00ff66 : 0xffffff);
+      // Bianco e Verde Neon ad alto contrasto (#00ff66 quando selezionato)
+      const pinColor = isSelected ? 0x00ff66 : 0xffffff;
 
       // 1. Perno verticale 3D ancorato alla superficie terrestre
       const stemHeight = 2.8;
@@ -1131,22 +1373,26 @@ export default function Globo3D({
       }
     });
 
-    // B) MARKER PUNTUALI PER GLI ANNUNCI FILTRATI
-    const activeListingsList = (listings && Array.isArray(listings)) ? listings : [];
+    // B) MARKER PUNTUALI PER GLI ANNUNCI (con tracciamento per filtro dinamico)
+    const activeListingsList = (allListings && allListings.length > 0)
+      ? allListings
+      : (listings && Array.isArray(listings) ? listings : []);
+    globeListingEntriesRef.current = [];
+    globeMerchantGroupsRef.current = [];
+    globeChatGroupsRef.current = [];
 
-    activeListingsList.forEach((listing) => {
-      if (typeof listing.lat !== 'number' || typeof listing.lng !== 'number') return;
+    activeListingsList.forEach((listing, lIdx) => {
+      if (!isValidCoord(listing.lat, listing.lng)) return;
 
       const pos = convertiCoordinate(listing.lat, listing.lng, raggioGlobo);
       const normal = pos.clone().normalize();
+      const listingGroup = new THREE.Group();
+      nationalMarkersGroup.add(listingGroup);
 
       const isCarpool = listing.subcategory === 'trasferte_passaggi_carpool' || 
         (listing.tags && listing.tags.some(t => /trasfert|carpool|passagg/i.test(t))) ||
         /trasfert|carpool|passagg/i.test(listing.title || '');
       const isSell = (listing.intent === 'VENDO' || listing.action_type === 'vendo') && !isCarpool;
-      const isCerco = (listing.intent === 'ACQUISTO_CERCO' || listing.intent === 'CERCO' || listing.action_type === 'acquisto_cerco') && !isCarpool;
-      const isSwap = (listing.intent === 'BARATTO_SCAMBIO' || listing.action_type === 'baratto' || listing.action_type === 'baratto_scambio') && !isCarpool;
-      const isBook = listing.category === 'libri_scuola_cultura' && !isCarpool;
       const isService = (listing.intent === 'OFFRO_SERVIZIO' || listing.category === 'servizi_lavoro_buoni') && !isCarpool;
 
       // Palette rigorosa Bianco e Verde Neon (#00ff66) per gli annunci
@@ -1162,7 +1408,7 @@ export default function Globo3D({
       stemMesh.position.copy(stemPos);
       stemMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
       stemMesh.userData = { isListingMarker: true, listing, name: listing.title, lat: listing.lat, lng: listing.lng };
-      nationalMarkersGroup.add(stemMesh);
+      listingGroup.add(stemMesh);
       clickableNodes.push(stemMesh);
       createdResources.push({ geo: stemGeo, mat: stemMat });
 
@@ -1172,7 +1418,7 @@ export default function Globo3D({
       const pinHeadMesh = new THREE.Mesh(pinHeadGeo, pinHeadMat);
       pinHeadMesh.position.copy(pos.clone().add(normal.clone().multiplyScalar(stemHeight)));
       pinHeadMesh.userData = { isListingMarker: true, listing, name: listing.title, lat: listing.lat, lng: listing.lng };
-      nationalMarkersGroup.add(pinHeadMesh);
+      listingGroup.add(pinHeadMesh);
       clickableNodes.push(pinHeadMesh);
       createdResources.push({ geo: pinHeadGeo, mat: pinHeadMat });
 
@@ -1188,16 +1434,22 @@ export default function Globo3D({
       const baseRing = new THREE.Mesh(baseRingGeo, baseRingMat);
       baseRing.position.copy(pos.clone().add(normal.clone().multiplyScalar(0.2)));
       baseRing.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
-      nationalMarkersGroup.add(baseRing);
+      listingGroup.add(baseRing);
       pulsingRings.push({ ring: baseRing, baseScale: 1.0 });
       createdResources.push({ geo: baseRingGeo, mat: baseRingMat });
 
       // 4. Badge compatto descrittivo dell'annuncio (Billboard 3D)
       const { sprite, texture, material } = createListingSprite(listing);
       sprite.position.copy(pos.clone().add(normal.clone().multiplyScalar(stemHeight + 1.6)));
-      nationalMarkersGroup.add(sprite);
+      listingGroup.add(sprite);
       clickableNodes.push(sprite);
       createdResources.push({ texture, mat: material });
+
+      globeListingEntriesRef.current.push({
+        id: listing.id ?? `listing_${lIdx}`,
+        group: listingGroup,
+        sprite,
+      });
     });
 
     // C) SISTEMA PIN COMMERCIANTI & PUBBLICITÀ (STANDARD UFFICIALE A 3 CATEGORIE)
@@ -1206,8 +1458,11 @@ export default function Globo3D({
     // 3. DOPPIO ANELLO: Attività che utilizzano Pi E pubblicizzano
     const currentBizList = sponsoredBusinessesRef.current || SPONSORED_BUSINESSES;
     currentBizList.forEach((biz) => {
-      if (typeof biz.lat !== 'number' || typeof biz.lng !== 'number') return;
+      if (!isValidCoord(biz.lat, biz.lng)) return;
       const pinVisual = classifyMerchantPin(biz);
+
+      const merchantGroup = new THREE.Group();
+      nationalMarkersGroup.add(merchantGroup);
 
       const pos = convertiCoordinate(biz.lat, biz.lng, raggioGlobo);
       const normal = pos.clone().normalize();
@@ -1229,7 +1484,7 @@ export default function Globo3D({
       stemMesh.position.copy(stemPos);
       stemMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
       stemMesh.userData = { isMerchantPin: true, biz, pinVisual, name: biz.name, lat: biz.lat, lng: biz.lng };
-      nationalMarkersGroup.add(stemMesh);
+      merchantGroup.add(stemMesh);
       clickableNodes.push(stemMesh);
       createdResources.push({ geo: stemGeo, mat: stemMat });
 
@@ -1239,7 +1494,7 @@ export default function Globo3D({
       const pinHeadMesh = new THREE.Mesh(pinHeadGeo, pinHeadMat);
       pinHeadMesh.position.copy(pos.clone().add(normal.clone().multiplyScalar(stemHeight)));
       pinHeadMesh.userData = { isMerchantPin: true, biz, pinVisual, name: biz.name, lat: biz.lat, lng: biz.lng };
-      nationalMarkersGroup.add(pinHeadMesh);
+      merchantGroup.add(pinHeadMesh);
       clickableNodes.push(pinHeadMesh);
       createdResources.push({ geo: pinHeadGeo, mat: pinHeadMat });
 
@@ -1257,7 +1512,7 @@ export default function Globo3D({
         const outerRing = new THREE.Mesh(outerRingGeo, outerRingMat);
         outerRing.position.copy(pos.clone().add(normal.clone().multiplyScalar(0.25)));
         outerRing.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
-        nationalMarkersGroup.add(outerRing);
+        merchantGroup.add(outerRing);
         pulsingRings.push({ ring: outerRing, baseScale: 1.1 });
         createdResources.push({ geo: outerRingGeo, mat: outerRingMat });
 
@@ -1272,7 +1527,7 @@ export default function Globo3D({
         const innerRing = new THREE.Mesh(innerRingGeo, innerRingMat);
         innerRing.position.copy(pos.clone().add(normal.clone().multiplyScalar(0.28)));
         innerRing.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
-        nationalMarkersGroup.add(innerRing);
+        merchantGroup.add(innerRing);
         pulsingRings.push({ ring: innerRing, baseScale: 0.9 });
         createdResources.push({ geo: innerRingGeo, mat: innerRingMat });
       } else {
@@ -1288,7 +1543,7 @@ export default function Globo3D({
         const baseRing = new THREE.Mesh(baseRingGeo, baseRingMat);
         baseRing.position.copy(pos.clone().add(normal.clone().multiplyScalar(0.22)));
         baseRing.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
-        nationalMarkersGroup.add(baseRing);
+        merchantGroup.add(baseRing);
         pulsingRings.push({ ring: baseRing, baseScale: 1.0 });
         createdResources.push({ geo: baseRingGeo, mat: baseRingMat });
         if (isPiOnly) {
@@ -1296,18 +1551,23 @@ export default function Globo3D({
         }
       }
 
-      // 4. Cartello 3D descrittivo dell'attività (Billboard Sprite)
+      // 4. Cartello 3D descrittivo dell'attività (Billboard Sprite) - nascosto nella vista neutra per evitare mucchi
       const { sprite, texture, material } = createMerchantSprite(biz, pinVisual);
       sprite.position.copy(pos.clone().add(normal.clone().multiplyScalar(stemHeight + 1.8)));
-      nationalMarkersGroup.add(sprite);
+      sprite.visible = activeChannelRef.current === 'BUSINESS_ADS';
+      merchantGroup.add(sprite);
       clickableNodes.push(sprite);
       createdResources.push({ texture, mat: material });
+      globeMerchantGroupsRef.current.push({ group: merchantGroup, sprite });
     });
 
     // D) CANALE CHAT: UTENTI ATTIVI PIONEER CON SIMBOLI 👨 E 👩
     const chatUsersList = activeChatUsersRef.current || ACTIVE_CHAT_USERS;
     chatUsersList.forEach((user) => {
-      if (typeof user.lat !== 'number' || typeof user.lng !== 'number') return;
+      if (!isValidCoord(user.lat, user.lng)) return;
+
+      const chatGroup = new THREE.Group();
+      nationalMarkersGroup.add(chatGroup);
 
       const pos = convertiCoordinate(user.lat, user.lng, raggioGlobo);
       const normal = pos.clone().normalize();
@@ -1322,7 +1582,7 @@ export default function Globo3D({
       stemMesh.position.copy(stemPos);
       stemMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
       stemMesh.userData = { isChatUserPin: true, user, name: user.displayName, lat: user.lat, lng: user.lng };
-      nationalMarkersGroup.add(stemMesh);
+      chatGroup.add(stemMesh);
       clickableNodes.push(stemMesh);
       createdResources.push({ geo: stemGeo, mat: stemMat });
 
@@ -1338,17 +1598,34 @@ export default function Globo3D({
       const userRing = new THREE.Mesh(userRingGeo, userRingMat);
       userRing.position.copy(pos.clone().add(normal.clone().multiplyScalar(0.2)));
       userRing.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
-      nationalMarkersGroup.add(userRing);
+      chatGroup.add(userRing);
       pulsingRings.push({ ring: userRing, baseScale: 1.0 });
       createdResources.push({ geo: userRingGeo, mat: userRingMat });
 
-      // Badge con simbolo 👨 Uomo o 👩 Donna
+      // Badge con simbolo 👨 Uomo o 👩 Donna - nascosto nella vista neutra per tenere il globo pulito
       const { sprite, texture, material } = createChatUserSprite(user);
       sprite.position.copy(pos.clone().add(normal.clone().multiplyScalar(stemHeight + 1.6)));
-      nationalMarkersGroup.add(sprite);
+      sprite.visible = activeChannelRef.current === 'CHAT';
+      chatGroup.add(sprite);
       clickableNodes.push(sprite);
       createdResources.push({ texture, mat: material });
+      globeChatGroupsRef.current.push({ group: chatGroup, sprite });
     });
+
+    // E) BADGE METEO LIVE SUI PRINCIPALI HUB MONDIALI E ITALIANI (☀️, ☁️, 🌧️, ❄️, ⛈️)
+    getGlobalHubWeatherSnapshots().then((snapshots) => {
+      if (!isAlive || !Array.isArray(snapshots)) return;
+      snapshots.forEach((snap) => {
+        if (!isValidCoord(snap.lat, snap.lng)) return;
+        const pos = convertiCoordinate(snap.lat, snap.lng, raggioGlobo);
+        const normal = pos.clone().normalize();
+        const { sprite, texture, material } = createWeatherHubSprite(snap);
+        sprite.position.copy(pos.clone().add(normal.clone().multiplyScalar(2.4)));
+        weatherMarkersGroup.add(sprite);
+        clickableNodes.push(sprite);
+        createdResources.push({ texture, mat: material });
+      });
+    }).catch(() => {});
 
     // 11B. RETICOLO VISIVO 3D DI INDIVIDUAZIONE ZONA (Target Reticle)
     const zoneReticleGroup = new THREE.Group();
@@ -1392,7 +1669,7 @@ export default function Globo3D({
     );
 
     const positionZoneReticle = (country) => {
-      if (!country) {
+      if (!country || !isValidCoord(country.lat, country.lng)) {
         zoneReticleGroup.visible = false;
         return;
       }
@@ -1444,7 +1721,7 @@ export default function Globo3D({
     // Funzione Reset "Mondo": riporta la telecamera alla vista macro globale intera
     const flyToGlobalView = (showToast = true) => {
       zoneReticleGroup.visible = false;
-      setActiveZone(null);
+      setActiveZoneSynced(null);
       setIsZoomingIn(false);
 
       flyTo(defaultCameraPos, defaultCameraTarget, 950, () => {
@@ -1465,9 +1742,9 @@ export default function Globo3D({
 
     // Funzione Fly-To su un paese o annuncio specifico con ingrandimento concreto
     const flyToCountry = (country, onArrivedCallback = null, triggerZoneArrival = true) => {
-      if (!country) return;
+      if (!country || !isValidCoord(country.lat, country.lng)) return;
       positionZoneReticle(country);
-      setActiveZone(country);
+      setActiveZoneSynced(country);
       setIsZoomingIn(true);
 
       const countryPos = convertiCoordinate(country.lat, country.lng, raggioGlobo);
@@ -1476,8 +1753,8 @@ export default function Globo3D({
       const worldPos = globeGroup.localToWorld(countryPos.clone());
       const direction = worldPos.clone().normalize();
 
-      // INGRANDIMENTO CONCRETO: telecamera scende a quota ravvicinata (~74 vs raggio 60) per visualizzare grandi e chiari nazioni e territori
-      const targetPos = direction.multiplyScalar(74);
+      // INGRANDIMENTO NITIDO: distanza 86 (vs raggio 60) per vedere chiaramente continente/nazione senza sgranare la texture
+      const targetPos = direction.multiplyScalar(86);
       const targetLookAt = new THREE.Vector3(0, 0, 0);
 
       flyTo(targetPos, targetLookAt, 1050, () => {
@@ -1503,7 +1780,7 @@ export default function Globo3D({
       }
 
       zoneReticleGroup.visible = false;
-      setActiveZone(null);
+      setActiveZoneSynced(null);
 
       // Calcola posizione orbitale reale del satellite
       globeGroup.updateMatrixWorld(true);
@@ -1526,15 +1803,27 @@ export default function Globo3D({
     };
     flyToSatelliteRef.current = flyToSatellite;
 
-    // Zoom manuale incrementale controllato (avvicina/allontana senza MAI resettare)
+    // Zoom manuale incrementale controllato (avvicina/allontana senza MAI resettare o applicare fallback su Roma)
     const zoomInManual = () => {
       if (!camera || !controls) return;
       const dir = camera.position.clone().sub(controls.target).normalize();
       const currentDist = camera.position.distanceTo(controls.target);
 
-      // Se siamo già vicini al globo, ingrandisci passando alla cartina con edifici 3D
-      if (currentDist <= 76 && onEnterUrban3DRef.current) {
-        const target = activeZone || { lat: 41.8902, lng: 12.4922, name: 'Roma', countryName: 'Italia', flag: '🇮🇹' };
+      // Se siamo già vicini al globo, ingrandisci passando alla cartina con edifici 3D sul territorio attivo o centrato
+      if (currentDist <= 88 && onEnterUrban3DRef.current) {
+        globeGroup.updateMatrixWorld(true);
+        const camLocal = globeGroup.worldToLocal(camera.position.clone()).normalize();
+        const centerLat = 90 - Math.acos(Math.max(-1, Math.min(1, camLocal.y))) * (180 / Math.PI);
+        const centerLng = ((Math.atan2(camLocal.z, -camLocal.x) * (180 / Math.PI)) - 180 + 540) % 360 - 180;
+        const target = resolveGlobeUrbanTarget({
+          activeZone: activeZoneRef.current,
+          selectedCountryId: selectedCountryIdRef.current,
+          fallbackCoords: { lat: centerLat, lng: centerLng },
+        });
+        if (!target) {
+          toast.info('🌍 Seleziona prima un Paese o tocca un punto sul globo per aprire gli edifici 3D');
+          return;
+        }
         toast.info(`🏙️ Ingrandimento Edifici 3D: Apertura vista urbana su ${target.name}...`);
         onEnterUrban3DRef.current(target);
         return;
@@ -1606,9 +1895,13 @@ export default function Globo3D({
       lastTapY = clientY;
 
       if (isDoubleTap) {
-        if (activeZone && onEnterUrban3DRef.current) {
-          toast.info(`🏙️ Ingrandimento su ${activeZone.name}: Apertura mappa dettagliata...`);
-          onEnterUrban3DRef.current(activeZone);
+        const currentZone = resolveGlobeUrbanTarget({
+          activeZone: activeZoneRef.current,
+          selectedCountryId: selectedCountryIdRef.current,
+        });
+        if (currentZone && onEnterUrban3DRef.current) {
+          toast.info(`🏙️ Ingrandimento su ${currentZone.name}: Apertura mappa dettagliata...`);
+          onEnterUrban3DRef.current(currentZone);
           return;
         } else {
           zoomInManual();
@@ -1707,6 +2000,22 @@ export default function Globo3D({
             return;
           }
 
+          // Se è un badge meteo live sul globo
+          if (markerObj.userData && markerObj.userData.isWeatherMarker && markerObj.userData.weather) {
+            const snap = markerObj.userData.weather;
+            toast.info(`${snap.icon} ${snap.name}: ${snap.shortLabel} (${snap.temp}°C)`, {
+              description: 'Condizioni meteo reali rilevate in diretta da Open-Meteo',
+            });
+            flyToCountry({
+              lat: snap.lat,
+              lng: snap.lng,
+              name: snap.name,
+              flag: snap.icon,
+              description: `Meteo Live: ${snap.shortLabel} • ${snap.temp}°C`,
+            }, null, false);
+            return;
+          }
+
           const countryData = markerObj.userData;
           if (countryData && countryData.name) {
             const markerWorldPos = new THREE.Vector3();
@@ -1795,7 +2104,7 @@ export default function Globo3D({
           togglePoliticalRevealRef.current(true);
         }
         positionZoneReticle(resolvedCountry);
-        setActiveZone(resolvedCountry);
+        setActiveZoneSynced(resolvedCountry);
         flyToCountry(resolvedCountry, (c) => {
           if (onCountrySelectRef.current) {
             onCountrySelectRef.current(c);
@@ -1813,7 +2122,7 @@ export default function Globo3D({
           togglePoliticalRevealRef.current(true);
         }
         positionZoneReticle(targetCountryData);
-        setActiveZone(targetCountryData);
+        setActiveZoneSynced(targetCountryData);
         flyToCountry(targetCountryData, (c) => {
           if (onCountrySelectRef.current) {
             onCountrySelectRef.current(c);
@@ -1870,7 +2179,6 @@ export default function Globo3D({
 
     // 14. ANIMATION LOOP & ROTAZIONE FLUIDA
     let animationId;
-    let isAlive = true;
     const MACRO_ZOOM_THRESHOLD = 118; // Soglia tra vista macro globale e ingrandimento
 
     const animate = () => {
@@ -1923,6 +2231,13 @@ export default function Globo3D({
       const canAutoRotate = !isUserInteracting && !isFlying;
       if (canAutoRotate) {
         globeGroup.rotation.y += 0.0007; // Rotazione cinematografica lenta e morbida
+      }
+
+      // Dissolvenza morbida del radar allo zoom ravvicinato per evitare blocchi pixelati giganti
+      const radarZoomFade = THREE.MathUtils.clamp((currentCameraDist - 85) / 35, 0.14, 1.0);
+      if (weatherEnabled && !isPoliticalActiveRef.current) {
+        cloudsMat.opacity = (hasRadarTiles ? 0.72 : 0.22) * radarZoomFade;
+        softCloudsMat.opacity = 0.38 * (0.45 + 0.55 * radarZoomFade);
       }
 
       // Lo strato radar reale RainViewer resta ancorato alle coordinate geografiche di globeGroup
@@ -1989,16 +2304,22 @@ export default function Globo3D({
         sat.craftGroup.quaternion.setFromRotationMatrix(matrix);
 
         if (sat.radarPulse) {
-          sat.pulsePhase = (sat.pulsePhase || 0) + 0.035;
-          const s = 1.0 + (Math.sin(sat.pulsePhase) + 1) * 0.14;
+          sat.pulsePhase = (sat.pulsePhase || 0) + (sat.lightMode === 'BRIGHT' ? 0.045 : 0.035);
+          const s = 1.0 + (Math.sin(sat.pulsePhase) + 1) * (sat.lightMode === 'BRIGHT' ? 0.2 : 0.14);
           sat.radarPulse.scale.set(s, s, s);
           if (sat.radarPulse.material) {
-            sat.radarPulse.material.opacity = Math.max(0.08, 0.5 - (s - 1.0) * 1.5);
+            sat.radarPulse.material.opacity =
+              sat.lightMode === 'NORMAL'
+                ? 0.08
+                : Math.max(0.08, (sat.lightMode === 'BRIGHT' ? 0.62 : 0.45) - (s - 1.0) * 1.3);
           }
         }
+        // Solo i satelliti BLINKING (METEO_SAT e STREET_360_SAT) lampeggiano ON/OFF;
+        // i satelliti BRIGHT e NORMAL restano accesi in modo continuo.
         if (sat.strobeBeacons && sat.strobeBeacons.length > 0) {
+          const shouldBlink = sat.lightMode === 'BLINKING';
           sat.strobeBeacons.forEach((b) => {
-            b.visible = strobeOn;
+            b.visible = shouldBlink ? strobeOn : true;
           });
         }
       });
@@ -2036,6 +2357,7 @@ export default function Globo3D({
     // 16. CLEANUP UNMOUNT
     return () => {
       isAlive = false;
+      clearTimeout(radarInitTimeout);
       clearInterval(radarRefreshInterval);
       cancelAnimationFrame(animationId);
       if (flyAnimationId) cancelAnimationFrame(flyAnimationId);
@@ -2063,7 +2385,13 @@ export default function Globo3D({
       politicalTexture.dispose();
       cloudsGeo.dispose();
       cloudsMat.dispose();
+      softCloudsGeo.dispose();
+      softCloudsMat.dispose();
+      softCloudsTexture.dispose();
       radarTexture.dispose();
+      if (staticCloudsTexture) {
+        staticCloudsTexture.dispose();
+      }
       starsGeo.dispose();
       starsMat.dispose();
 
@@ -2078,6 +2406,39 @@ export default function Globo3D({
       }
     };
   }, []); // Dipendenze vuote: la scena Three.js e OrbitControls restano stabili senza MAI resettare la vista durante lo zoom
+
+  // Sincronizzazione reattiva dei marker e dei cartellini flottanti sul globo 3D
+  useEffect(() => {
+    const allowedIds = new Set((listings || []).map((item) => item.id));
+    const isChatOnly = activeChannel === 'CHAT';
+    const isBusinessOnly = activeChannel === 'BUSINESS_ADS';
+    const hasChannelFilter = Boolean(activeChannel);
+
+    globeListingEntriesRef.current.forEach(({ id, group, sprite }) => {
+      if (!group) return;
+      if (isChatOnly || isBusinessOnly) {
+        group.visible = false;
+      } else if (hasChannelFilter) {
+        group.visible = allowedIds.has(id);
+        if (sprite) sprite.visible = true;
+      } else {
+        group.visible = true;
+        if (sprite) sprite.visible = allowedIds.size <= 6;
+      }
+    });
+
+    globeMerchantGroupsRef.current.forEach(({ group, sprite }) => {
+      if (!group) return;
+      group.visible = !hasChannelFilter || isBusinessOnly;
+      if (sprite) sprite.visible = isBusinessOnly;
+    });
+
+    globeChatGroupsRef.current.forEach(({ group, sprite }) => {
+      if (!group) return;
+      group.visible = !hasChannelFilter || isChatOnly;
+      if (sprite) sprite.visible = isChatOnly;
+    });
+  }, [listings, activeChannel]);
 
   // Ascolta trigger esterno di reset al Mondo
   useEffect(() => {
@@ -2103,12 +2464,10 @@ export default function Globo3D({
     }
   }, [isGeoMode]);
 
-  // Se il paese o regione selezionata cambia e flyToCountryRef è pronto, orienta la sfera
+  // Se il paese o regione selezionata cambia e flyToCountryRef è pronto, orienta la sfera (supporta TUTTI i 190+ Paesi inclusi Congo CG/CD)
   useEffect(() => {
     if (selectedCountryId && flyToCountryRef.current) {
-      const match =
-        COUNTRIES.find((c) => c.id === selectedCountryId) ||
-        ITALIAN_REGIONS.find((r) => r.id === selectedCountryId);
+      const match = resolveGlobeCountryById(selectedCountryId);
       if (match) {
         flyToCountryRef.current(match);
       }
@@ -2132,6 +2491,29 @@ export default function Globo3D({
       />
 
 
+
+      {/* LEGENDA METEO COMPATTA IN ALTO A SINISTRA */}
+      {isWeatherActive && !isPoliticalRevealed && showWeatherLegend && (
+        <div className="absolute top-3 left-3 z-20 pointer-events-auto flex items-center gap-2 bg-black/85 border border-zinc-800 rounded-xl px-2.5 py-1.5 text-[10px] font-bold text-zinc-200 shadow-lg max-w-[78vw] overflow-x-auto no-scrollbar">
+          <span className="text-amber-400 whitespace-nowrap">☀️ Sole</span>
+          <span className="text-zinc-600">•</span>
+          <span className="text-slate-300 whitespace-nowrap">☁️ Nubi</span>
+          <span className="text-zinc-600">•</span>
+          <span className="text-sky-400 whitespace-nowrap">🌧️ Pioggia</span>
+          <span className="text-zinc-600">•</span>
+          <span className="text-sky-100 whitespace-nowrap">❄️ Neve</span>
+          <span className="text-zinc-600">•</span>
+          <span className="text-purple-400 whitespace-nowrap">⛈️ Temporale</span>
+          <button
+            type="button"
+            onClick={() => setShowWeatherLegend(false)}
+            className="ml-1 text-zinc-400 hover:text-white cursor-pointer"
+            title="Nascondi legenda meteo"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      )}
 
       {/* DOCK VERTICALE ESSENZIALE (IN ALTO A DESTRA, NERO/BIANCO/NEON SENZA CORNICI APPESANTITE) */}
       <div className="absolute top-4 right-3 sm:right-4 z-20 pointer-events-auto flex flex-col items-center gap-1.5 bg-black/90 p-1.5 rounded-xl border border-zinc-900 shadow-xl">
@@ -2172,7 +2554,14 @@ export default function Globo3D({
           id="btn-globe-to-urban-3d"
           onClick={() => {
             if (onEnterUrban3DRef.current) {
-              const target = activeZone || { lat: 41.8902, lng: 12.4922, name: 'Roma', countryName: 'Italia', flag: '🇮🇹' };
+              const target = resolveGlobeUrbanTarget({
+                activeZone: activeZone || activeZoneRef.current,
+                selectedCountryId: selectedCountryId || selectedCountryIdRef.current,
+              });
+              if (!target) {
+                toast.info('🌍 Seleziona prima un Paese o tocca un punto sul globo per aprire gli edifici 3D');
+                return;
+              }
               toast.info(`🏙️ Apertura Vista Edifici 3D su ${target.name}...`);
               onEnterUrban3DRef.current(target);
             }
@@ -2337,7 +2726,7 @@ export default function Globo3D({
 
               <button
                 onClick={() => {
-                  setActiveZone(null);
+                  setActiveZoneSynced(null);
                   if (positionReticleRef.current) {
                     positionReticleRef.current(null);
                   }

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { checkIsPiBrowser, initPiSdk, authenticateWithPiPortal } from '@/lib/piSdkService';
+import { useAuth } from '@/lib/AuthContext';
 
 interface PiVerificationModalProps {
   isOpen: boolean;
@@ -22,20 +23,24 @@ interface PiVerificationModalProps {
 }
 
 export const PiVerificationModal: React.FC<PiVerificationModalProps> = ({ isOpen, onClose }) => {
+  const { login } = useAuth();
   const [isPiBrowser, setIsPiBrowser] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
   const [authUser, setAuthUser] = useState<{ uid: string; username: string } | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  const APP_URL = 'https://ais-pre-77usxts3xh2oetsnkh426l-523337524085.europe-west3.run.app';
+  const APP_URL =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : 'https://ais-pre-77usxts3xh2oetsnkh426l-523337524085.europe-west3.run.app';
   const VALIDATION_KEY = '41d098c27068bf811f67caeefe5dc094a6304c413d84b17e9e0c5ae364e3af4ac4086bc073ce287d5bdc3f21cdf45a09ea1f1a842d5a6ccd784777aae7a286b7';
 
   useEffect(() => {
     if (isOpen) {
       const inPi = checkIsPiBrowser();
       setIsPiBrowser(inPi);
-      const ready = initPiSdk(true);
+      const ready = initPiSdk();
       setSdkReady(ready);
 
       const savedUser = localStorage.getItem('have2want_pioneer_user');
@@ -60,6 +65,14 @@ export const PiVerificationModal: React.FC<PiVerificationModalProps> = ({ isOpen
       const res = await authenticateWithPiPortal();
       if (res.success && res.user) {
         setAuthUser(res.user);
+        login({
+          id: res.user.uid,
+          uid: res.firebaseUid || res.user.uid,
+          name: res.user.username,
+          username: res.user.username,
+          accessToken: res.accessToken,
+          verified_pioneer: !res.isSimulated,
+        });
         toast.success(`Autenticazione Pi riuscita: ${res.user.username}`);
       } else {
         toast.error(res.error || 'Autenticazione fallita');

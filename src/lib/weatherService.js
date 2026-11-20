@@ -5,6 +5,8 @@
 // - Integrazione radar delle precipitazioni Doppler mondiale in tempo reale con RainViewer API
 // - Separazione esplicita tra rilevazioni osservate, modelli matematici e simulazioni
 
+import { buildApiUrl } from './apiConfig';
+
 const weatherCache = new Map();
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minuti di cache
 
@@ -164,23 +166,230 @@ export async function getRainViewerRadarData() {
     return radarCache;
   }
 
-  try {
-    const res = await fetch('https://api.rainviewer.com/public/weather-maps.json');
-    if (!res.ok) throw new Error(`RainViewer HTTP ${res.status}`);
-    const data = await res.json();
-    radarCache = {
-      host: data.host || 'https://tilecache.rainviewer.com',
-      pastFrames: data.radar?.past || [],
-      nowcastFrames: data.radar?.nowcast || [],
-      satelliteFrames: data.satellite?.infrared || [],
-      generated: data.generated,
-      source: 'RainViewer International Doppler Radar Network',
-    };
-    radarCacheTime = now;
-    return radarCache;
-  } catch (err) {
-    console.warn('[RainViewer] Impossibile recuperare mappa radar precipitazioni:', err);
+  const isBrowserHttp =
+    typeof window !== 'undefined' &&
+    window.location &&
+    typeof window.location.protocol === 'string' &&
+    window.location.protocol.startsWith('http');
+
+  const urlsToTry = isBrowserHttp
+    ? [buildApiUrl('/api/weather/rainviewer'), 'https://api.rainviewer.com/public/weather-maps.json']
+    : ['https://api.rainviewer.com/public/weather-maps.json'];
+
+  for (const endpoint of urlsToTry) {
+    try {
+      const res = await fetch(endpoint);
+      if (!res.ok) continue;
+      const data = await res.json();
+      radarCache = {
+        host: data.host || 'https://tilecache.rainviewer.com',
+        pastFrames: data.radar?.past || [],
+        nowcastFrames: data.radar?.nowcast || [],
+        satelliteFrames: data.satellite?.infrared || [],
+        generated: data.generated,
+        source: 'RainViewer International Doppler Radar Network',
+      };
+      radarCacheTime = now;
+      return radarCache;
+    } catch {
+      // Prova fallback successivo
+    }
+  }
+
+  console.warn('[RainViewer] Impossibile recuperare mappa radar precipitazioni dai gateway disponibili');
+  return null;
+}
+
+function getSeaStateLabel(waveHeightMeters) {
+  if (typeof waveHeightMeters !== 'number' || Number.isNaN(waveHeightMeters)) {
+    return { label: 'Non rilevato', badge: 'N/D', level: 0 };
+  }
+  if (waveHeightMeters < 0.1) return { label: 'Calmo / Piatto', badge: 'Forza 0', level: 1 };
+  if (waveHeightMeters < 0.5) return { label: 'Quasi Calmo / Increspato', badge: 'Forza 1-2', level: 2 };
+  if (waveHeightMeters < 1.25) return { label: 'Poco Mosso', badge: 'Forza 3', level: 3 };
+  if (waveHeightMeters < 2.5) return { label: 'Mosso', badge: 'Forza 4', level: 4 };
+  if (waveHeightMeters < 4.0) return { label: 'Molto Mosso / Agitato', badge: 'Forza 5', level: 5 };
+  return { label: 'Molto Agitato / Grosso', badge: 'Forza 6+', level: 6 };
+}
+
+const marineCache = new Map();
+
+/**
+ * Recupera i dati meteo marini (onde, moto ondoso, periodo e direzione) tramite Open-Meteo Marine API
+ */
+export async function getRealtimeMarineWeather(lat, lng) {
+  if (typeof lat !== 'number' || typeof lng !== 'number' || Number.isNaN(lat) || Number.isNaN(lng)) {
     return null;
+  }
+
+  const roundedLat = Math.round(lat * 100) / 100;
+  const roundedLng = Math.round(lng * 100) / 100;
+  const cacheKey = `marine_${roundedLat},${roundedLng}`;
+  const cached = marineCache.get(cacheKey);
+  const now = Date.now();
+  if (cached && now - cached.timestamp < CACHE_TTL_MS) {
+    return cached.data;
+  }
+
+  try {
+    const url = `https://marine-api.open-meteo.com/v1/marine?latitude=${roundedLat}&longitude=${roundedLng}&current=wave_height,wave_direction,wave_period,wind_wave_height,swell_wave_height&hourly=wave_height,wave_period&forecast_days=2&timezone=auto`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error(`Open-Meteo Marine HTTP ${res.status}`);
+    }
+
+    const json = await res.json();
+    const current = json.current || {};
+    const hasWaveData =
+      typeof current.wave_height === 'number' && !Number.isNaN(current.wave_height);
+
+    const waveHeight = hasWaveData ? Number(current.wave_height.toFixed(2)) : null;
+    const wavePeriod =
+      typeof current.wave_period === 'number' && !Number.isNaN(current.wave_period)
+        ? Number(current.wave_period.toFixed(1))
+        : null;
+    const waveDirectionDeg =
+      typeof current.wave_direction === 'number' && !Number.isNaN(current.wave_direction)
+        ? Math.round(current.wave_direction)
+        : null;
+    const windWaveHeight =
+      typeof current.wind_wave_height === 'number' && !Number.isNaN(current.wind_wave_height)
+        ? Number(current.wind_wave_height.toFixed(2))
+        : null;
+    const swellWaveHeight =
+      typeof current.swell_wave_height === 'number' && !Number.isNaN(current.swell_wave_height)
+        ? Number(current.swell_wave_height.toFixed(2))
+        : null;
+
+    const seaState = getSeaStateLabel(waveHeight);
+    const marineData = {
+      isCoastal: hasWaveData,
+      waveHeight,
+      wavePeriod,
+      waveDirectionDeg,
+      waveDirection: waveDirectionDeg !== null ? getWindDirectionLabel(waveDirectionDeg) : 'Interno / Assente',
+      windWaveHeight,
+      swellWaveHeight,
+      seaState,
+      source: 'Open-Meteo Marine Copernicus EWAM',
+      note: hasWaveData
+        ? `Stato del mare: ${seaState.label}`
+        : 'Località nell\'entroterra: nessun bacino marino diretto alle coordinate selezionate.',
+      lastUpdated: new Date().toISOString(),
+    };
+
+    marineCache.set(cacheKey, { timestamp: now, data: marineData });
+    return marineData;
+  } catch (err) {
+    console.warn('[WeatherService] Impossibile recuperare dati marini:', err);
+    return {
+      isCoastal: false,
+      waveHeight: null,
+      wavePeriod: null,
+      waveDirectionDeg: null,
+      waveDirection: 'Non disponibile',
+      windWaveHeight: null,
+      swellWaveHeight: null,
+      seaState: { label: 'Dati marini non disponibili', badge: 'N/D', level: 0 },
+      source: 'Open-Meteo Marine',
+      note: 'Telemetria marina temporaneamente non raggiungibile o area nell\'entroterra.',
+      lastUpdated: new Date().toISOString(),
+    };
+  }
+}
+
+const GLOBAL_WEATHER_HUBS = [
+  { id: 'roma', name: 'Roma', lat: 41.89, lng: 12.49 },
+  { id: 'milano', name: 'Milano', lat: 45.46, lng: 9.19 },
+  { id: 'palermo', name: 'Palermo', lat: 38.11, lng: 13.36 },
+  { id: 'parigi', name: 'Parigi', lat: 48.85, lng: 2.35 },
+  { id: 'madrid', name: 'Madrid', lat: 40.41, lng: -3.70 },
+  { id: 'londra', name: 'Londra', lat: 51.50, lng: -0.12 },
+  { id: 'berlino', name: 'Berlino', lat: 52.52, lng: 13.40 },
+  { id: 'oslo', name: 'Oslo', lat: 59.91, lng: 10.75 },
+  { id: 'reykjavik', name: 'Reykjavik', lat: 64.14, lng: -21.94 },
+  { id: 'atene', name: 'Atene', lat: 37.98, lng: 23.72 },
+  { id: 'cairo', name: 'Il Cairo', lat: 30.04, lng: 31.23 },
+  { id: 'newyork', name: 'New York', lat: 40.71, lng: -74.00 },
+  { id: 'tokyo', name: 'Tokyo', lat: 35.68, lng: 139.65 },
+  { id: 'sydney', name: 'Sydney', lat: -33.86, lng: 151.20 },
+  { id: 'saopaulo', name: 'San Paolo', lat: -23.55, lng: -46.63 },
+  { id: 'capetown', name: 'Città del Capo', lat: -33.92, lng: 18.42 },
+];
+
+let globalHubsWeatherCache = null;
+let globalHubsWeatherCacheTime = 0;
+
+/**
+ * Recupera in una singola chiamata batch le condizioni reali (Sole/Pioggia/Neve/Temporale) per gli hub globali del Globo 3D
+ */
+export async function getGlobalHubWeatherSnapshots() {
+  const now = Date.now();
+  if (globalHubsWeatherCache && now - globalHubsWeatherCacheTime < 10 * 60 * 1000) {
+    return globalHubsWeatherCache;
+  }
+
+  try {
+    const lats = GLOBAL_WEATHER_HUBS.map((h) => h.lat).join(',');
+    const lngs = GLOBAL_WEATHER_HUBS.map((h) => h.lng).join(',');
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&current=temperature_2m,weather_code,rain,snowfall,is_day`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Open-Meteo Batch HTTP ${res.status}`);
+    const json = await res.json();
+    const list = Array.isArray(json) ? json : [json];
+
+    const snapshots = GLOBAL_WEATHER_HUBS.map((hub, idx) => {
+      const entry = list[idx] || {};
+      const cur = entry.current || {};
+      const code = cur.weather_code ?? 0;
+      const isDay = cur.is_day ?? 1;
+      const cond = interpretWmoCode(code, isDay);
+      const rainMm = cur.rain ?? 0;
+      const snowCm = cur.snowfall ?? 0;
+      const isSnow = snowCm > 0 || cond.category === 'snow';
+      const isStorm = cond.category === 'thunderstorm';
+      const isRain = !isSnow && !isStorm && (rainMm > 0 || cond.category === 'rain' || cond.category === 'drizzle');
+
+      let badgeType = 'clear';
+      let shortLabel = cond.label;
+      if (isStorm) {
+        badgeType = 'storm';
+        shortLabel = 'Temporale';
+      } else if (isSnow) {
+        badgeType = 'snow';
+        shortLabel = 'Neve';
+      } else if (isRain) {
+        badgeType = 'rain';
+        shortLabel = 'Pioggia';
+      } else if (cond.category === 'overcast' || cond.category === 'fog') {
+        badgeType = 'cloudy';
+        shortLabel = cond.category === 'fog' ? 'Nebbia' : 'Nuvoloso';
+      } else if (cond.category === 'partly_cloudy') {
+        badgeType = 'partly_cloudy';
+        shortLabel = 'Poco Nuv.';
+      } else {
+        badgeType = 'clear';
+        shortLabel = isDay ? 'Sole' : 'Sereno';
+      }
+
+      return {
+        ...hub,
+        temp: Math.round(cur.temperature_2m ?? 18),
+        icon: cond.icon,
+        badgeType,
+        shortLabel,
+        isRain,
+        isSnow,
+        isStorm,
+      };
+    });
+
+    globalHubsWeatherCache = snapshots;
+    globalHubsWeatherCacheTime = now;
+    return snapshots;
+  } catch (err) {
+    console.warn('[WeatherService] Snapshot meteo hub globali non disponibile:', err);
+    return [];
   }
 }
 

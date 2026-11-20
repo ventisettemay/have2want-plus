@@ -28,6 +28,7 @@ import {
   REWARDS_CONFIG,
   PioneerRewardsState
 } from '@/lib/communityRewardsService';
+import { useAuth } from '@/lib/AuthContext';
 
 interface PioneerRewardsHubModalProps {
   isOpen: boolean;
@@ -40,6 +41,7 @@ export const PioneerRewardsHubModal: React.FC<PioneerRewardsHubModalProps> = ({
   onClose,
   onOpenCreateListing
 }) => {
+  const { user } = useAuth();
   const [rewardsState, setRewardsState] = useState<PioneerRewardsState>(getPioneerRewardsState);
   const [withdrawAmountPi, setWithdrawAmountPi] = useState<number>(0.50);
   const [targetWalletAddress, setTargetWalletAddress] = useState<string>('');
@@ -105,7 +107,8 @@ export const PioneerRewardsHubModal: React.FC<PioneerRewardsHubModalProps> = ({
       const res = await executePiWithdrawal(
         withdrawAmountPi,
         targetWalletAddress,
-        rewardsState.pioneerUsername
+        rewardsState.pioneerUsername,
+        user?.uid || user?.id || rewardsState.walletId
       );
 
       if (res.success) {

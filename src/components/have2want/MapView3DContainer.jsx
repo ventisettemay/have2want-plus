@@ -15,10 +15,19 @@ import BachecaLavoroP2P from './BachecaLavoroP2P';
 import LiveWeatherModal from './LiveWeatherModal';
 import StreetView360Modal from './StreetView360Modal';
 import SpacecraftInspectorModal from './SpacecraftInspectorModal';
+import { ExternalListings } from './ExternalListings';
 import { COUNTRIES } from '@/data/countries';
 import { SPONSORED_BUSINESSES, ITALIAN_REGIONS } from '@/data/regions';
-import { WORLD_COUNTRIES, formatLocalPrice } from '@/lib/worldAtlas';
-import { getDisplayCoordinates, filterVisibleListings, applyGeoPrivacy } from '@/lib/geoPrivacy';
+import {
+  WORLD_COUNTRIES,
+  WORLD_ATLAS_LOOKUP,
+  findCountryByNameOrCode,
+  handleCountrySelection as selectAtlasCountryTarget,
+  formatLocalPrice,
+  isValidCoord,
+} from '@/lib/worldAtlas';
+import { getCachedPiRealPrice, PI_REAL_PRICE_EUR } from '@/lib/piRealPriceService';
+import { getDisplayCoordinates, filterVisibleListings, applyGeoPrivacy, setDefaultTerritoryCoordinates } from '@/lib/geoPrivacy';
 import { publishShopToCloud, subscribeToCloudShops } from '@/lib/firestoreService';
 import MerchantDetailModal from './MerchantDetailModal';
 import StrettaDiMano from './StrettaDiMano';
@@ -49,37 +58,93 @@ import {
   Minimize2,
 } from 'lucide-react';
 
+function getInitialTargetCoords(selectedCountry) {
+  if (
+    selectedCountry &&
+    typeof selectedCountry.lat === 'number' &&
+    !Number.isNaN(selectedCountry.lat) &&
+    typeof selectedCountry.lng === 'number' &&
+    !Number.isNaN(selectedCountry.lng) &&
+    !(selectedCountry.lat === 0 && selectedCountry.lng === 0)
+  ) {
+    return { lat: selectedCountry.lat, lng: selectedCountry.lng };
+  }
+  return null;
+}
+
 // Helper di risoluzione geografica ad altissima precisione (Atlante Mondiale + Regioni)
-function resolveCountryData(countryData) {
-  if (!countryData) return null;
+export function resolveCountryData(countryInput) {
+  if (!countryInput) return null;
+
+  const countryData =
+    typeof countryInput === 'string'
+      ? { id: countryInput, name: countryInput }
+      : countryInput;
 
   const rawId = (countryData.id || countryData.code || '').toString().toLowerCase().trim();
   const rawName = (countryData.name || '').toString().toLowerCase().trim();
   const rawCountry = (countryData.countryName || countryData.country || '').toString().toLowerCase().trim();
   const rawCapital = (countryData.capital || '').toString().toLowerCase().trim();
 
-  // 1. Cerca in WORLD_COUNTRIES (195+ nazioni del pianeta: Giappone, Marocco, Francia, USA, ecc.)
-  const worldMatch = WORLD_COUNTRIES.find((c) => {
-    const cCode = c.code.toLowerCase();
-    const cCode3 = (c.code3 || '').toLowerCase();
-    const cName = c.name.toLowerCase();
-    const cNative = (c.nativeName || '').toLowerCase();
-    const cCapital = (c.capital || '').toLowerCase();
-
-    return (
-      cCode === rawId ||
-      cCode3 === rawId ||
-      cName === rawName ||
-      cName === rawCountry ||
-      cNative === rawName ||
-      (rawCapital && cCapital === rawCapital) ||
-      (rawName.length >= 3 && cName.includes(rawName)) ||
-      (rawName.length >= 3 && rawName.includes(cName))
-    );
+  // 1. Verifica prima se è una delle 20 Regioni Italiane specifiche (evitando che countryName="Italia" dirotti su Roma)
+  const regMatch = ITALIAN_REGIONS.find((r) => {
+    const rId = (r.id || '').toLowerCase();
+    const rName = (r.name || '').toLowerCase();
+    const rCap = (r.capital || '').toLowerCase();
+    return rId === rawId || rName === rawName || (rawCapital && rCap === rawCapital);
   });
 
-  if (worldMatch) {
+  if (regMatch && rawName !== 'italia') {
     return {
+      id: regMatch.id || 'it-reg',
+      code: 'IT',
+      name: regMatch.name,
+      countryName: 'Italia',
+      capital: regMatch.capital || 'Roma',
+      flag: '🇮🇹',
+      lat: regMatch.lat,
+      lng: regMatch.lng,
+      lang: 'Italiano',
+      currency: 'EUR (€)',
+      language: { code: 'it-IT', name: 'Italiano' },
+      currencyData: {
+        code: 'EUR',
+        symbol: '€',
+        name: 'Euro',
+        piRate: getCachedPiRealPrice()?.priceEur || PI_REAL_PRICE_EUR,
+      },
+      timezone: 'Europe/Rome',
+      regions: regMatch.regions || [],
+      provinces: regMatch.provinces || [],
+    };
+  }
+
+  // 2. Cerca in WORLD_COUNTRIES (include tutti i 54 Stati africani, Norvegia, USA, alias inglesi, ecc.)
+  const worldMatch =
+    findCountryByNameOrCode(rawId) ||
+    findCountryByNameOrCode(rawName) ||
+    WORLD_COUNTRIES.find((c) => {
+      const cCode = c.code.toLowerCase();
+      const cCode3 = (c.code3 || '').toLowerCase();
+      const cName = c.name.toLowerCase();
+      const cNative = (c.nativeName || '').toLowerCase();
+      const cCapital = (c.capital || '').toLowerCase();
+
+      return (
+        cCode === rawId ||
+        cCode3 === rawId ||
+        cName === rawName ||
+        cNative === rawName ||
+        (rawCapital && cCapital === rawCapital) ||
+        (rawName.length >= 3 && cName.includes(rawName)) ||
+        (rawName.length >= 3 && rawName.includes(cName))
+      );
+    }) ||
+    findCountryByNameOrCode(rawCountry);
+
+  if (worldMatch && !(worldMatch.lat === 0 && worldMatch.lng === 0)) {
+    return {
+      ...worldMatch,
       id: worldMatch.code.toLowerCase(),
       code: worldMatch.code,
       name: worldMatch.name,
@@ -93,32 +158,8 @@ function resolveCountryData(countryData) {
       language: worldMatch.language,
       currencyData: worldMatch.currency,
       timezone: worldMatch.timezone,
-    };
-  }
-
-  // 2. Cerca nelle 20 Regioni Italiane
-  const regMatch = ITALIAN_REGIONS.find((r) => {
-    const rId = (r.id || '').toLowerCase();
-    const rName = (r.name || '').toLowerCase();
-    const rCap = (r.capital || '').toLowerCase();
-    return rId === rawId || rName === rawName || (rawCapital && rCap === rawCapital);
-  });
-
-  if (regMatch) {
-    return {
-      id: regMatch.id || 'it-reg',
-      code: 'IT',
-      name: regMatch.name,
-      countryName: 'Italia',
-      capital: regMatch.capital || 'Roma',
-      flag: '🇮🇹',
-      lat: regMatch.lat,
-      lng: regMatch.lng,
-      lang: 'Italiano',
-      currency: 'EUR (€)',
-      language: { code: 'it-IT', name: 'Italiano' },
-      currencyData: { code: 'EUR', symbol: '€', name: 'Euro', piRate: 0.0674 },
-      timezone: 'Europe/Rome',
+      regions: worldMatch.regions || [],
+      provinces: worldMatch.provinces || [],
     };
   }
 
@@ -144,6 +185,8 @@ function resolveCountryData(countryData) {
       language: { name: countryMatch.lang || 'Italiano' },
       currencyData: { code: countryMatch.currency || 'EUR', symbol: '€' },
       timezone: 'UTC',
+      regions: countryMatch.regions || [],
+      provinces: countryMatch.provinces || [],
     };
   }
 
@@ -169,26 +212,68 @@ function resolveCountryData(countryData) {
         { name: 'Kenya', capital: 'Nairobi', lat: -1.2921, lng: 36.8219 },
         { name: 'Sudafrica', capital: 'Città del Capo', lat: -33.9249, lng: 18.4241 },
         { name: 'Marocco', capital: 'Rabat', lat: 34.0209, lng: -6.8416 },
-      ]
+      ],
+      provinces: [],
     };
   }
 
-  // 5. Fallback sicuro mantenendo intatti i dati reali ricevuti
+  // 5. Nessun fallback silenzioso su Roma per territori sconosciuti o con coordinate (0,0)
+  const hasExplicitValidCoords =
+    typeof countryData.lat === 'number' &&
+    !Number.isNaN(countryData.lat) &&
+    typeof countryData.lng === 'number' &&
+    !Number.isNaN(countryData.lng) &&
+    !(countryData.lat === 0 && countryData.lng === 0);
+
+  if (!hasExplicitValidCoords) {
+    try {
+      const atlasHit = selectAtlasCountryTarget(
+        countryData.name || countryData.countryName || rawId,
+        WORLD_ATLAS_LOOKUP
+      );
+      if (atlasHit?.success && atlasHit.target) {
+        return {
+          id: rawId || atlasHit.target.name.toLowerCase(),
+          code: (countryData.code || rawId || 'XX').toUpperCase(),
+          name: atlasHit.target.name,
+          countryName: atlasHit.target.name,
+          capital: countryData.capital || '',
+          flag: countryData.flag || '🌍',
+          lat: atlasHit.target.lat,
+          lng: atlasHit.target.lng,
+          zoom: atlasHit.target.zoom,
+          lang: countryData.lang || 'Lingua Locale',
+          currency: countryData.currency || 'Valuta Locale',
+          language: countryData.language || { name: countryData.lang || 'Lingua Locale' },
+          currencyData: countryData.currencyData || { code: 'VAL', symbol: 'π' },
+          timezone: countryData.timezone || 'UTC',
+          regions: countryData.regions || [],
+          provinces: countryData.provinces || [],
+        };
+      }
+    } catch (err) {
+      console.error('[ERRORE ATLANTE] Risoluzione bloccata senza fallback su Roma:', err?.message || err);
+      return null;
+    }
+    return null;
+  }
+
   return {
-    id: countryData.id || 'custom',
-    code: countryData.code || 'GLOBO',
-    name: countryData.name || 'Territorio',
-    countryName: countryData.countryName || countryData.name || 'Territorio',
+    id: countryData.id || rawId || 'unknown',
+    code: countryData.code || rawId.toUpperCase() || 'XX',
+    name: countryData.name || rawId || 'Territorio',
+    countryName: countryData.countryName || countryData.name || rawId || 'Territorio',
     capital: countryData.capital || '',
     flag: countryData.flag || '🌍',
-    lat: countryData.lat ?? 0,
-    lng: countryData.lng ?? 0,
+    lat: countryData.lat,
+    lng: countryData.lng,
     lang: countryData.lang || 'Lingua Locale',
     currency: countryData.currency || 'Valuta Locale',
     language: countryData.language || { name: countryData.lang || 'Lingua Locale' },
     currencyData: countryData.currencyData || { code: 'VAL', symbol: 'π' },
     timezone: countryData.timezone || 'UTC',
-    regions: countryData.regions,
+    regions: countryData.regions || [],
+    provinces: countryData.provinces || [],
   };
 }
 
@@ -246,13 +331,13 @@ export default function MapView3DContainer({
   const [internalResetTrigger, setInternalResetTrigger] = useState(0);
   const [zoomMode, setZoomMode] = useState('MACRO');
 
-  const [targetCoords, setTargetCoords] = useState({ lat: 41.8902, lng: 12.4922 }); // Default Roma, Italia
+  // Modulo Geografico: Paese selezionato per il popup informativo (null di default per non applicare fallback silenziosi)
+  const [selectedCountry, setSelectedCountry] = useState(() => resolveCountryData(selectedCountryId));
+  const [targetCoords, setTargetCoords] = useState(() => getInitialTargetCoords(resolveCountryData(selectedCountryId)));
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
   const [selectedListing, setSelectedListing] = useState(null);
   const [handshakeListing, setHandshakeListing] = useState(null);
 
-  // Modulo Geografico: Paese selezionato per il popup informativo (null di default per non aprire finestre all'avvio)
-  const [selectedCountry, setSelectedCountry] = useState(null);
   const [identifiedZone, setIdentifiedZone] = useState(null);
   const [isZoomingToZone, setIsZoomingToZone] = useState(false);
 
@@ -267,11 +352,16 @@ export default function MapView3DContainer({
   // Modali Servizi Diretti & Utilità Globali (Zero spese, zero database interno)
   const [isEmergencyModalOpen, setIsEmergencyModalOpen] = useState(false);
   const [isCarpoolModalOpen, setIsCarpoolModalOpen] = useState(false);
+  const [communityModalMode, setCommunityModalMode] = useState('EMERGENCY');
   const [isCraftMemoryOpen, setIsCraftMemoryOpen] = useState(false);
   const [selectedExternalPlace, setSelectedExternalPlace] = useState(null);
   const [activeSatellite, setActiveSatellite] = useState(null);
   const [scientificSatellite, setScientificSatellite] = useState(null);
   const [inspectorTab, setInspectorTab] = useState('INSPECTOR');
+  const [externalSearchQuery, setExternalSearchQuery] = useState('offerte');
+  const [externalCountryCode, setExternalCountryCode] = useState(
+    () => resolveCountryData(selectedCountryId)?.code || 'GLOBAL'
+  );
 
   useEffect(() => {
     const unsubscribe = subscribeToCloudShops((cloudShops) => {
@@ -287,12 +377,55 @@ export default function MapView3DContainer({
     return () => unsubscribe();
   }, []);
 
+  const handleCountrySelection = (selectedIdOrObj) => {
+    const countryData = resolveCountryData(selectedIdOrObj);
+    if (
+      !countryData ||
+      typeof countryData.lat !== 'number' ||
+      typeof countryData.lng !== 'number' ||
+      (countryData.lat === 0 && countryData.lng === 0)
+    ) {
+      const label =
+        typeof selectedIdOrObj === 'string'
+          ? selectedIdOrObj
+          : selectedIdOrObj?.name || selectedIdOrObj?.id || 'sconosciuto';
+      console.error(`[ERRORE ATLANTE] Selezione bloccata per "${label}": coordinate assenti o (0,0).`);
+      toast.error(`Coordinate non trovate per il territorio: ${label}`);
+      return null;
+    }
+
+    let resolvedCoords = { lat: countryData.lat, lng: countryData.lng };
+    try {
+      const atlasMatch = selectAtlasCountryTarget(
+        countryData.name || countryData.countryName || countryData.code,
+        WORLD_ATLAS_LOOKUP
+      );
+      if (atlasMatch?.success && atlasMatch.target) {
+        resolvedCoords = { lat: atlasMatch.target.lat, lng: atlasMatch.target.lng };
+      }
+    } catch {
+      // Mantiene le coordinate reali della regione / città italiana o custom già validate (non-0,0)
+    }
+
+    setTargetCoords(resolvedCoords);
+    setSelectedCountry(countryData);
+    setDefaultTerritoryCoordinates(resolvedCoords.lat, resolvedCoords.lng, countryData.name);
+    setIsZoomingToZone(false);
+    setIdentifiedZone(null);
+    if (countryData.code && countryData.code !== 'ALL' && countryData.code !== 'GLOBO') {
+      setExternalCountryCode(countryData.code.toUpperCase());
+    }
+    return countryData;
+  };
+
   useEffect(() => {
     if (selectedCountryId) {
-      const match = resolveCountryData({ id: selectedCountryId });
-      if (match) setSelectedCountry(match);
+      handleCountrySelection(selectedCountryId);
     } else if (selectedCountryId === null && resetWorldTrigger > 0) {
       setSelectedCountry(null);
+      setTargetCoords(null);
+      setIdentifiedZone(null);
+      setIsZoomingToZone(false);
     }
   }, [selectedCountryId, countrySelectTrigger]);
 
@@ -311,11 +444,25 @@ export default function MapView3DContainer({
   useEffect(() => {
     if (activeSatelliteChannel) {
       setActiveSatellite(activeSatelliteChannel);
+      if (activeSatelliteChannel === 'CHAT') {
+        setIsVoiceChatOpen(true);
+      } else if (activeSatelliteChannel === 'COMUNITA') {
+        if (communityModalMode === 'CARPOOL') {
+          setIsEmergencyModalOpen(false);
+          setIsCarpoolModalOpen(true);
+        } else {
+          setCommunityModalMode('EMERGENCY');
+          setIsEmergencyModalOpen(true);
+          setIsCarpoolModalOpen(false);
+        }
+      }
     }
   }, [activeSatelliteChannel]);
 
   const handleCloseSatelliteModal = () => {
     setActiveSatellite(null);
+    setIsEmergencyModalOpen(false);
+    setIsCarpoolModalOpen(false);
     if (onActiveSatelliteChannelChange) {
       onActiveSatelliteChannelChange(null);
     }
@@ -398,10 +545,36 @@ export default function MapView3DContainer({
         const cat = ((item.category || item.subcategory || '') + ' ' + (item.title || '')).toLowerCase();
         return cat.includes('km0') || cat.includes('agricol') || cat.includes('cibo') || cat.includes('fresco') || cat.includes('terra') || item.isKm0;
       });
+    } else if (activeSatellite === 'WEATHER' || activeSatellite === 'METEO') {
+      result = result.filter((item) => {
+        const txt = ((item.category || '') + ' ' + (item.title || '') + ' ' + (item.have_description || '')).toLowerCase();
+        return txt.includes('mare') || txt.includes('meteo') || txt.includes('barc') || txt.includes('agricol') || txt.includes('km0') || txt.includes('sport') || txt.includes('trasfert') || txt.includes('bici');
+      });
+    } else if (activeSatellite === 'STRADARIO') {
+      result = result.filter((item) => {
+        const txt = ((item.category || '') + ' ' + (item.subcategory || '') + ' ' + (item.title || '')).toLowerCase();
+        return txt.includes('mobilit') || txt.includes('bici') || txt.includes('auto') || txt.includes('strad') || txt.includes('trasfert') || txt.includes('carpool') || txt.includes('serviz');
+      });
+    } else if (activeSatellite === 'SUPERMARKET' || activeSatellite === 'MONDO') {
+      result = result.filter((item) => {
+        const intent = (item.intent || '').toUpperCase();
+        const cat = ((item.category || '') + ' ' + (item.title || '')).toLowerCase();
+        return intent === 'VENDO' || item.action_type === 'vendo' || cat.includes('tecnolog') || cat.includes('casa') || cat.includes('moda') || cat.includes('bricolage') || Boolean(item.piPrice);
+      });
+    } else if (activeSatellite === 'EXTERNAL') {
+      result = result.filter((item) => {
+        const txt = ((item.source || '') + ' ' + (item.category || '') + ' ' + (item.title || '')).toLowerCase();
+        return Boolean(item.isExternal) || txt.includes('external') || txt.includes('ebay') || txt.includes('amazon') || txt.includes('tecnolog') || txt.includes('elettronic');
+      });
+    } else if (activeSatellite === 'COMUNITA') {
+      result = result.filter((item) => {
+        const txt = ((item.category || '') + ' ' + (item.subcategory || '') + ' ' + (item.title || '')).toLowerCase();
+        return txt.includes('carpool') || txt.includes('trasfert') || txt.includes('passagg') || txt.includes('emergenz') || txt.includes('soccors') || txt.includes('aiuto') || txt.includes('comunit');
+      });
     } else if (activeSatellite === 'BARATTO') {
       result = result.filter((item) => {
         const intent = (item.intent || '').toUpperCase();
-        return intent === 'BARATTO' || intent === 'SCAMBIO' || intent === 'WANT' || item.isBaratto;
+        return intent === 'BARATTO' || intent === 'BARATTO_SCAMBIO' || intent === 'SCAMBIO' || intent === 'WANT' || item.isBaratto;
       });
     } else if (activeSatellite === 'LAVORO' || activeSatellite === 'P2P') {
       result = result.filter((item) => {
@@ -409,13 +582,15 @@ export default function MapView3DContainer({
         return cat.includes('lavor') || cat.includes('serviz') || cat.includes('artigian') || cat.includes('riparaz') || cat.includes('competenze');
       });
     } else if (activeSatellite === 'RADAR') {
-      // Scansione radar di prossimità territoriale (raggio 30 km)
-      result = result.filter((item) => {
-        if (typeof item.lat !== 'number' || typeof item.lng !== 'number') return false;
-        const dLat = (item.lat - targetCoords.lat) * 111;
-        const dLng = (item.lng - targetCoords.lng) * 111 * Math.cos(targetCoords.lat * (Math.PI / 180));
-        return Math.hypot(dLat, dLng) <= 35;
-      });
+      // Scansione radar di prossimità territoriale (raggio 35 km)
+      if (targetCoords && typeof targetCoords.lat === 'number' && typeof targetCoords.lng === 'number') {
+        result = result.filter((item) => {
+          if (typeof item.lat !== 'number' || typeof item.lng !== 'number') return false;
+          const dLat = (item.lat - targetCoords.lat) * 111;
+          const dLng = (item.lng - targetCoords.lng) * 111 * Math.cos(targetCoords.lat * (Math.PI / 180));
+          return Math.hypot(dLat, dLng) <= 35;
+        });
+      }
     } else if (activeSatellite === 'CHAT') {
       // Canale Chat Esclusivo: i marker standard lasciano spazio agli utenti Pioneer attivi 👨 / 👩
       result = [];
@@ -431,29 +606,36 @@ export default function MapView3DContainer({
   const handleZoneIdentified = (countryData) => {
     if (!countryData) return;
     const matched = resolveCountryData(countryData);
+    if (!matched) return;
     setIdentifiedZone(matched);
     setIsZoomingToZone(true);
     setSelectedCountry(matched);
+    setTargetCoords(getInitialTargetCoords(matched));
     if (onSelectCountry) onSelectCountry(matched);
   };
 
   // 2. Solo dopo l'arrivo dello zoom completiamo l'allineamento (SENZA aprire schede o toast invasivi)
   const handleZoneZoomArrived = (countryData) => {
     if (!countryData) return;
-    const matched = resolveCountryData(countryData);
-    setIsZoomingToZone(false);
-    setSelectedCountry(matched);
-    setTargetCoords({ lat: matched.lat, lng: matched.lng });
-    if (onSelectCountry) onSelectCountry(matched);
+    const matched = handleCountrySelection(countryData);
+    if (matched && onSelectCountry) onSelectCountry(matched);
   };
 
   const handleExploreUrban3D = (country) => {
-    const matched = resolveCountryData(country) || selectedCountry;
+    const matched = resolveCountryData(country) || selectedCountry || identifiedZone;
+    const nextCoords = getInitialTargetCoords(matched) || targetCoords;
+    if (!nextCoords || (nextCoords.lat === 0 && nextCoords.lng === 0)) {
+      toast.info('🌍 Seleziona prima un Paese o tocca un punto sul globo per aprire gli edifici 3D');
+      return;
+    }
     if (matched) {
-      setTargetCoords({ lat: matched.lat, lng: matched.lng });
+      setTargetCoords(nextCoords);
       setSelectedCountry(matched);
+      setDefaultTerritoryCoordinates(nextCoords.lat, nextCoords.lng, matched.name);
       if (onSelectCountry) onSelectCountry(matched);
     }
+    setIsZoomingToZone(false);
+    setIdentifiedZone(null);
     setLodLevel('URBANO_3D');
   };
 
@@ -473,8 +655,8 @@ export default function MapView3DContainer({
           : 'relative w-full h-full flex-1 min-h-0 bg-black overflow-hidden select-none flex flex-col text-white'
       }
     >
-      {/* PULSANTE FLUTTUANTE RIDUCI QUANDO LA CARTINA È ALLARGATA A TUTTO SCHERMO */}
-      {isFullscreenMap && (
+      {/* PULSANTE FLUTTUANTE RIDUCI QUANDO LA CARTINA È ALLARGATA A TUTTO SCHERMO (solo vista Globo) */}
+      {isFullscreenMap && lodLevel === 'GLOBO' && (
         <div className="absolute top-3.5 left-3.5 z-30 pointer-events-auto flex items-center gap-2 bg-black/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-zinc-700 shadow-2xl">
           <button
             id="btn-exit-fullscreen"
@@ -487,7 +669,7 @@ export default function MapView3DContainer({
           </button>
           <span className="text-zinc-600">|</span>
           <span className="text-[11px] font-mono text-zinc-300">
-            {lodLevel === 'GLOBO' ? (globeSubMode === 'GEO' ? '🗺️ Cartina Geo' : '🌍 Globo 3D') : '🏙️ Cartina Dettagliata'}
+            {globeSubMode === 'GEO' ? '🗺️ Cartina Geo' : '🌍 Globo 3D'}
           </span>
         </div>
       )}
@@ -496,16 +678,27 @@ export default function MapView3DContainer({
       <div className="w-full flex-1 relative z-0 overflow-hidden min-h-0">
         {/* Nessun banner invasivo sopra il globo */}
 
-        {/* BARRA SUPERIORE IN ATLANTE POLITICO CON TASTO RITORNO E SCROLL REGIONI */}
+        {/* BARRA SUPERIORE IN URBANO 3D CON TASTO RITORNO, RIDUCI (SE FULLSCREEN) E SCROLL REGIONI */}
         {lodLevel === 'URBANO_3D' && (
-          <div className="absolute top-3 left-3 right-3 z-20 pointer-events-auto flex items-center gap-2 overflow-hidden bg-black/80 backdrop-blur-md p-1.5 rounded-2xl border border-zinc-800 shadow-2xl">
+          <div className="absolute top-2.5 left-2.5 right-14 z-20 pointer-events-auto flex items-center gap-1.5 overflow-hidden bg-black/85 backdrop-blur-md p-1 rounded-2xl border border-zinc-800 shadow-2xl">
+            {isFullscreenMap && (
+              <button
+                id="btn-exit-fullscreen"
+                onClick={handleToggleFullscreen}
+                className="px-2.5 py-1.5 rounded-xl bg-[#00ff66] text-black text-xs font-black flex items-center gap-1 shadow-lg shrink-0 cursor-pointer"
+                title="Riduci cartina alla vista standard"
+              >
+                <Minimize2 className="w-3.5 h-3.5" />
+                <span>Riduci</span>
+              </button>
+            )}
             <button
               onClick={() => setLodLevel('GLOBO')}
-              className="px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 hover:border-[#00ff66] text-white text-xs font-black flex items-center gap-1.5 shadow-lg shrink-0 cursor-pointer transition-all active:scale-95"
+              className="px-2.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 hover:border-[#00ff66] text-white text-xs font-black flex items-center gap-1 shadow-lg shrink-0 cursor-pointer transition-all active:scale-95"
               title="Torna al Globo 3D"
             >
               <Globe2 className="w-3.5 h-3.5 text-[#00ff66]" />
-              <span>Torna al Globo 🌍</span>
+              <span>Globo</span>
             </button>
 
             <div className="h-5 w-[1px] bg-zinc-800 shrink-0" />
@@ -567,10 +760,8 @@ export default function MapView3DContainer({
               toast.success(`💬 Chat Pioneer: ${user.name} (${user.gender === 'woman' ? 'Donna 👩' : 'Uomo 👨'})`);
             }}
             onCountrySelect={(country) => {
-              const matched = resolveCountryData(country);
-              setSelectedCountry(matched);
-              setIsZoomingToZone(false);
-              if (onSelectCountry) onSelectCountry(matched);
+              const matched = handleCountrySelection(country);
+              if (matched && onSelectCountry) onSelectCountry(matched);
             }}
             onZoneIdentified={handleZoneIdentified}
             onZoneZoomArrived={handleZoneZoomArrived}
@@ -649,12 +840,14 @@ export default function MapView3DContainer({
                 case 'CHAT':
                   if (activeSatellite === 'CHAT') {
                     setActiveSatellite(null);
+                    setIsVoiceChatOpen(false);
                     if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
                     toast.info('🎙️ STARLINK-COMM: Canale Chat Pioneer Disattivato', { duration: 1800 });
                   } else {
                     setActiveSatellite('CHAT');
+                    setIsVoiceChatOpen(true);
                     if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('CHAT');
-                    toast.success('🎙️ STARLINK-COMM: Canale Chat Pioneer Attivo (Utenti 👨 / 👩)');
+                    toast.success('🎙️ STARLINK-COMM: Pannello Chat & Vocale Aperto');
                   }
                   break;
 
@@ -686,11 +879,11 @@ export default function MapView3DContainer({
                   if (activeSatellite === 'EXTERNAL') {
                     setActiveSatellite(null);
                     if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
-                    toast.info('🛒 GATEWAY-RELAIS: Gateway Esterni Chiusi', { duration: 1800 });
+                    toast.info('🛒 GATEWAY-RELAIS: Mercati Esteri (eBay/Amazon) Chiusi', { duration: 1800 });
                   } else {
                     setActiveSatellite('EXTERNAL');
                     if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('EXTERNAL');
-                    toast.success('🛒 GATEWAY-RELAIS: Marketplace Esterni e Canali Territoriali');
+                    toast.success('🛒 GATEWAY-RELAIS: Mercati Esteri eBay/Amazon Attivi');
                   }
                   break;
 
@@ -709,11 +902,25 @@ export default function MapView3DContainer({
 
                 case 'COMMUNITY_RESCUE_SAT':
                 case 'COMUNITA':
-                  setIsEmergencyModalOpen((prev) => {
-                    const next = !prev;
-                    toast.success(next ? '🤝 COSPAS-SARSAT: Presidi di Emergenza e Soccorso' : '🤝 Presidi di Emergenza Chiusi');
-                    return next;
-                  });
+                  if (activeSatellite === 'COMUNITA') {
+                    setActiveSatellite(null);
+                    setIsEmergencyModalOpen(false);
+                    setIsCarpoolModalOpen(false);
+                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
+                    toast.info('🤝 COSPAS-SARSAT: Canale Comunità Chiuso', { duration: 1800 });
+                  } else {
+                    setActiveSatellite('COMUNITA');
+                    if (communityModalMode === 'CARPOOL') {
+                      setIsEmergencyModalOpen(false);
+                      setIsCarpoolModalOpen(true);
+                    } else {
+                      setCommunityModalMode('EMERGENCY');
+                      setIsEmergencyModalOpen(true);
+                      setIsCarpoolModalOpen(false);
+                    }
+                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('COMUNITA');
+                    toast.success('🤝 COSPAS-SARSAT: Canale Comunità Attivo');
+                  }
                   break;
 
                 case 'BUSINESS_ADS_SAT':
@@ -738,14 +945,15 @@ export default function MapView3DContainer({
           />
         ) : (
           <Urbano3D
-            centroLat={targetCoords.lat}
-            centroLng={targetCoords.lng}
-            lat={targetCoords.lat}
-            lng={targetCoords.lng}
+            centroLat={targetCoords?.lat ?? selectedCountry?.lat}
+            centroLng={targetCoords?.lng ?? selectedCountry?.lng}
+            lat={targetCoords?.lat ?? selectedCountry?.lat}
+            lng={targetCoords?.lng ?? selectedCountry?.lng}
             onBazarSelect={handleBuildingSelect}
-            countryName={selectedCountry?.name || 'Mondo'}
+            countryName={selectedCountry?.name || 'Territorio'}
             isFullscreen={isFullscreenMap}
             onToggleFullscreen={handleToggleFullscreen}
+            activeChannel={activeSatellite}
             placeData={selectedCountry ? {
               name: selectedCountry.capital || selectedCountry.name,
               displayName: selectedCountry.capital ? `${selectedCountry.capital}, ${selectedCountry.name}` : selectedCountry.name,
@@ -759,7 +967,7 @@ export default function MapView3DContainer({
               timezone: selectedCountry.timezone,
             } : null}
             onLocationChange={(place) => {
-              if (place) {
+              if (place && isValidCoord(place.lat, place.lng)) {
                 setTargetCoords({ lat: place.lat, lng: place.lng });
               }
             }}
@@ -775,8 +983,8 @@ export default function MapView3DContainer({
         )}
       </div>
 
-      {/* Badge del filtro o ricerca attiva se presente */}
-      {(filter || searchQuery) && (
+      {/* Badge del filtro o ricerca attiva se presente (solo vista Globo per non sovrapporsi in Urbano) */}
+      {(filter || searchQuery) && lodLevel === 'GLOBO' && (
         <div className="absolute top-3 left-3 sm:left-4 z-20 pointer-events-auto flex items-center gap-2">
           <div className="px-3 py-1.5 rounded-xl bg-black border border-zinc-800 text-xs font-black text-white flex items-center gap-2 shadow-xl">
             <span className="w-2 h-2 rounded-full bg-[#00ff66] animate-ping" />
@@ -815,8 +1023,8 @@ export default function MapView3DContainer({
         </div>
       )}
 
-      {/* 3B. STATUS DISCRETO INDIVIDUAZIONE ZONA (TEMPORANEO, NON COPRE LA MAPPA) */}
-      {isZoomingToZone && identifiedZone && (
+      {/* 3B. STATUS DISCRETO INDIVIDUAZIONE ZONA (TEMPORANEO, SOLO IN VISTA GLOBO) */}
+      {lodLevel === 'GLOBO' && isZoomingToZone && identifiedZone && (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 pointer-events-none animate-in fade-in zoom-in duration-300">
           <div className="px-4 py-2 rounded-xl bg-black border border-zinc-800 shadow-2xl flex items-center gap-2.5 text-white">
             <span className="text-xl animate-bounce">{identifiedZone.flag}</span>
@@ -931,7 +1139,7 @@ export default function MapView3DContainer({
               <button
                 id="btn-view-urbano-3d"
                 onClick={() => {
-                  setLodLevel('URBANO_3D');
+                  handleExploreUrban3D(selectedCountry || identifiedZone);
                   toast.info("Modalità Urbano 3D attiva: fotogrammetria volumetrica");
                 }}
                 className={`px-2.5 py-1 rounded text-[11px] font-black uppercase flex items-center gap-1 transition-colors cursor-pointer ${
@@ -996,7 +1204,7 @@ export default function MapView3DContainer({
               </button>
               <button
                 onClick={() => {
-                  setLodLevel('URBANO_3D');
+                  handleExploreUrban3D(selectedCountry || identifiedZone);
                   toast.info("Modalità Urbano 3D attiva: fotogrammetria volumetrica");
                 }}
                 className={`px-2 py-0.5 rounded text-[10px] font-black cursor-pointer border ${
@@ -1054,33 +1262,42 @@ export default function MapView3DContainer({
         onClose={() => setIsAdModalOpen(false)}
         onAddSponsoredBusiness={handleAddSponsoredBusiness}
         currentLocation={{
-          lat: targetCoords.lat,
-          lng: targetCoords.lng,
-          city: selectedCountry?.name || 'Roma',
-          region: selectedCountry?.name || 'Italia',
-          countryCode: selectedCountry?.code || 'IT',
+          lat: targetCoords?.lat ?? selectedCountry?.lat,
+          lng: targetCoords?.lng ?? selectedCountry?.lng,
+          city: selectedCountry?.name || '',
+          region: selectedCountry?.name || '',
+          countryCode: selectedCountry?.code || '',
         }}
       />
 
       <VoiceNoteChat
         isOpen={isVoiceChatOpen}
-        onClose={() => setIsVoiceChatOpen(false)}
+        onClose={() => {
+          setIsVoiceChatOpen(false);
+          if (activeSatellite === 'CHAT') {
+            handleCloseSatelliteModal();
+          }
+        }}
         recipientName={voiceChatRecipient.name}
         recipientRole={voiceChatRecipient.role}
         initialVoiceIntro={voiceChatRecipient.intro}
       />
 
       {/* MODALI EMERGENZE, TRASFERTE E MEMORIA STORICA (Zero spese, Zero server) */}
-      <WorldEmergencyModal
-        isOpen={isEmergencyModalOpen}
-        onClose={() => setIsEmergencyModalOpen(false)}
-        defaultCountryCode={selectedCountry?.id || 'IT'}
-      />
+      {activeSatellite !== 'COMUNITA' && (
+        <>
+          <WorldEmergencyModal
+            isOpen={isEmergencyModalOpen}
+            onClose={() => setIsEmergencyModalOpen(false)}
+            defaultCountryCode={selectedCountry?.code || selectedCountry?.id || 'GLOBAL'}
+          />
 
-      <GlobalCarpoolModal
-        isOpen={isCarpoolModalOpen}
-        onClose={() => setIsCarpoolModalOpen(false)}
-      />
+          <GlobalCarpoolModal
+            isOpen={isCarpoolModalOpen}
+            onClose={() => setIsCarpoolModalOpen(false)}
+          />
+        </>
+      )}
 
       <CraftMemoryModal
         isOpen={isCraftMemoryOpen}
@@ -1093,9 +1310,13 @@ export default function MapView3DContainer({
         onClose={() => setSelectedExternalPlace(null)}
         onNavigateInApp={(place) => {
           setSelectedExternalPlace(null);
-          setTargetCoords({ lat: place.lat, lng: place.lng });
-          setLodLevel('URBANO_3D');
-          toast.success(`🧭 Calcolo itinerario interno OSRM per ${place.name}...`);
+          if (isValidCoord(place?.lat, place?.lng)) {
+            setTargetCoords({ lat: place.lat, lng: place.lng });
+            setLodLevel('URBANO_3D');
+            toast.success(`🧭 Calcolo itinerario interno OSRM per ${place.name}...`);
+          } else {
+            toast.error(`Coordinate non disponibili per ${place?.name || 'questo luogo'}`);
+          }
         }}
       />
 
@@ -1149,8 +1370,12 @@ export default function MapView3DContainer({
           onSelectBusiness={(biz) => setSelectedMerchantModal(biz)}
           onOpenVoiceChat={(biz) => handleOpenVoiceChatForStore(biz)}
           onFlyToBusiness={(biz) => {
-            setTargetCoords({ lat: biz.lat, lng: biz.lng });
-            setLodLevel('URBANO_3D');
+            if (isValidCoord(biz?.lat, biz?.lng)) {
+              setTargetCoords({ lat: biz.lat, lng: biz.lng });
+              setLodLevel('URBANO_3D');
+            } else {
+              toast.error(`Coordinate non disponibili per ${biz?.name || 'questa attività'}`);
+            }
           }}
           onOpenPromoteModal={() => setIsAdModalOpen(true)}
         />
@@ -1165,7 +1390,7 @@ export default function MapView3DContainer({
           onTriggerHandshake={onTriggerHandshake}
         />
       )}
-      {(activeSatellite === 'MONDO' || activeSatellite === 'SUPERMARKET' || activeSatellite === 'EXTERNAL') && (
+      {(activeSatellite === 'MONDO' || activeSatellite === 'SUPERMARKET') && (
         <div className="fixed inset-0 z-50 bg-black overflow-y-auto">
           <GlobalMarketplaceView
             onBack={handleCloseSatelliteModal}
@@ -1175,6 +1400,57 @@ export default function MapView3DContainer({
               handleCloseSatelliteModal();
             }}
           />
+        </div>
+      )}
+      {activeSatellite === 'EXTERNAL' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md">
+          <div className="w-full max-w-2xl bg-zinc-950 border border-orange-500/40 rounded-3xl p-5 sm:p-6 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🛒</span>
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-widest text-orange-400">
+                    GATEWAY-RELAIS • MERCATI ESTERI & INTERNAZIONALI
+                  </div>
+                  <h3 className="text-lg font-black text-white">Ricerca su eBay, Amazon & Store Esteri</h3>
+                </div>
+              </div>
+              <button
+                onClick={handleCloseSatelliteModal}
+                className="p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-800 cursor-pointer"
+                title="Chiudi Mercati Esteri"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="text"
+                value={externalSearchQuery}
+                onChange={(e) => setExternalSearchQuery(e.target.value)}
+                placeholder="Cerca prodotti esteri su Amazon, eBay..."
+                className="flex-1 px-3.5 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-orange-400"
+              />
+              <select
+                value={externalCountryCode}
+                onChange={(e) => setExternalCountryCode(e.target.value)}
+                className="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-xs font-bold text-white focus:outline-none focus:border-orange-400 max-w-[190px]"
+              >
+                <option value="GLOBAL">🌐 Globale</option>
+                {WORLD_COUNTRIES.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.flag} {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <ExternalListings
+              country={externalCountryCode}
+              query={externalSearchQuery || 'offerte'}
+            />
+          </div>
         </div>
       )}
       {(activeSatellite === 'P2P' || activeSatellite === 'LAVORO') && (
@@ -1195,17 +1471,90 @@ export default function MapView3DContainer({
         <StreetView360Modal
           isOpen={true}
           onClose={handleCloseSatelliteModal}
-          lat={targetCoords.lat}
-          lng={targetCoords.lng}
+          lat={targetCoords?.lat ?? selectedCountry?.lat}
+          lng={targetCoords?.lng ?? selectedCountry?.lng}
           cityName={selectedCountry?.name || 'Mondo'}
         />
       )}
       {activeSatellite === 'COMUNITA' && (
-        <WorldEmergencyModal
-          isOpen={true}
-          onClose={handleCloseSatelliteModal}
-          defaultCountryCode={selectedCountry?.id || 'IT'}
-        />
+        <div className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-md p-3 sm:p-6 overflow-y-auto flex flex-col gap-4">
+          <div className="max-w-4xl w-full mx-auto flex flex-wrap items-center justify-between gap-2 bg-zinc-950 border border-zinc-800 px-4 py-3 rounded-2xl shadow-xl">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">🤝</span>
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-widest text-red-400">
+                  COSPAS-SARSAT • COMUNITÀ, SOCCORSO & MOBILITÀ SOLIDALE
+                </div>
+                <h3 className="text-sm sm:text-base font-black text-white">
+                  {communityModalMode === 'CARPOOL' ? 'Carpool Solidale Attivo' : 'Presidi Emergenze Globali'}
+                </h3>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="flex items-center bg-zinc-900 p-1 rounded-xl border border-zinc-800 gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCommunityModalMode('EMERGENCY');
+                    setIsEmergencyModalOpen(true);
+                    setIsCarpoolModalOpen(false);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-colors cursor-pointer ${
+                    communityModalMode === 'EMERGENCY'
+                      ? 'bg-red-600 text-white'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  🚨 Emergenze
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCommunityModalMode('CARPOOL');
+                    setIsEmergencyModalOpen(false);
+                    setIsCarpoolModalOpen(true);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-colors cursor-pointer ${
+                    communityModalMode === 'CARPOOL'
+                      ? 'bg-[#00ff66] text-black'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  🚗 Carpool
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCloseSatelliteModal}
+                className="px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 text-xs font-black flex items-center gap-1.5 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+                <span>Chiudi</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="max-w-4xl w-full mx-auto">
+            {communityModalMode === 'CARPOOL' ? (
+              <div className="w-full [&>div]:!static [&>div]:!inset-auto [&>div]:!bg-transparent [&>div]:!backdrop-blur-none [&>div]:!p-0 [&>div]:!animate-none">
+                <GlobalCarpoolModal
+                  isOpen={isCarpoolModalOpen && communityModalMode === 'CARPOOL'}
+                  onClose={handleCloseSatelliteModal}
+                />
+              </div>
+            ) : (
+              <div className="w-full [&>div]:!static [&>div]:!inset-auto [&>div]:!bg-transparent [&>div]:!backdrop-blur-none [&>div]:!p-0 [&>div]:!animate-none">
+                <WorldEmergencyModal
+                  isOpen={isEmergencyModalOpen && communityModalMode !== 'CARPOOL'}
+                  onClose={handleCloseSatelliteModal}
+                  defaultCountryCode={selectedCountry?.code || selectedCountry?.id || 'GLOBAL'}
+                />
+              </div>
+            )}
+          </div>
+        </div>
       )}
       {activeSatellite === 'RADAR' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">

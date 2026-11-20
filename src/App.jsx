@@ -24,10 +24,33 @@ import OrbitalSatellitesHub from '@/components/have2want/OrbitalSatellitesHub';
 import { DedicatedCategoryPage } from '@/components/DedicatedCategoryPage';
 import { CountrySelectorModal } from '@/components/CountrySelectorModal';
 import { COUNTRIES, getCountryForListing } from '@/data/countries';
+import {
+  findCountryByNameOrCode,
+  WORLD_COUNTRIES,
+  isValidCoord,
+  searchAnyWorldPlace,
+} from '@/lib/worldAtlas';
+import {
+  calculateMunicipalityCentroid,
+  applyGeoPrivacy,
+  haversineDistanceKm,
+  passesModerationFilter,
+  isWithinProximityPreference,
+  filterVisibleListings,
+} from '@/lib/geoPrivacy';
 import { INITIAL_LISTINGS, SALVAVATUTTO_GUIDES } from '@/data';
 import { REAL_CATEGORIES_MATRIX } from '@/categories';
 import { fetchExternal, getMarketplaces } from '@/lib/externalMarketplaces';
 import { subscribeToCloudListings, publishListingToCloud } from '@/lib/firestoreService';
+
+export {
+  calculateMunicipalityCentroid,
+  applyGeoPrivacy,
+  haversineDistanceKm,
+  passesModerationFilter,
+  isWithinProximityPreference,
+  filterVisibleListings,
+};
 import {
   Globe,
   Globe2,
@@ -60,230 +83,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 
-/* =========================================================================
-   1. MODULO PRIVACY GEOGRAFICA (geoPrivacy)
-   =========================================================================
-   Gestisce la precisione della geolocalizzazione degli annunci.
-   Se l'utente attiva "Modalità Discreta" (o se l'annuncio lo richiede),
-   la mappa NON mostra le coordinate esatte (lat/lng), ma posiziona l'annuncio
-   sul centroide del comune (municipality_centroid), visualizzando un raggio
-   di approssimazione (~2.0 - 2.5 km) a tutela della privacy.
-*/
-
-const KNOWN_MUNICIPALITY_CENTROIDS = {
-  'roma': { lat: 41.8931, lng: 12.4828 },
-  'milano': { lat: 45.4642, lng: 9.1900 },
-  'torino': { lat: 45.0703, lng: 7.6869 },
-  'asti': { lat: 44.9008, lng: 8.2065 },
-  'napoli': { lat: 40.8518, lng: 14.2681 },
-  'firenze': { lat: 43.7696, lng: 11.2558 },
-  'bologna': { lat: 44.4949, lng: 11.3426 },
-  'genova': { lat: 44.4056, lng: 8.9463 },
-  'palermo': { lat: 38.1157, lng: 13.3615 },
-  'bari': { lat: 41.1171, lng: 16.8719 },
-  'catania': { lat: 37.5079, lng: 15.0830 },
-  'venezia': { lat: 45.4408, lng: 12.3155 },
-  'verona': { lat: 45.4384, lng: 10.9916 },
-  'cagliari': { lat: 39.2238, lng: 9.1217 },
-  'trieste': { lat: 45.6495, lng: 13.7768 },
-  'madrid': { lat: 40.4168, lng: -3.7038 },
-  'paris': { lat: 48.8566, lng: 2.3522 },
-  'berlin': { lat: 52.5200, lng: 13.4050 },
-  'london': { lat: 51.5074, lng: -0.1278 },
-  'new york': { lat: 40.7128, lng: -74.0060 },
-  'tokyo': { lat: 35.6762, lng: 139.6503 }
-};
-
-export function calculateMunicipalityCentroid(cityName = '', rawLat = 41.8902, rawLng = 12.4922) {
-  const normalized = (cityName || '').trim().toLowerCase();
-  if (KNOWN_MUNICIPALITY_CENTROIDS[normalized]) {
-    return {
-      lat: KNOWN_MUNICIPALITY_CENTROIDS[normalized].lat,
-      lng: KNOWN_MUNICIPALITY_CENTROIDS[normalized].lng,
-      radiusKm: 2.0,
-      label: `Centroide Comunale di ${cityName || 'Comune'}`
-    };
-  }
-
-  // Calcolo deterministico dell'offset per tutelare l'indirizzo privato
-  let hash = 0;
-  for (let i = 0; i < normalized.length; i++) {
-    hash = (hash << 5) - hash + normalized.charCodeAt(i);
-    hash |= 0;
-  }
-  const offsetLat = ((Math.abs(hash) % 100) / 1000) - 0.05;
-  const offsetLng = (((Math.abs(hash >> 3)) % 100) / 1000) - 0.05;
-
-  return {
-    lat: Number((Math.round((rawLat + offsetLat) * 100) / 100).toFixed(4)),
-    lng: Number((Math.round((rawLng + offsetLng) * 100) / 100).toFixed(4)),
-    radiusKm: 2.5,
-    label: `Centroide Territoriale (${cityName || 'Comune'})`
-  };
-}
-
-export function applyGeoPrivacy(listing, isGlobalDiscreetMode = false) {
-  if (!listing) {
-    return { lat: 41.8902, lng: 12.4922, isMasked: false, mode: 'STANDARD', radiusKm: 0, label: 'Posizione predefinita' };
-  }
-
-  const isDiscreet = isGlobalDiscreetMode ||
-    listing.privacy_mode_active === true ||
-    listing.is_discrete_mode === true ||
-    listing.isFuzzyLocation === true ||
-    listing.discrete_mode === true;
-
-  if (isDiscreet) {
-    if (typeof listing.municipality_centroid_lat === 'number' && typeof listing.municipality_centroid_lng === 'number') {
-      return {
-        lat: listing.municipality_centroid_lat,
-        lng: listing.municipality_centroid_lng,
-        isMasked: true,
-        mode: 'DISCRETA',
-        radiusKm: listing.approximation_radius_km || 2.0,
-        label: `Centroide Comune (${listing.city || 'Comune'}) • Raggio tutela ~2 km`
-      };
-    }
-
-    const rawLat = listing.exact_lat ?? listing.lat ?? 41.8902;
-    const rawLng = listing.exact_lng ?? listing.lng ?? 12.4922;
-    const centroid = calculateMunicipalityCentroid(listing.city || listing.locationArea, rawLat, rawLng);
-
-    return {
-      lat: centroid.lat,
-      lng: centroid.lng,
-      isMasked: true,
-      mode: 'DISCRETA',
-      radiusKm: centroid.radiusKm,
-      label: `${centroid.label} • Modalità Discreta Attiva`
-    };
-  }
-
-  return {
-    lat: listing.exact_lat ?? listing.lat ?? 41.8902,
-    lng: listing.exact_lng ?? listing.lng ?? 12.4922,
-    isMasked: false,
-    mode: 'ESATTA',
-    radiusKm: 0,
-    label: 'Coordinate esatte dell\'annuncio'
-  };
-}
-
-export function haversineDistanceKm(lat1, lon1, lat2, lon2) {
-  if (lat1 === undefined || lon1 === undefined || lat2 === undefined || lon2 === undefined) return Infinity;
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-}
-
-/* =========================================================================
-   2. VISIBILITY MANAGER & FILTRI
-   =========================================================================
-   Gli annunci (Vendo, Baratto, Cerco, Libri) compaiono solo se superano
-   il filtro di moderazione integrato e se compatibili con le preferenze
-   di vicinanza (Near You, Community, Everywhere).
-*/
-
-const BANNED_KEYWORDS = ['scam', 'truffa', 'armi', 'droghe', 'illecito', 'contraffatto'];
-
-export function passesModerationFilter(listing) {
-  if (!listing) return false;
-  if (listing.moderation_status === 'rejected' || listing.moderation_status === 'flagged') return false;
-  if (listing.status === 'suspended' || listing.status === 'banned' || listing.status === 'draft') return false;
-
-  const trustRating = listing.author?.reputation ?? listing.author?.trust_rating ?? 5.0;
-  if (trustRating < 2.5) return false;
-
-  const fullText = `${listing.title || ''} ${listing.description || ''} ${listing.have_description || ''} ${listing.want_description || ''}`.toLowerCase();
-  for (const word of BANNED_KEYWORDS) {
-    if (fullText.includes(word)) return false;
-  }
-
-  return true;
-}
-
-export function isWithinProximityPreference(listing, userLocation = { lat: 41.8902, lng: 12.4922 }, proximityPreference = 'EVERYWHERE') {
-  if (proximityPreference === 'EVERYWHERE' || !proximityPreference) return true;
-
-  const rawLat = listing.lat ?? listing.exact_lat ?? listing.municipality_centroid_lat;
-  const rawLng = listing.lng ?? listing.exact_lng ?? listing.municipality_centroid_lng;
-  if (rawLat === undefined || rawLng === undefined) return true;
-
-  const dist = haversineDistanceKm(userLocation.lat, userLocation.lng, rawLat, rawLng);
-  if (proximityPreference === 'NEAR_YOU') return dist <= 25; // Entro 25 km
-  if (proximityPreference === 'COMMUNITY') return dist <= 80; // Entro 80 km
-  return true;
-}
-
-export function filterVisibleListings({
-  listings = [],
-  activeFilter = null,
-  searchQuery = '',
-  userLocation = { lat: 41.8902, lng: 12.4922 },
-  proximityPreference = 'EVERYWHERE',
-  isDiscreetMode = false
-}) {
-  const query = (searchQuery || '').trim().toLowerCase();
-  // Se nessun filtro specifico è selezionato, mostriamo tutti gli annunci attivi e moderati (anti cold-start: l'utente trova subito vita ed annunci!)
-  const hasSpecificFilter = Boolean(activeFilter);
-
-  return listings.filter((item) => {
-    if (!passesModerationFilter(item)) return false;
-    if (!isWithinProximityPreference(item, userLocation, proximityPreference)) return false;
-
-    // Filtro testuale per ricerca libera / esigenze dell'utente
-    if (query) {
-      const matchText = `${item.title || ''} ${item.description || ''} ${item.locationArea || ''} ${item.author?.city || item.city || ''} ${(item.tags || []).join(' ')}`.toLowerCase();
-      if (!matchText.includes(query)) return false;
-    }
-
-    if (!activeFilter) return true;
-
-    if (activeFilter === 'VENDO') {
-      const isCarpool = item.subcategory === 'trasferte_passaggi_carpool';
-      return (item.action_type === 'vendo' || item.intent === 'VENDO') && !isCarpool;
-    }
-    if (activeFilter === 'BARATTO_SCAMBIO' || activeFilter === 'BARATTO' || activeFilter === 'SCAMBIO') {
-      return item.action_type === 'baratto_scambio' || item.intent === 'BARATTO_SCAMBIO' || item.action_type === 'baratto';
-    }
-    if (activeFilter === 'CERCO' || activeFilter === 'ACQUISTO_CERCO') {
-      return item.action_type === 'acquisto_cerco' || item.intent === 'ACQUISTO_CERCO' || item.intent === 'CERCO';
-    }
-    if (activeFilter === 'TRASFERTE') {
-      const isCarpoolSubcat = item.subcategory === 'trasferte_passaggi_carpool';
-      const text = `${item.title || ''} ${item.description || ''} ${(item.tags || []).join(' ')}`.toLowerCase();
-      return isCarpoolSubcat || text.includes('trasfert') || text.includes('passagg') || text.includes('carpool') || text.includes('viaggio');
-    }
-    if (activeFilter === 'SERVIZI') {
-      const isServiceCat = item.category === 'servizi_lavoro_buoni' || item.category === 'rete_specialisti_supporto' || item.subcategory === 'manodopera_mestieri_riparazioni';
-      const text = `${item.title || ''} ${item.description || ''} ${(item.tags || []).join(' ')}`.toLowerCase();
-      return isServiceCat || text.includes('serviz') || text.includes('riparazion') || text.includes('lezion') || text.includes('manodopera');
-    }
-    if (activeFilter === 'LIBRI_SCOLASTICI' || activeFilter === 'LIBRI') {
-      const isBookCat = item.category === 'libri_scuola_cultura' || item.subcategory === 'scambio_libri_scolastici';
-      const text = `${item.title || ''} ${item.description || ''} ${item.have_description || ''} ${item.want_description || ''} ${(item.tags || []).join(' ')}`.toLowerCase();
-      return isBookCat || text.includes('libr') || text.includes('scolastic') || text.includes('testi') || text.includes('manual') || text.includes('saggi');
-    }
-    return true;
-  }).map((item) => {
-    const privacy = applyGeoPrivacy(item, isDiscreetMode);
-    return {
-      ...item,
-      displayLat: privacy.lat,
-      displayLng: privacy.lng,
-      isMasked: privacy.isMasked,
-      approximationRadiusKm: privacy.radiusKm,
-      privacyLabel: privacy.label
-    };
-  });
-}
+// Le funzioni geoPrivacy e Visibility Manager sono centralizzate e re-esportate da @/lib/geoPrivacy.
 
 const MASTER_SPEC_DOCUMENT = `# HAVE2WANT PLUS — MANIFESTO & SPECIFICHE TECNICHE COMPLETE
 Denominazione Ufficiale: HAVE2WANT PLUS
@@ -514,23 +314,67 @@ function Have2WantPlusMain() {
     };
   }, [listings, selectedCategory, searchQuery]);
 
-  // Integrazione pubblicazione trasferte da utente: crea l'annuncio sulla bacheca/mappa
-  const handlePublishTripToListing = (trip) => {
-    const originLower = (trip.originCity || '').toLowerCase();
-    let lat = 41.8902, lng = 12.4922; // Default Roma
-    if (originLower.includes('milan')) { lat = 45.4642; lng = 9.1900; }
-    else if (originLower.includes('torin') || originLower.includes('asti')) { lat = 45.0703; lng = 7.6869; }
-    else if (originLower.includes('bologn')) { lat = 44.4949; lng = 11.3426; }
-    else if (originLower.includes('firenz')) { lat = 43.7696; lng = 11.2558; }
-    else if (originLower.includes('genov')) { lat = 44.4056; lng = 8.9463; }
-    else if (originLower.includes('napol')) { lat = 40.8518; lng = 14.2681; }
-    else if (originLower.includes('palerm')) { lat = 38.1157; lng = 13.3615; }
-    else if (originLower.includes('bari')) { lat = 41.1171; lng = 16.8719; }
-    else if (originLower.includes('venez')) { lat = 45.4408; lng = 12.3155; }
-    else if (originLower.includes('pari')) { lat = 48.8566; lng = 2.3522; }
-    else if (originLower.includes('madrid')) { lat = 40.4168; lng = -3.7038; }
-    else if (originLower.includes('barcell')) { lat = 41.3851; lng = 2.1734; }
-    else if (originLower.includes('berlin')) { lat = 52.5200; lng = 13.4050; }
+  // Integrazione pubblicazione trasferte da utente: crea l'annuncio sulla bacheca/mappa (risoluzione globale senza fallback a Roma o 0,0)
+  const handlePublishTripToListing = async (trip) => {
+    const originRaw = (trip.originCity || '').trim();
+    const originLower = originRaw.toLowerCase();
+    let resolvedLat;
+    let resolvedLng;
+    let resolvedCountryCode;
+
+    // 1. Cerca prima tra stati, capitali e regioni in WORLD_COUNTRIES
+    const directCountry = originRaw ? findCountryByNameOrCode(originRaw) : null;
+    if (directCountry) {
+      resolvedCountryCode = directCountry.code;
+      if (isValidCoord(directCountry.lat, directCountry.lng)) {
+        resolvedLat = directCountry.lat;
+        resolvedLng = directCountry.lng;
+      }
+    }
+
+    if (originLower) {
+      for (const c of WORLD_COUNTRIES) {
+        if (c.capital && c.capital.toLowerCase() === originLower && isValidCoord(c.lat, c.lng)) {
+          resolvedLat = c.lat;
+          resolvedLng = c.lng;
+          resolvedCountryCode = c.code;
+          break;
+        }
+        const reg = c.regions?.find(
+          (r) =>
+            r.name.toLowerCase() === originLower ||
+            (r.capital && r.capital.toLowerCase() === originLower)
+        );
+        if (reg && isValidCoord(reg.lat, reg.lng)) {
+          resolvedLat = reg.lat;
+          resolvedLng = reg.lng;
+          resolvedCountryCode = c.code;
+          break;
+        }
+      }
+    }
+
+    // 2. Geocodifica mondiale per città specifiche (qualsiasi città del mondo)
+    if (!isValidCoord(resolvedLat, resolvedLng) && originRaw.length >= 2) {
+      try {
+        const hits = await searchAnyWorldPlace(originRaw);
+        const validHit = hits.find((h) => isValidCoord(h.lat, h.lng));
+        if (validHit) {
+          resolvedLat = validHit.lat;
+          resolvedLng = validHit.lng;
+          resolvedCountryCode = resolvedCountryCode || validHit.countryCode;
+        }
+      } catch {
+        // Ignora errore rete geocodifica
+      }
+    }
+
+    // 3. Eventuale fallback sul Paese esplicitamente selezionato dall'utente (se valido)
+    if (!isValidCoord(resolvedLat, resolvedLng) && isValidCoord(selectedCountry?.lat, selectedCountry?.lng)) {
+      resolvedLat = selectedCountry.lat;
+      resolvedLng = selectedCountry.lng;
+      resolvedCountryCode = resolvedCountryCode || selectedCountry.id?.toUpperCase();
+    }
 
     const newListing = {
       id: `carpool-${Date.now()}`,
@@ -540,8 +384,8 @@ function Have2WantPlusMain() {
       subcategory: 'trasferte_passaggi_carpool',
       intent: 'OFFRO_SERVIZIO',
       action_type: 'vendo',
-      lat,
-      lng,
+      ...(isValidCoord(resolvedLat, resolvedLng) ? { lat: resolvedLat, lng: resolvedLng } : {}),
+      ...(resolvedCountryCode ? { countryCode: resolvedCountryCode } : {}),
       city: trip.originCity,
       locationArea: `${trip.originCity} ➔ ${trip.destinationCity}`,
       price: 0,
@@ -679,7 +523,7 @@ function Have2WantPlusMain() {
   );
 
   return (
-    <div className="w-full h-full max-h-screen relative overflow-hidden bg-black text-white select-none flex flex-col font-sans">
+    <div className="w-full h-full max-h-[100dvh] relative overflow-hidden bg-black text-white select-none flex flex-col font-sans">
       {/* =================================================================
           SEZIONE SUPERIORE: HEADER & BARRA AZIONI SCORREVOLE ORIZZONTALMENTE
           ================================================================= */}
@@ -1717,7 +1561,10 @@ function Have2WantPlusMain() {
       {/* PUNTI D'INCONTRO CERTIFICATI */}
       {showMeetingPoints && (
         <CertifiedMeetingPointsModal
-          city={selectedListing?.city || user?.city || "Territorio"}
+          city={selectedHandshakeListing?.city || user?.city || selectedCountry?.name || "Territorio"}
+          country={selectedHandshakeListing?.country || selectedCountry?.name || ''}
+          lat={selectedHandshakeListing?.lat ?? selectedCountry?.lat}
+          lng={selectedHandshakeListing?.lng ?? selectedCountry?.lng}
           onSelectMeetingPoint={(point) => {
             toast.success(`Punto Certificato selezionato: ${point.name} (${point.address})`);
             setShowMeetingPoints(false);
@@ -1828,7 +1675,7 @@ function Have2WantPlusMain() {
       <WorldEmergencyModal
         isOpen={showEmergencyModal}
         onClose={() => setShowEmergencyModal(false)}
-        defaultCountryCode="IT"
+        defaultCountryCode={selectedCountry?.code || selectedCountry?.id || 'GLOBAL'}
       />
 
       <GlobalCarpoolModal
@@ -1910,7 +1757,7 @@ function Have2WantPlusMain() {
 export default function App() {
   return (
     <AuthProvider>
-      <div className="w-screen h-screen h-[100vh] w-[100vw] overflow-hidden bg-black text-white relative selection:bg-[#00ff66]/30 selection:text-[#00ff66] font-sans antialiased">
+      <div className="w-full h-[100dvh] overflow-hidden bg-black text-white relative selection:bg-[#00ff66]/30 selection:text-[#00ff66] font-sans antialiased">
         <Have2WantPlusMain />
         <Toaster 
           position="top-right" 

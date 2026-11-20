@@ -232,10 +232,12 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
 
   // Funzione sendToBackend asincrona con supporto endpoint Python Flask (POST /api/testnet/query)
   const sendToBackend = async (text: string, lat: number, lng: number) => {
-    const endpoints = [
-      "http://localhost:5000/api/testnet/query",
-      "/api/testnet/query"
-    ];
+    const isLocalhost =
+      typeof window !== "undefined" &&
+      (window.location?.hostname === "localhost" || window.location?.hostname === "127.0.0.1");
+    const endpoints = isLocalhost
+      ? ["/api/testnet/query", "http://localhost:5000/api/testnet/query"]
+      : ["/api/testnet/query"];
     for (const url of endpoints) {
       try {
         const res = await fetch(url, {
@@ -290,7 +292,12 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
         formData.append("user_lng", String(lng));
         formData.append("specs_anno", "2024");
 
-        const endpoints = ["http://localhost:5000/api/testnet/publish", "/api/testnet/publish"];
+        const isLocalhost =
+          typeof window !== "undefined" &&
+          (window.location?.hostname === "localhost" || window.location?.hostname === "127.0.0.1");
+        const endpoints = isLocalhost
+          ? ["/api/testnet/publish", "http://localhost:5000/api/testnet/publish"]
+          : ["/api/testnet/publish"];
         for (const ep of endpoints) {
           try {
             await fetch(ep, { method: "POST", body: formData });

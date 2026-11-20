@@ -1,19 +1,21 @@
-import React, { useState } from 'react';
-import { Store, Megaphone, Sparkles, MapPin, Phone, Globe, X, Check, Mic, DollarSign, Calendar, Eye } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Store, Megaphone, X, Calendar, Eye, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
-import { getWeeklyAdvertisingPrice, COUNTRY_PRICING_CATALOG } from '@/lib/countryAdvertisingPricing';
+import { getWeeklyAdvertisingPrice } from '@/lib/countryAdvertisingPricing';
+import { executePiSdkPayment } from '@/lib/piSdkService';
+import { findCountryByNameOrCode, WORLD_COUNTRIES } from '@/lib/worldAtlas';
 
 export default function BusinessSponsorModal({
   isOpen = false,
   onClose = () => {},
   onAddSponsoredBusiness = () => {},
-  currentLocation = { lat: 41.8902, lng: 12.4922, city: 'Roma', region: 'Lazio', countryCode: 'IT' }
+  currentLocation = { lat: 0, lng: 0, city: '', region: '', countryCode: '' }
 }) {
   const [name, setName] = useState('');
   const [category, setCategory] = useState('artigianato');
-  const [countryCode, setCountryCode] = useState(currentLocation.countryCode || 'IT');
-  const [city, setCity] = useState(currentLocation.city || 'Roma');
-  const [region, setRegion] = useState(currentLocation.region || 'Lazio');
+  const [countryCode, setCountryCode] = useState(currentLocation.countryCode || 'GLOBAL');
+  const [city, setCity] = useState(currentLocation.city || '');
+  const [region, setRegion] = useState(currentLocation.region || '');
   const [description, setDescription] = useState('');
   const [promo, setPromo] = useState('');
   const [phone, setPhone] = useState('');
@@ -21,59 +23,114 @@ export default function BusinessSponsorModal({
   const [hours, setHours] = useState('Lun-Sab: 09:00 - 19:30');
   const [piAccepted, setPiAccepted] = useState(true);
   const [hasAd, setHasAd] = useState(true);
+  const [isPaying, setIsPaying] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (currentLocation?.countryCode) {
+      setCountryCode(currentLocation.countryCode.toUpperCase());
+    }
+    if (currentLocation?.city) {
+      setCity(currentLocation.city);
+    }
+    if (currentLocation?.region) {
+      setRegion(currentLocation.region);
+    }
+  }, [isOpen, currentLocation?.countryCode, currentLocation?.city, currentLocation?.region]);
 
   const pricing = getWeeklyAdvertisingPrice(countryCode);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name.trim() || !description.trim()) {
       toast.error('Compila almeno il nome dell\'attività e una breve descrizione!');
       return;
     }
 
-    const effectivePi = Boolean(piAccepted);
-    const effectiveAd = Boolean(hasAd || promo.trim().length > 0);
-    const effectivePromo = effectiveAd ? (promo.trim() || 'Volantino promozionale attivo in vetrina') : '';
+    // Risoluzione coordinate reali non nulle (mai 0,0 Null Island)
+    let baseLat = Number(currentLocation?.lat);
+    let baseLng = Number(currentLocation?.lng);
+    if (!Number.isFinite(baseLat) || !Number.isFinite(baseLng) || (baseLat === 0 && baseLng === 0)) {
+      const countryEntry = findCountryByNameOrCode(countryCode) || findCountryByNameOrCode(city);
+      if (countryEntry) {
+        baseLat = countryEntry.lat;
+        baseLng = countryEntry.lng;
+      }
+    }
+    if (!Number.isFinite(baseLat) || !Number.isFinite(baseLng) || (baseLat === 0 && baseLng === 0)) {
+      toast.error('Posizione geografica non valida. Seleziona una Nazione o centra la mappa prima di attivare la vetrina.');
+      return;
+    }
 
-    const newBiz = {
-      id: `biz-${Date.now()}`,
-      name: name.trim(),
-      category,
-      categoryLabel: category === 'ospitalita' ? 'Hotel, B&B & Ospitalità' : category === 'ristorazione' ? 'Ristorazione & Bar' : category === 'tecnologia' ? 'Informatica & Rigenerazione' : category === 'bio_agricoltura' ? 'Prodotti Bio & KM0' : 'Artigianato & Servizi',
-      badge: effectivePi && effectiveAd ? 'Gold Verified' : effectivePi ? 'Pi Merchant' : 'Gold Verified',
-      city,
-      region,
-      countryCode,
-      lat: currentLocation.lat + (Math.random() - 0.5) * 0.004,
-      lng: currentLocation.lng + (Math.random() - 0.5) * 0.004,
-      rating: 5.0,
-      reviewCount: 1,
-      description: description.trim(),
-      promo: effectivePromo,
-      adHeadline: effectiveAd ? effectivePromo : undefined,
-      piAccepted: effectivePi,
-      hasAd: effectiveAd,
-      isAd: effectiveAd,
-      p2pDirectWallet: effectivePi,
-      durationDays: 7,
-      durationLabel: 'Settimanale (7 giorni)',
-      paidPricePi: pricing.currentPricePi,
-      listPricePi: pricing.listPricePi,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-      phone: phone.trim() || '+39 06 1234567',
-      website: website.trim() || 'https://pinetwork.com',
-      hours,
-      voiceIntro: `Ciao! Benvenuti da ${name}. Scopri le nostre offerte in risalto sulla mappa 3D!`
-    };
+    setIsPaying(true);
+    try {
+      const paymentResult = await executePiSdkPayment({
+        amount: pricing.currentPricePi,
+        memo: `HAVE2WANT Vetrina 3D 7gg: ${name.trim()}`,
+        metadata: {
+          type: 'shop_sponsorship_7d',
+          businessName: name.trim(),
+          countryCode,
+          pricePi: pricing.currentPricePi,
+        },
+        requireLivePiBrowser: true,
+      });
 
-    onAddSponsoredBusiness(newBiz);
-    toast.success(`Vetrina "${name}" attivata per 7 giorni!`, {
-      description: `Spazio settimanale attivo sulla mappa 3D (${pricing.currentPricePi} π)`,
-      duration: 4000
-    });
-    onClose();
+      if (!paymentResult.success || !paymentResult.txId) {
+        toast.error(
+          paymentResult.error || 'Pagamento Pi Network non completato: la vetrina a pagamento richiede verifica Pi SDK.'
+        );
+        return;
+      }
+
+      const effectivePi = Boolean(piAccepted);
+      const effectiveAd = Boolean(hasAd || promo.trim().length > 0);
+      const effectivePromo = effectiveAd ? (promo.trim() || 'Volantino promozionale attivo in vetrina') : '';
+
+      const newBiz = {
+        id: `biz-${Date.now()}`,
+        name: name.trim(),
+        category,
+        categoryLabel: category === 'ospitalita' ? 'Hotel, B&B & Ospitalità' : category === 'ristorazione' ? 'Ristorazione & Bar' : category === 'tecnologia' ? 'Informatica & Rigenerazione' : category === 'bio_agricoltura' ? 'Prodotti Bio & KM0' : 'Artigianato & Servizi',
+        badge: effectivePi && effectiveAd ? 'Gold Verified' : effectivePi ? 'Pi Merchant' : 'Gold Verified',
+        city,
+        region,
+        countryCode,
+        lat: baseLat + (Math.random() - 0.5) * 0.004,
+        lng: baseLng + (Math.random() - 0.5) * 0.004,
+        rating: 5.0,
+        reviewCount: 1,
+        description: description.trim(),
+        promo: effectivePromo,
+        adHeadline: effectiveAd ? effectivePromo : undefined,
+        piAccepted: effectivePi,
+        hasAd: effectiveAd,
+        isAd: effectiveAd,
+        p2pDirectWallet: effectivePi,
+        durationDays: 7,
+        durationLabel: 'Settimanale (7 giorni)',
+        paidPricePi: pricing.currentPricePi,
+        listPricePi: pricing.listPricePi,
+        piPaymentId: paymentResult.paymentId || paymentResult.txId,
+        txId: paymentResult.txId,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        phone: phone.trim(),
+        website: website.trim() || 'https://pinetwork.com',
+        hours,
+        voiceIntro: `Ciao! Benvenuti da ${name}. Scopri le nostre offerte in risalto sulla mappa 3D!`
+      };
+
+      onAddSponsoredBusiness(newBiz);
+      toast.success(`Vetrina "${name}" attivata per 7 giorni!`, {
+        description: `Pagamento Pi verificato (${pricing.currentPricePi} π) • TX ${paymentResult.txId.slice(0, 14)}...`,
+        duration: 4000
+      });
+      onClose();
+    } finally {
+      setIsPaying(false);
+    }
   };
 
   return (
@@ -124,11 +181,12 @@ export default function BusinessSponsorModal({
                 onChange={(e) => setCountryCode(e.target.value)}
                 className="w-full px-3.5 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-white cursor-pointer focus:outline-none focus:border-[#00ff66]"
               >
-                {Object.values(COUNTRY_PRICING_CATALOG).map((t) => (
-                  <option key={t.countryCode} value={t.countryCode}>
-                    {t.countryName} ({t.currencySymbol})
+                {WORLD_COUNTRIES.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.flag} {c.name} ({c.currency.symbol})
                   </option>
                 ))}
+                <option value="GLOBAL">🌐 Internazionale ($)</option>
               </select>
             </div>
 

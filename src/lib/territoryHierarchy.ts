@@ -2,6 +2,8 @@
 // Struttura a 5 livelli: Mondo -> Stato (Nazione) -> Regione/Stato Federale -> Provincia/Distretto -> Comune/Città
 // Supporta TUTTI gli Stati del mondo con fallback su Geocoding Nominatim Live per qualsiasi comune
 
+import { findCountryByNameOrCode, WORLD_COUNTRIES, WorldCountry } from './worldAtlas';
+
 export interface ComuneData {
   name: string;
   lat: number;
@@ -39,6 +41,7 @@ export interface NazioneData {
   currency: { code: string; symbol: string; name: string };
   lang: string;
   regions: RegioneData[];
+  fallbackGenerated?: boolean;
 }
 
 // Database gerarchico completo per i principali Stati, estendibile dinamicamente
@@ -1297,49 +1300,93 @@ export const GLOBAL_HIERARCHY: NazioneData[] = [
   },
 ];
 
-// Funzione di lookup gerarchico per trovare una nazione o generare una struttura al volo per qualsiasi stato
-export function getHierarchyForCountry(countryNameOrCode: string): NazioneData {
-  const query = (countryNameOrCode || '').toLowerCase().trim();
+function buildHierarchyFromWorldCountry(country: WorldCountry): NazioneData {
+  const sourceRegions =
+    country.regions && country.regions.length > 0
+      ? country.regions
+      : [
+          {
+            name: `Area Metropolitana ${country.capital || country.name}`,
+            capital: country.capital || country.name,
+            lat: country.lat,
+            lng: country.lng,
+          },
+        ];
+
+  return {
+    code: country.code,
+    code3: country.code3,
+    name: country.name,
+    nativeName: country.nativeName,
+    flag: country.flag,
+    continent: country.continent,
+    capital: country.capital,
+    lat: country.lat,
+    lng: country.lng,
+    currency: {
+      code: country.currency.code,
+      symbol: country.currency.symbol,
+      name: country.currency.name,
+    },
+    lang: country.language.name,
+    regions: sourceRegions.map((reg) => ({
+      name: reg.name,
+      capital: reg.capital,
+      lat: reg.lat,
+      lng: reg.lng,
+      provinces: [
+        {
+          name: `${reg.name} (${reg.capital})`,
+          lat: reg.lat,
+          lng: reg.lng,
+          comuni: [
+            {
+              name: reg.capital || reg.name,
+              lat: reg.lat,
+              lng: reg.lng,
+              isCapital: true,
+            },
+          ],
+        },
+      ],
+    })),
+  };
+}
+
+// Funzione di lookup gerarchico per trovare una nazione (MAI fallback silenzioso su Italia/Roma)
+export function getHierarchyForCountry(countryNameOrCode: string): NazioneData | null {
+  const query = (countryNameOrCode || '')
+    .toLowerCase()
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  if (!query) return null;
+
   const found = GLOBAL_HIERARCHY.find(
     (c) =>
       c.code.toLowerCase() === query ||
       c.code3.toLowerCase() === query ||
-      c.name.toLowerCase() === query ||
-      c.nativeName.toLowerCase() === query
+      c.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') === query ||
+      c.nativeName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') === query
   );
 
   if (found) return found;
 
-  // Se è uno stato non ancora pre-caricato nei 8 principali, generiamo la struttura universale
-  return {
-    code: query.slice(0, 2).toUpperCase(),
-    code3: query.slice(0, 3).toUpperCase(),
-    name: countryNameOrCode,
-    nativeName: countryNameOrCode,
-    flag: '🌍',
-    continent: 'Mondo',
-    capital: countryNameOrCode,
-    lat: 0,
-    lng: 0,
-    currency: { code: 'EUR', symbol: '€', name: 'Valuta Globale' },
-    lang: 'Internazionale',
-    regions: [
-      {
-        name: `Territorio di ${countryNameOrCode}`,
-        capital: countryNameOrCode,
-        lat: 0,
-        lng: 0,
-        provinces: [
-          {
-            name: `Distretto Principale`,
-            lat: 0,
-            lng: 0,
-            comuni: [
-              { name: `${countryNameOrCode} Città`, lat: 0, lng: 0, isCapital: true }
-            ]
-          }
-        ]
-      }
-    ]
-  };
+  // Ricerca completa in WORLD_COUNTRIES (~197 Stati sovrani)
+  const worldMatch =
+    findCountryByNameOrCode(countryNameOrCode) ||
+    WORLD_COUNTRIES.find(
+      (c) =>
+        c.code.toLowerCase() === query ||
+        c.code3.toLowerCase() === query ||
+        c.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') === query ||
+        c.nativeName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') === query
+    );
+
+  if (worldMatch) {
+    return buildHierarchyFromWorldCountry(worldMatch);
+  }
+
+  return null;
 }
+

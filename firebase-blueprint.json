@@ -2,86 +2,136 @@
   "entities": {
     "Listing": {
       "title": "Listing",
-      "description": "Have2Want Marketplace Listing",
+      "description": "Annuncio territoriale P2P o inserzione geolocalizzata in HAVE2WANT PLUS / Urbano3D.",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "title": { "type": "string" },
-        "description": { "type": "string" },
-        "intent": { "type": "string" },
-        "category": { "type": "string" },
-        "subcategory": { "type": "string" },
-        "price": { "type": "number" },
-        "piPrice": { "type": "number" },
-        "imageUrl": { "type": "string" },
-        "images": { "type": "array" },
-        "city": { "type": "string" },
-        "country": { "type": "string" },
-        "authorId": { "type": "string" },
-        "authorName": { "type": "string" },
-        "originType": { "type": "string" },
-        "isExternal": { "type": "boolean" },
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "description": { "type": "string", "maxLength": 4000 },
+        "status": { "type": "string", "enum": ["active", "pending", "completed", "suspended", "archived"] },
+        "handshakeBuyerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
         "handshake_confirmed": { "type": "boolean" },
-        "status": { "type": "string" },
-        "visibility_level": { "type": "string" },
-        "createdAt": { "type": "string" },
-        "updatedAt": { "type": "string" }
+        "handshake_timestamp": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
       },
-      "required": ["title", "intent"]
+      "required": ["id", "ownerUid", "title"]
+    },
+    "HandshakeProposal": {
+      "title": "HandshakeProposal",
+      "description": "Proposta e conferma Stretta di Mano P2P vincolata a owner e controparte autenticata.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "listingId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "proposerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "cancelled"] },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "listingId", "proposerUid", "ownerUid", "status"]
     },
     "Shop": {
       "title": "Shop",
-      "description": "Registered Local Shop or Artisan",
+      "description": "Attivita commerciale, bottega o professionista visibile come pin sulla mappa 3D Urbano3D.",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "ownerName": { "type": "string" },
-        "type": { "type": "string" },
-        "city": { "type": "string" },
-        "region": { "type": "string" },
-        "lat": { "type": "number" },
-        "lng": { "type": "number" },
-        "description": { "type": "string" },
-        "acceptsPi": { "type": "boolean" },
-        "piAccepted": { "type": "boolean" },
-        "hasAd": { "type": "boolean" },
-        "featuredOffer": { "type": "string" },
-        "promo": { "type": "string" }
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "category": { "type": "string", "maxLength": 100 },
+        "city": { "type": "string", "maxLength": 120 },
+        "specialist_municipality_cap_verified": { "type": "boolean" },
+        "piPaymentId": { "type": "string", "maxLength": 128 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
       },
-      "required": ["name"]
+      "required": ["id", "ownerUid", "name"]
     },
     "Wallet": {
       "title": "Wallet",
-      "description": "Unified Pioneer Community Points & Merchant Balance State",
+      "description": "Portafoglio punti comunitari del Pioniere. I saldi monetari non sono modificabili arbitrariamente dal client SDK.",
       "type": "object",
       "properties": {
-        "walletId": { "type": "string" },
+        "walletId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
         "pointsBalance": { "type": "number" },
         "totalPointsEarned": { "type": "number" },
         "merchantPiBalance": { "type": "number" },
-        "pioneerUsername": { "type": "string" },
-        "pioneerWalletAddress": { "type": "string" },
+        "pioneerUsername": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "pioneerWalletAddress": { "type": "string", "maxLength": 128 },
         "adStreamEnabled": { "type": "boolean" },
         "adCompletedStreak": { "type": "number" },
-        "history": { "type": "array" },
         "updatedAt": { "type": "number" }
       },
-      "required": ["pointsBalance", "totalPointsEarned", "pioneerUsername"]
+      "required": ["walletId", "pointsBalance", "totalPointsEarned", "pioneerUsername"]
+    },
+    "SalvavatuttoGuide": {
+      "title": "SalvavatuttoGuide",
+      "description": "Guida pratica di riparazione, autoproduzione o riuso pubblicata sul Pianeta Salvavatutto.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "authorUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "category": { "type": "string", "maxLength": 100 },
+        "content": { "type": "string", "minLength": 1, "maxLength": 12000 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "authorUid", "title", "content"]
+    },
+    "AbuseReport": {
+      "title": "AbuseReport",
+      "description": "Segnalazione etica o di abuso inviata da un utente autenticato verso un annuncio.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "reporterUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "listingId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "reason": { "type": "string", "minLength": 3, "maxLength": 1000 },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "reporterUid", "listingId", "reason"]
+    },
+    "PiIdempotencyRecord": {
+      "title": "PiIdempotencyRecord",
+      "description": "Chiave di idempotenza lato server per prevenire pagamenti duplicati e doppi prelievi A2U tra isolate.",
+      "type": "object",
+      "properties": {
+        "key": { "type": "string", "minLength": 3, "maxLength": 160 },
+        "kind": { "type": "string", "enum": ["payment_complete", "withdraw_idempotency", "payment_approve"] },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["key", "kind", "createdAt"]
     }
   },
   "firestore": {
     "/listings/{listingId}": {
-      "schema": "Listing",
-      "description": "Public marketplace listings across the world"
+      "schema": { "$ref": "#/entities/Listing" },
+      "description": "Annunci territoriali visibili pubblicamente in lettura; scrittura consentita solo a utenti autenticati proprietari e flusso Stretta di Mano vincolato."
+    },
+    "/listings/{listingId}/handshakes/{handshakeId}": {
+      "schema": { "$ref": "#/entities/HandshakeProposal" },
+      "description": "Proposte e conferme Stretta di Mano protette da Master Gate sul documento listing padre."
     },
     "/shops/{shopId}": {
-      "schema": "Shop",
-      "description": "Registered local shops, commerce, and artisans"
+      "schema": { "$ref": "#/entities/Shop" },
+      "description": "Negozi e attivita su mappa 3D visibili pubblicamente in lettura; scrittura consentita solo al titolare autenticato."
     },
     "/wallets/{walletId}": {
-      "schema": "Wallet",
-      "description": "Per-user community points balance, merchant balance, and transaction ledger"
+      "schema": { "$ref": "#/entities/Wallet" },
+      "description": "Wallet privato del Pioniere autenticato: lettura e modifiche profilo limitate al proprietario, saldo punti protetto da scritture arbitrarie."
+    },
+    "/guides/{guideId}": {
+      "schema": { "$ref": "#/entities/SalvavatuttoGuide" },
+      "description": "Guide pratiche comunitarie del Pianeta Salvavatutto."
+    },
+    "/abuse_reports/{reportId}": {
+      "schema": { "$ref": "#/entities/AbuseReport" },
+      "description": "Segnalazioni di abuso create da utenti autenticati."
+    },
+    "/pi_idempotency/{keyHash}": {
+      "schema": { "$ref": "#/entities/PiIdempotencyRecord" },
+      "description": "Collezione esclusivamente server-side per lock atomici di idempotenza Pi Network."
     }
   }
 }

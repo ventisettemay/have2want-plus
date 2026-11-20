@@ -8,6 +8,14 @@
 import * as THREE from 'three';
 import { SatelliteConfig, SatelliteId } from '@/lib/satelliteModularEngine';
 
+export type SatelliteLightMode = 'BLINKING' | 'NORMAL' | 'BRIGHT';
+
+export function getSatelliteLightMode(id: SatelliteId): SatelliteLightMode {
+  if (id === 'METEO_SAT' || id === 'STREET_360_SAT') return 'BLINKING';
+  if (id === 'EXTERNAL_MARKET_SAT') return 'NORMAL';
+  return 'BRIGHT';
+}
+
 export interface SpacecraftRenderInstance {
   config: SatelliteConfig;
   craftGroup: THREE.Group;
@@ -17,6 +25,7 @@ export interface SpacecraftRenderInstance {
   rightBeacon?: THREE.Mesh;
   strobeBeacons?: THREE.Mesh[];
   radarPulse?: THREE.Mesh;
+  lightMode: SatelliteLightMode;
   angle: number;
   orbitRadius: number;
 }
@@ -29,6 +38,7 @@ export interface SpacecraftBuildResult {
   rightBeacon?: THREE.Mesh;
   strobeBeacons?: THREE.Mesh[];
   radarPulse?: THREE.Mesh;
+  lightMode: SatelliteLightMode;
 }
 
 // Generatore procedurale di texture fotovoltaica ad alta definizione con celle e busbars
@@ -254,10 +264,14 @@ export function buildEngineeredSpacecraft(
     ionPlasmaMat,
   } = materials;
 
+  const lightMode = getSatelliteLightMode(sat.id);
+  const neonEmissiveIntensity =
+    lightMode === 'BRIGHT' ? 2.2 : lightMode === 'BLINKING' ? 1.5 : 0.35;
+
   const neonMat = new THREE.MeshStandardMaterial({
     color: new THREE.Color(sat.color),
     emissive: new THREE.Color(sat.color),
-    emissiveIntensity: 0.95,
+    emissiveIntensity: neonEmissiveIntensity,
     roughness: 0.1,
   });
 
@@ -606,15 +620,51 @@ export function buildEngineeredSpacecraft(
   group.add(badge);
   clickables.push(badge);
 
-  // Fari stroboscopici di navigazione orbitale (rosso sinistro, verde destro)
-  const beaconGeo = new THREE.SphereGeometry(0.48, 12, 12);
-  const leftBeacon = new THREE.Mesh(beaconGeo, new THREE.MeshBasicMaterial({ color: 0xef4444 }));
+  // Fari differenziati in base alla missione del satellite:
+  // - BLINKING (METEO_SAT, STREET_360_SAT): Luce lampeggiante (ON/OFF)
+  // - NORMAL (EXTERNAL_MARKET_SAT): Luce normale continua a bassa intensità
+  // - BRIGHT (KM0_SAT, GLOBAL_MARKET_SAT, BUSINESS_ADS_SAT, PI_CHAT_SAT, COMMUNITY_RESCUE_SAT): Luce brillante continua ad alta intensità
+  const isBlinking = lightMode === 'BLINKING';
+  const isBright = lightMode === 'BRIGHT';
+
+  const beaconRadius = isBright ? 0.62 : isBlinking ? 0.56 : 0.40;
+  const beaconGeo = new THREE.SphereGeometry(beaconRadius, 12, 12);
+  const leftColor = isBright ? new THREE.Color(sat.color) : new THREE.Color(0xef4444);
+  const rightColor = isBright ? new THREE.Color(0xffffff) : new THREE.Color(0x10b981);
+
+  const leftMat = new THREE.MeshBasicMaterial({
+    color: leftColor,
+    transparent: !isBlinking,
+    opacity: isBright ? 1.0 : isBlinking ? 1.0 : 0.55,
+  });
+  const leftBeacon = new THREE.Mesh(beaconGeo, leftMat);
   leftBeacon.position.copy(leftBeaconPos);
   group.add(leftBeacon);
 
-  const rightBeacon = new THREE.Mesh(beaconGeo, new THREE.MeshBasicMaterial({ color: 0x10b981 }));
+  const rightMat = new THREE.MeshBasicMaterial({
+    color: rightColor,
+    transparent: !isBlinking,
+    opacity: isBright ? 1.0 : isBlinking ? 1.0 : 0.55,
+  });
+  const rightBeacon = new THREE.Mesh(beaconGeo, rightMat);
   rightBeacon.position.copy(rightBeaconPos);
   group.add(rightBeacon);
+
+  // Alone luminoso continuo ad alta intensità esclusivamente per i satelliti BRIGHT
+  if (isBright) {
+    const haloGeo = new THREE.SphereGeometry(1.15, 12, 12);
+    const haloMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(sat.color),
+      transparent: true,
+      opacity: 0.42,
+      depthWrite: false,
+    });
+    const leftHalo = new THREE.Mesh(haloGeo, haloMat);
+    leftHalo.position.copy(leftBeaconPos);
+    const rightHalo = new THREE.Mesh(haloGeo, haloMat);
+    rightHalo.position.copy(rightBeaconPos);
+    group.add(leftHalo, rightHalo);
+  }
 
   // Sfera invisibile di aggancio tocco/clic per facilitare il tap su mobile
   const hitGeo = new THREE.SphereGeometry(4.0, 8, 8);
@@ -623,26 +673,27 @@ export function buildEngineeredSpacecraft(
   group.add(hitSphere);
   clickables.push(hitSphere);
 
-  // Indicatore radar di prossimità discreto e non invasivo (rimuove il turbinio di anelli giganti)
-  const pulseGeo = new THREE.RingGeometry(1.1, 1.35, 24);
+  // Indicatore radar di prossimità discreto proporzionato alla modalità luce
+  const pulseGeo = new THREE.RingGeometry(1.1, isBright ? 1.6 : 1.35, 24);
   const pulseMat = new THREE.MeshBasicMaterial({
     color: new THREE.Color(sat.color),
     transparent: true,
-    opacity: 0.16,
+    opacity: isBright ? 0.36 : isBlinking ? 0.24 : 0.08,
     side: THREE.DoubleSide,
   });
   const radarPulse = new THREE.Mesh(pulseGeo, pulseMat);
   radarPulse.rotation.x = Math.PI / 2;
   group.add(radarPulse);
 
-  // Scala visibile proporzionata, elegante e realistica rispetto al globo (raggio 60)
-  group.scale.set(0.36, 0.36, 0.36);
+  // Scala visibile aumentata da 0.36 a 0.50 per maggiore visibilità orbitale senza coprire la Terra
+  group.scale.set(0.50, 0.50, 0.50);
 
   // Metadati per interazione raycasting touch/click
   clickables.forEach((mesh) => {
     mesh.userData = {
       isSatellite: true,
       satelliteId: sat.id,
+      lightMode,
       name: `${sat.name} (${sat.codeName})`,
       description: sat.h2wRole,
     };
@@ -654,7 +705,8 @@ export function buildEngineeredSpacecraft(
     clickables,
     leftBeacon,
     rightBeacon,
-    strobeBeacons: [leftBeacon, rightBeacon],
+    strobeBeacons: isBlinking ? [leftBeacon, rightBeacon] : [],
     radarPulse,
+    lightMode,
   };
 }

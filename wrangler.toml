@@ -1,0 +1,24 @@
+name = "urbano3d-api"
+main = "worker.ts"
+compatibility_date = "2025-03-01"
+workers_dev = true
+
+[vars]
+# Impostare "true" solo in Pi Sandbox / Testnet; "false" per Mainnet
+VITE_PI_SANDBOX = "false"
+# Opzionale in produzione per restringere CORS sulle API /api/pi/* (es. "https://urbano3d.pages.dev,https://sandbox.minepi.com")
+ALLOWED_ORIGINS = ""
+
+# NON inserire mai segreti qui dentro (PI_API_KEY, PI_WALLET_SEED, FIREBASE_SERVICE_ACCOUNT_JSON).
+# Configura i segreti dal terminale con:
+#   npx wrangler secret put PI_API_KEY
+#   npx wrangler secret put FIREBASE_SERVICE_ACCOUNT_JSON
+#   npx wrangler secret put PI_WALLET_SEED
+#   npx wrangler secret put PI_WALLET_PUBLIC_KEY
+#
+# Opzionale (tier gratuito D1 per idempotenza atomica edge senza Firebase Admin):
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "urbano3d-idempotency"
+# database_id = "<YOUR_D1_DATABASE_ID>"
+

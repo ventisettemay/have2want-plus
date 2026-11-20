@@ -17,6 +17,7 @@ import {
   AlertCircle 
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { getCachedPiRealPrice } from '@/lib/piRealPriceService';
 
 export interface ListingDetailItem {
   id: string;
@@ -210,11 +211,14 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({
                 <span className="text-lg font-black text-amber-300 font-mono block">
                   {listing.piPrice ? `${listing.piPrice} π` : 'Accetta Pi'}
                 </span>
-                {listing.piPrice ? (
-                  <span className="text-[10px] text-zinc-400 font-mono block">
-                    ≈ {(listing.price !== undefined && listing.price > 0 ? listing.price : (listing.piPrice * 0.0674)).toFixed(2)} € (Mercato CMC ~0,075$)
-                  </span>
-                ) : null}
+                {listing.piPrice ? (() => {
+                  const piRate = getCachedPiRealPrice();
+                  return (
+                    <span className="text-[10px] text-zinc-400 font-mono block">
+                      ≈ {(listing.price !== undefined && listing.price > 0 ? listing.price : (listing.piPrice * piRate.priceEur)).toFixed(2)} € (Mercato CMC ~{piRate.priceUsd.toFixed(3)}$)
+                    </span>
+                  );
+                })() : null}
               </div>
             </div>
           </div>

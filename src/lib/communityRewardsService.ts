@@ -13,6 +13,9 @@ import {
   saveWalletToCloud,
   subscribeToWalletCloud,
 } from './firestoreService';
+import { buildApiUrl } from './apiConfig';
+import { auth } from './firebase';
+import { getCurrentPiAccessToken } from './piSdkService';
 
 export interface RewardTransaction {
   id: string;
@@ -153,6 +156,93 @@ function scheduleCloudSync(state: PioneerRewardsState) {
       updatedAt: state.updatedAt,
     }).catch(() => {});
   }, 250);
+}
+
+export async function syncWalletDeltaToCloud(params: {
+  state: PioneerRewardsState;
+  pointsDelta: number;
+  merchantPiDelta?: number;
+  actionType: string;
+  description: string;
+  txId: string;
+  piPaymentId?: string;
+  txHash?: string;
+  piEquivalent?: number;
+  adCompletedStreakDelta?: number;
+}): Promise<{ synced: boolean; pointsBalance?: number; reason?: string }> {
+  if (typeof window === 'undefined' || isTestEnvironment() || typeof fetch !== 'function') {
+    return { synced: false, reason: 'skipped_non_browser' };
+  }
+
+  try {
+    const firebaseIdToken = auth.currentUser
+      ? await auth.currentUser.getIdToken().catch(() => '')
+      : '';
+    const piAccessToken = getCurrentPiAccessToken() || '';
+    if (!firebaseIdToken && !piAccessToken) {
+      return { synced: false, reason: 'unauthenticated' };
+    }
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (piAccessToken) {
+      headers.Authorization = `Bearer ${piAccessToken}`;
+    }
+    if (firebaseIdToken) {
+      headers['X-Firebase-Token'] = firebaseIdToken;
+    }
+
+    const res = await fetch(buildApiUrl('/api/wallet/points'), {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        walletId: params.state.walletId,
+        pointsDelta: params.pointsDelta,
+        merchantPiDelta: params.merchantPiDelta ?? 0,
+        actionType: params.actionType,
+        description: params.description,
+        txId: params.txId,
+        piPaymentId: params.piPaymentId,
+        txHash: params.txHash,
+        piEquivalent: params.piEquivalent,
+        pioneerUsername: params.state.pioneerUsername,
+        pioneerWalletAddress: params.state.pioneerWalletAddress,
+        adStreamEnabled: params.state.adStreamEnabled,
+        adCompletedStreakDelta: params.adCompletedStreakDelta ?? 0,
+      }),
+    });
+
+    const data: any = await res.json().catch(() => null);
+    if (!res.ok || !data?.synced) {
+      return { synced: false, reason: data?.error || `http_${res.status}` };
+    }
+
+    const latest = getPioneerRewardsState();
+    if (latest.walletId === params.state.walletId) {
+      savePioneerRewardsState(
+        {
+          ...latest,
+          pointsBalance:
+            typeof data.pointsBalance === 'number' ? data.pointsBalance : latest.pointsBalance,
+          totalPointsEarned:
+            typeof data.totalPointsEarned === 'number'
+              ? data.totalPointsEarned
+              : latest.totalPointsEarned,
+          merchantPiBalance:
+            typeof data.merchantPiBalance === 'number'
+              ? data.merchantPiBalance
+              : latest.merchantPiBalance,
+          updatedAt: typeof data.updatedAt === 'number' ? data.updatedAt : Date.now(),
+        },
+        { skipCloudSync: true }
+      );
+    }
+
+    return { synced: true, pointsBalance: data.pointsBalance };
+  } catch {
+    return { synced: false, reason: 'network_error' };
+  }
 }
 
 export function subscribeRewardsState(listener: RewardsListener): () => void {
@@ -319,7 +409,16 @@ export function awardPoints(
   };
 
   state.history.unshift(newTx);
-  savePioneerRewardsState(state);
+  savePioneerRewardsState(state, { skipCloudSync: true });
+  void syncWalletDeltaToCloud({
+    state,
+    pointsDelta: points,
+    actionType,
+    description: newTx.description,
+    txId: newTx.id,
+    piEquivalent: newTx.piEquivalent,
+    adCompletedStreakDelta: actionType === 'QUICK_SPONSOR_AD' ? 1 : 0,
+  });
 
   return {
     success: true,
@@ -346,7 +445,7 @@ export function adjustCommunityPoints(
   const state = getPioneerRewardsState();
   state.pointsBalance += delta;
   state.totalPointsEarned += delta;
-  state.history.unshift({
+  const adjTx: RewardTransaction = {
     id: `tx_adj_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
     type: 'EARN_COMMUNITY_ENGAGE',
     description,
@@ -354,8 +453,17 @@ export function adjustCommunityPoints(
     piEquivalent: pointsToPi(delta),
     timestamp: Date.now(),
     status: 'completed',
+  };
+  state.history.unshift(adjTx);
+  savePioneerRewardsState(state, { skipCloudSync: true });
+  void syncWalletDeltaToCloud({
+    state,
+    pointsDelta: delta,
+    actionType: 'EARN_COMMUNITY_ENGAGE',
+    description,
+    txId: adjTx.id,
+    piEquivalent: adjTx.piEquivalent,
   });
-  savePioneerRewardsState(state);
   return { success: true, newBalance: state.pointsBalance, pointsDelta: delta };
 }
 
@@ -372,13 +480,23 @@ export function setAdStreamEnabledPreference(enabled: boolean): PioneerRewardsSt
 /**
  * Ricarica o scala il saldo Pi Esercente in modo sincrono e persistente
  */
-export function addMerchantPiCredit(amount: number): number {
+export function addMerchantPiCredit(amount: number, piPaymentId?: string): number {
   if (!Number.isFinite(amount) || amount <= 0) {
     return getPioneerRewardsState().merchantPiBalance;
   }
   const state = getPioneerRewardsState();
   state.merchantPiBalance = Number((state.merchantPiBalance + amount).toFixed(8));
-  savePioneerRewardsState(state);
+  savePioneerRewardsState(state, { skipCloudSync: true });
+  void syncWalletDeltaToCloud({
+    state,
+    pointsDelta: 0,
+    merchantPiDelta: amount,
+    actionType: 'MERCHANT_REWARD_DEPOSIT',
+    description: `Ricarica credito esercente (+${amount} π)`,
+    txId: `tx_merch_in_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+    piPaymentId,
+    piEquivalent: amount,
+  });
   return state.merchantPiBalance;
 }
 
@@ -391,7 +509,7 @@ export function spendMerchantPiBalance(
     return { success: false, newMerchantBalance: state.merchantPiBalance };
   }
   state.merchantPiBalance = Number((state.merchantPiBalance - costPi).toFixed(8));
-  state.history.unshift({
+  const merchTx: RewardTransaction = {
     id: `tx_merch_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
     type: 'WITHDRAW_PI',
     description: `${description} (-${costPi} π)`,
@@ -399,8 +517,18 @@ export function spendMerchantPiBalance(
     piEquivalent: -costPi,
     timestamp: Date.now(),
     status: 'completed',
+  };
+  state.history.unshift(merchTx);
+  savePioneerRewardsState(state, { skipCloudSync: true });
+  void syncWalletDeltaToCloud({
+    state,
+    pointsDelta: 0,
+    merchantPiDelta: -costPi,
+    actionType: 'MERCHANT_PI_ADJUST',
+    description: merchTx.description,
+    txId: merchTx.id,
+    piEquivalent: -costPi,
   });
-  savePioneerRewardsState(state);
   return { success: true, newMerchantBalance: state.merchantPiBalance };
 }
 
@@ -473,18 +601,28 @@ export async function executePiWithdrawal(
 
   if (typeof fetch === 'function') {
     try {
-      const response = await fetch('/api/pi/withdraw', {
+      const accessToken = getCurrentPiAccessToken();
+      const idempotencyKey = `wth_${state.walletId}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': idempotencyKey,
+      };
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+      const response = await fetch(buildApiUrl('/api/pi/withdraw'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           requestedPi,
           walletAddress: walletAddress.trim(),
           pioneerUsername: pioneerUsername || state.pioneerUsername,
           uid,
+          idempotencyKey,
         }),
       });
       const payload = await response.json().catch(() => null);
-      if (!response.ok) {
+      if (!response.ok || payload?.success === false) {
         return {
           success: false,
           error: payload?.error || `Errore server prelievo Pi (HTTP ${response.status})`,
@@ -496,9 +634,19 @@ export async function executePiWithdrawal(
         netPiSent = typeof payload.netPiSent === 'number' ? payload.netPiSent : netPiSent;
         feeDeducted = typeof payload.feeDeducted === 'number' ? payload.feeDeducted : feeDeducted;
       }
-    } catch {
-      // Fallback strutturato offline/test runner se endpoint relativo non raggiungibile
+    } catch (err: any) {
+      if (!isTestEnvironment()) {
+        return {
+          success: false,
+          error: err?.message || 'Impossibile raggiungere il server per autorizzare il prelievo Pi.',
+        };
+      }
     }
+  } else if (!isTestEnvironment()) {
+    return {
+      success: false,
+      error: 'Connettività server assente per il prelievo Pi Network.',
+    };
   }
 
   state.pointsBalance -= breakdown.requiredPoints;
@@ -517,7 +665,7 @@ export async function executePiWithdrawal(
   };
 
   state.history.unshift(withdrawTx);
-  savePioneerRewardsState(state);
+  savePioneerRewardsState(state, { skipCloudSync: true });
 
   return {
     success: true,
@@ -555,6 +703,14 @@ export function spendPoints(
     status: 'completed',
   };
   state.history.unshift(tx);
-  savePioneerRewardsState(state);
+  savePioneerRewardsState(state, { skipCloudSync: true });
+  void syncWalletDeltaToCloud({
+    state,
+    pointsDelta: -amount,
+    actionType: 'SPEND_LISTING_FEATURE',
+    description,
+    txId: tx.id,
+    piEquivalent: tx.piEquivalent,
+  });
   return { success: true, newBalance: state.pointsBalance, pointsSpent: amount };
 }

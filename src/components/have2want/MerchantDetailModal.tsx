@@ -53,6 +53,7 @@ interface MerchantDetailModalProps {
   onSelectBusiness: (biz: MerchantBusinessItem | null) => void;
   onOpenVoiceChat?: (biz: MerchantBusinessItem) => void;
   onFlyToBusiness?: (biz: MerchantBusinessItem) => void;
+  onNavigateToBusiness?: (biz: MerchantBusinessItem) => void;
   onOpenPromoteModal?: () => void;
 }
 
@@ -66,6 +67,7 @@ export default function MerchantDetailModal({
   onSelectBusiness,
   onOpenVoiceChat,
   onFlyToBusiness,
+  onNavigateToBusiness,
   onOpenPromoteModal,
 }: MerchantDetailModalProps) {
   const [filterCategory, setFilterCategory] = useState<CategoryFilter>('ALL');
@@ -299,7 +301,19 @@ export default function MerchantDetailModal({
               <span>Tutti i Commercianti</span>
             </button>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {onNavigateToBusiness && (
+                <button
+                  onClick={() => {
+                    onNavigateToBusiness(selectedBusiness);
+                    onClose();
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-lg shadow-sky-500/20"
+                >
+                  <Navigation className="w-3.5 h-3.5" />
+                  <span>Avvia Navigazione</span>
+                </button>
+              )}
               {onFlyToBusiness && (
                 <button
                   onClick={() => {

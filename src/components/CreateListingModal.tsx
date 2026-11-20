@@ -36,6 +36,7 @@ import {
   PI_COMMUNITY_BASELINE_EUR,
   PI_COMMUNITY_BASELINE_USD
 } from "../lib/piRealPriceService";
+import { findCountryByNameOrCode, isValidCoord, WORLD_COUNTRIES } from "../lib/worldAtlas";
 
 // Coordinates dictionary for major Italian cities and default centroid
 const CITY_COORDINATES: Record<string, { lat: number; lng: number }> = {
@@ -232,10 +233,31 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({
     }
 
     const normCity = newCity.trim().toLowerCase();
-    const cityCoord = CITY_COORDINATES[normCity] || {
-      lat: 44.9008 + (Math.random() - 0.5) * 0.05,
-      lng: 8.2068 + (Math.random() - 0.5) * 0.05
-    };
+    let cityCoord: { lat: number; lng: number } | null = CITY_COORDINATES[normCity] || null;
+    let resolvedCountryCode: string | undefined;
+
+    if (!cityCoord && normCity) {
+      const matchedCountry = findCountryByNameOrCode(newCity.trim());
+      if (matchedCountry && isValidCoord(matchedCountry.lat, matchedCountry.lng)) {
+        cityCoord = { lat: matchedCountry.lat, lng: matchedCountry.lng };
+        resolvedCountryCode = matchedCountry.code;
+      } else {
+        for (const c of WORLD_COUNTRIES) {
+          const reg = c.regions?.find(
+            (r) => r.name.toLowerCase() === normCity || (r.capital && r.capital.toLowerCase() === normCity)
+          );
+          if (reg && isValidCoord(reg.lat, reg.lng)) {
+            cityCoord = { lat: reg.lat, lng: reg.lng };
+            resolvedCountryCode = c.code;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!cityCoord && isValidCoord((currentUser as any)?.lat, (currentUser as any)?.lng)) {
+      cityCoord = { lat: (currentUser as any).lat, lng: (currentUser as any).lng };
+    }
 
     const fuzzyOffsetLat = (Math.random() - 0.5) * 0.012;
     const fuzzyOffsetLng = (Math.random() - 0.5) * 0.012;
@@ -274,8 +296,10 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({
         city: newCity.trim(),
         province: newProvince.trim().toUpperCase()
       },
-      lat: cityCoord.lat + fuzzyOffsetLat,
-      lng: cityCoord.lng + fuzzyOffsetLng,
+      ...(cityCoord && isValidCoord(cityCoord.lat, cityCoord.lng)
+        ? { lat: cityCoord.lat + fuzzyOffsetLat, lng: cityCoord.lng + fuzzyOffsetLng }
+        : {}),
+      ...(resolvedCountryCode ? { countryCode: resolvedCountryCode } : {}),
       locationArea: `${newCity.trim()} (${newProvince.trim().toUpperCase()})`,
       isFuzzyLocation: true,
       imageUrl: newImageUrl.trim() || (

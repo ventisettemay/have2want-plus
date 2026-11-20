@@ -17,21 +17,28 @@ import {
 } from "lucide-react";
 import { CertifiedMeetingPoint } from "../types";
 import { INITIAL_CERTIFIED_MEETING_POINTS } from "../data";
+import { findCountryByNameOrCode, isValidCoord } from "../lib/worldAtlas";
 
 interface CertifiedMeetingPointsModalProps {
   city: string;
+  country?: string;
+  lat?: number;
+  lng?: number;
   onSelectMeetingPoint: (point: CertifiedMeetingPoint) => void;
   onClose: () => void;
 }
 
 export const CertifiedMeetingPointsModal: React.FC<CertifiedMeetingPointsModalProps> = ({
   city,
+  country,
+  lat,
+  lng,
   onSelectMeetingPoint,
   onClose,
 }) => {
   const normalizedCity = (city || "").trim();
 
-  // Generatore di nodi civici reali per qualsiasi città/territorio del mondo
+  // Generatore di nodi civici reali per qualsiasi città/territorio del mondo (nessun fallback forzato su Roma)
   const displayPoints = useMemo<CertifiedMeetingPoint[]>(() => {
     if (normalizedCity) {
       const matched = INITIAL_CERTIFIED_MEETING_POINTS.filter((p) =>
@@ -41,6 +48,20 @@ export const CertifiedMeetingPointsModal: React.FC<CertifiedMeetingPointsModalPr
     }
 
     const cityName = normalizedCity || "Territorio";
+    const atlasMatch =
+      findCountryByNameOrCode(normalizedCity) ||
+      findCountryByNameOrCode(country || "");
+    const resolvedCountry = (country || "").trim() || atlasMatch?.name || "Territorio Locale";
+    const resolvedLat = isValidCoord(lat, lng)
+      ? lat
+      : atlasMatch && isValidCoord(atlasMatch.lat, atlasMatch.lng)
+      ? atlasMatch.lat
+      : undefined;
+    const resolvedLng = isValidCoord(lat, lng)
+      ? lng
+      : atlasMatch && isValidCoord(atlasMatch.lat, atlasMatch.lng)
+      ? atlasMatch.lng
+      : undefined;
 
     // Nodi pubblici universali istituzionali e sicuri
     return [
@@ -48,13 +69,12 @@ export const CertifiedMeetingPointsModal: React.FC<CertifiedMeetingPointsModalPr
         id: `cmp-${cityName.toLowerCase().replace(/\s+/g, '-')}-townhall`,
         name: `Palazzo Comunale / Municipio di ${cityName}`,
         type: "piazza_comunale",
-        country: "Territorio Internazionale",
+        country: resolvedCountry,
         region: "Comunità Locale",
         province: "CIVIC",
         city: cityName,
         address: `Piazza del Municipio / Palazzo Civico, ${cityName}`,
-        lat: 41.8902,
-        lng: 12.4922,
+        ...(isValidCoord(resolvedLat, resolvedLng) ? { lat: resolvedLat, lng: resolvedLng } : {}),
         securityFeatures: [
           "Presidio istituzionale visibile",
           "Area videosorvegliata pubblica",
@@ -67,13 +87,12 @@ export const CertifiedMeetingPointsModal: React.FC<CertifiedMeetingPointsModalPr
         id: `cmp-${cityName.toLowerCase().replace(/\s+/g, '-')}-station`,
         name: `Stazione Centrale / Hub Ferroviario di ${cityName}`,
         type: "stazione_polizia_carabinieri",
-        country: "Territorio Internazionale",
+        country: resolvedCountry,
         region: "Comunità Locale",
         province: "HUB",
         city: cityName,
         address: `Piazzale della Stazione Ferroviaria, ${cityName}`,
-        lat: 41.8902,
-        lng: 12.4922,
+        ...(isValidCoord(resolvedLat, resolvedLng) ? { lat: resolvedLat, lng: resolvedLng } : {}),
         securityFeatures: [
           "Pattugliamento e sicurezza H24",
           "Telecamere ad alta definizione",
@@ -86,13 +105,12 @@ export const CertifiedMeetingPointsModal: React.FC<CertifiedMeetingPointsModalPr
         id: `cmp-${cityName.toLowerCase().replace(/\s+/g, '-')}-square`,
         name: `Piazza Centrale Pedonale di ${cityName}`,
         type: "piazza_comunale",
-        country: "Territorio Internazionale",
+        country: resolvedCountry,
         region: "Comunità Locale",
         province: "CIVIC",
         city: cityName,
         address: `Piazza Centrale / Corso Principale, ${cityName}`,
-        lat: 41.8902,
-        lng: 12.4922,
+        ...(isValidCoord(resolvedLat, resolvedLng) ? { lat: resolvedLat, lng: resolvedLng } : {}),
         securityFeatures: [
           "Area pedonale ad alta visibilità",
           "Spazio pubblico aperto",
@@ -105,13 +123,12 @@ export const CertifiedMeetingPointsModal: React.FC<CertifiedMeetingPointsModalPr
         id: `cmp-${cityName.toLowerCase().replace(/\s+/g, '-')}-library`,
         name: `Biblioteca Civica o Polo Culturale di ${cityName}`,
         type: "biblioteca_civica",
-        country: "Territorio Internazionale",
+        country: resolvedCountry,
         region: "Comunità Locale",
         province: "CULT",
         city: cityName,
         address: `Polo Culturale Civico, ${cityName}`,
-        lat: 41.8902,
-        lng: 12.4922,
+        ...(isValidCoord(resolvedLat, resolvedLng) ? { lat: resolvedLat, lng: resolvedLng } : {}),
         securityFeatures: [
           "Ambiente tranquillo e custodito",
           "Personale civico di sala presente",
@@ -121,7 +138,7 @@ export const CertifiedMeetingPointsModal: React.FC<CertifiedMeetingPointsModalPr
         description: `Spazio civico culturale raccomandato per lo scambio di libri scolastici, strumenti di lavoro, artigianato e collezionismo.`,
       },
     ];
-  }, [normalizedCity]);
+  }, [normalizedCity, country, lat, lng]);
 
   const [selectedPointId, setSelectedPointId] = useState<string>(displayPoints[0]?.id || "");
   const activePoint = displayPoints.find((p) => p.id === selectedPointId) || displayPoints[0];

@@ -43,6 +43,7 @@ import {
 } from "../types";
 import { REAL_CATEGORIES_MATRIX } from "../categories";
 import { Country, COUNTRIES, getCountryForListing } from "@/data/countries";
+import { findCountryByNameOrCode, isValidCoord, WORLD_COUNTRIES } from "@/lib/worldAtlas";
 import { ListingOriginBadge } from "@/components/have2want/ListingOriginBadge";
 import { getListingOriginBadge } from "@/lib/listingOrigin";
 import { PioneerRewardsHubModal } from "@/components/have2want/PioneerRewardsHubModal";
@@ -377,11 +378,20 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
         if (listing.author.province.toUpperCase() !== activeProvince.toUpperCase()) return false;
       }
 
-      // 3.5. Country filter (selezionabile liberamente, non bloccato su Italia)
+      // 3.5. Country / Continent filter (selezionabile liberamente, nessun fallback su Italia)
       if (selectedCountry && selectedCountry.id) {
+        const selectedIdLower = selectedCountry.id.toLowerCase();
         const itemCountry = getCountryForListing(listing, COUNTRIES);
-        if (itemCountry && itemCountry.id && itemCountry.id.toLowerCase() !== selectedCountry.id.toLowerCase()) {
-          return false;
+        const macroContinents = ['africa', 'europa', 'asia', 'nord-america', 'sud-america', 'oceania'];
+        if (macroContinents.includes(selectedIdLower)) {
+          const itemContinentSlug = itemCountry?.continent
+            ? itemCountry.continent.toLowerCase().replace(/\s+/g, '-')
+            : '';
+          if (itemContinentSlug !== selectedIdLower) return false;
+        } else {
+          if (!itemCountry || !itemCountry.id || itemCountry.id.toLowerCase() !== selectedIdLower) {
+            return false;
+          }
         }
       }
 
@@ -405,7 +415,7 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
 
       return true;
     });
-  }, [listings, selectedSection, activeCategory, activeProvince, searchQuery, selectedCountry]);
+  }, [listings, selectedSection, activeCategory, activeProvince, searchQuery, selectedCountry, activeOriginFilter]);
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -420,6 +430,41 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
       abbigliamento_accessori: "https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?w=600&auto=format&fit=crop&q=80",
       rete_specialisti_supporto: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=600&auto=format&fit=crop&q=80",
     };
+
+    const trimmedCity = newCity.trim();
+    const normCity = trimmedCity.toLowerCase();
+    let resolvedLat: number | undefined;
+    let resolvedLng: number | undefined;
+    let resolvedCountryCode: string | undefined = selectedCountry?.id?.toUpperCase();
+
+    if (isValidCoord(currentUser.lat, currentUser.lng)) {
+      resolvedLat = currentUser.lat + (Math.random() - 0.5) * 0.04;
+      resolvedLng = currentUser.lng + (Math.random() - 0.5) * 0.04;
+    } else if (trimmedCity) {
+      const matchedCountry = findCountryByNameOrCode(trimmedCity);
+      if (matchedCountry && isValidCoord(matchedCountry.lat, matchedCountry.lng)) {
+        resolvedLat = matchedCountry.lat + (Math.random() - 0.5) * 0.04;
+        resolvedLng = matchedCountry.lng + (Math.random() - 0.5) * 0.04;
+        resolvedCountryCode = matchedCountry.code;
+      } else {
+        for (const c of WORLD_COUNTRIES) {
+          const reg = c.regions?.find(
+            (r) => r.name.toLowerCase() === normCity || (r.capital && r.capital.toLowerCase() === normCity)
+          );
+          if (reg && isValidCoord(reg.lat, reg.lng)) {
+            resolvedLat = reg.lat + (Math.random() - 0.5) * 0.04;
+            resolvedLng = reg.lng + (Math.random() - 0.5) * 0.04;
+            resolvedCountryCode = c.code;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!isValidCoord(resolvedLat, resolvedLng) && isValidCoord(selectedCountry?.lat, selectedCountry?.lng)) {
+      resolvedLat = selectedCountry!.lat + (Math.random() - 0.5) * 0.04;
+      resolvedLng = selectedCountry!.lng + (Math.random() - 0.5) * 0.04;
+    }
 
     const created: HaveWantListing = {
       id: `listing-${Date.now()}`,
@@ -454,8 +499,8 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
         city: newCity || "Territorio Locale",
         province: newProvince || "",
       },
-      lat: (typeof currentUser.lat === "number" ? currentUser.lat : 41.8902) + (Math.random() - 0.5) * 0.04,
-      lng: (typeof currentUser.lng === "number" ? currentUser.lng : 12.4922) + (Math.random() - 0.5) * 0.04,
+      ...(isValidCoord(resolvedLat, resolvedLng) ? { lat: resolvedLat, lng: resolvedLng } : {}),
+      ...(resolvedCountryCode ? { countryCode: resolvedCountryCode } : {}),
       locationArea: newProvince ? `${newCity || "Territorio"} (${newProvince})` : (newCity || "Territorio"),
       isFuzzyLocation: true,
       imageUrl: newImageUrl.trim() || defaultImages[newCategory] || defaultImages.casa_fai_da_te,
@@ -1145,12 +1190,12 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
                           <span className="text-[11px] font-black uppercase px-2.5 py-1 rounded-lg bg-[#00ff66] text-black shadow-lg tracking-wider">
                             {isVendo 
                               ? (item.piPrice && item.piPrice > 0 
-                                  ? `${item.piPrice} π (≈ ${item.price !== undefined && item.price > 0 ? `${item.price}€` : (item.piPrice * 0.0674).toFixed(item.piPrice >= 15 ? 0 : 2) + '€'})` 
+                                  ? `${item.piPrice} π (≈ ${item.price !== undefined && item.price > 0 ? `${item.price}€` : (item.piPrice * (getCachedPiMarketData().marketPrice.priceEur || PI_COMMUNITY_BASELINE_EUR)).toFixed(item.piPrice >= 15 ? 0 : 2) + '€'})` 
                                   : `VENDO`) 
                               : isBaratto 
                               ? "SCAMBIO" 
                               : (item.piPrice && item.piPrice > 0 
-                                  ? `CERCO • ${item.piPrice} π (≈ ${item.price !== undefined && item.price > 0 ? `${item.price}€` : (item.piPrice * 0.0674).toFixed(item.piPrice >= 15 ? 0 : 2) + '€'})` 
+                                  ? `CERCO • ${item.piPrice} π (≈ ${item.price !== undefined && item.price > 0 ? `${item.price}€` : (item.piPrice * (getCachedPiMarketData().marketPrice.priceEur || PI_COMMUNITY_BASELINE_EUR)).toFixed(item.piPrice >= 15 ? 0 : 2) + '€'})` 
                                   : "CERCO")}
                           </span>
                           {isInternal ? (

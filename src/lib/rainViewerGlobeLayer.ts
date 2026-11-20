@@ -2,6 +2,7 @@
 // Proiezione reale dei frame RainViewer (Doppler Radar + Satellite IR) da Web Mercator a sfera equirettangolare 3D
 
 import { getRainViewerRadarData } from './weatherService';
+import { buildApiUrl } from './apiConfig';
 
 export interface RainViewerFrame {
   time: number;
@@ -48,6 +49,19 @@ export function equirectangularYToMercatorY(rowY: number, height: number, zoom: 
   return latLngToMercatorTileFrac(lat, 0, zoom).y;
 }
 
+function buildProxiedTileUrl(rawUrl: string): string {
+  const isBrowserHttp =
+    typeof window !== 'undefined' &&
+    window.location &&
+    typeof window.location.protocol === 'string' &&
+    window.location.protocol.startsWith('http');
+
+  if (isBrowserHttp && rawUrl.startsWith('https://')) {
+    return buildApiUrl(`/api/weather/rainviewer/tile?url=${encodeURIComponent(rawUrl)}`);
+  }
+  return rawUrl;
+}
+
 function loadCorsImage(url: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     if (typeof Image === 'undefined') {
@@ -56,7 +70,7 @@ function loadCorsImage(url: string): Promise<HTMLImageElement | null> {
     }
     const img = new Image();
     img.crossOrigin = 'anonymous';
-    const timeoutId = setTimeout(() => resolve(null), 5000);
+    const timeoutId = setTimeout(() => resolve(null), 6500);
     img.onload = () => {
       clearTimeout(timeoutId);
       resolve(img);
@@ -65,13 +79,13 @@ function loadCorsImage(url: string): Promise<HTMLImageElement | null> {
       clearTimeout(timeoutId);
       resolve(null);
     };
-    img.src = url;
+    img.src = buildProxiedTileUrl(url);
   });
 }
 
 /**
  * Disegna i veri tile RainViewer (satellite IR + radar precipitazioni Doppler)
- * su un canvas equirettangolare pronto per THREE.CanvasTexture sulla sfera terrestre.
+ * su un canvas equirettangolare ad alta risoluzione pronto per THREE.CanvasTexture sulla sfera terrestre.
  */
 export async function composeRainViewerGlobeCanvas(
   canvas: HTMLCanvasElement,
@@ -91,8 +105,8 @@ export async function composeRainViewerGlobeCanvas(
   const ctx = canvas.getContext('2d');
   if (!ctx) return emptyResult;
 
-  const width = canvas.width || 1024;
-  const height = canvas.height || 512;
+  const width = canvas.width || 2048;
+  const height = canvas.height || 1024;
   ctx.clearRect(0, 0, width, height);
 
   const host = data.host || 'https://tilecache.rainviewer.com';
@@ -107,10 +121,23 @@ export async function composeRainViewerGlobeCanvas(
       ? data.nowcastFrames[0]
       : null;
 
-  const zoom = 2; // griglia globale 4x4 (16 tile totali) per resa fluida su globo 3D
+  const zoom = 3; // Griglia 8x8 (48 tile max per layer) bilanciata per desktop e smartphone senza saturare memoria/rete
   const n = Math.pow(2, zoom);
   const tilePx = 256;
   let tilesLoaded = 0;
+
+  async function loadTilesBatched(urls: Array<{ tx: number; ty: number; url: string }>) {
+    const results: Array<{ tx: number; ty: number; img: HTMLImageElement | null }> = [];
+    const batchSize = 12;
+    for (let i = 0; i < urls.length; i += batchSize) {
+      const chunk = urls.slice(i, i + batchSize);
+      const chunkLoaded = await Promise.all(
+        chunk.map((item) => loadCorsImage(item.url).then((img) => ({ tx: item.tx, ty: item.ty, img })))
+      );
+      results.push(...chunkLoaded);
+    }
+    return results;
+  }
 
   async function projectLayerTiles(
     frame: RainViewerFrame | null,
@@ -118,34 +145,48 @@ export async function composeRainViewerGlobeCanvas(
     alpha: number
   ) {
     if (!frame || !frame.path) return;
-    const tilePromises: Promise<{ tx: number; ty: number; img: HTMLImageElement | null }>[] = [];
+    const tileQueue: Array<{ tx: number; ty: number; url: string }> = [];
     for (let tx = 0; tx < n; tx++) {
-      for (let ty = 0; ty < n; ty++) {
+      // Salta le fasce polari estreme (>~79°) prive di stazioni radar per accelerare il caricamento
+      for (let ty = 1; ty < n - 1; ty++) {
         const url = `${host}${frame.path}/${tilePx}/${zoom}/${tx}/${ty}/${suffix}`;
-        tilePromises.push(
-          loadCorsImage(url).then((img) => ({ tx, ty, img }))
-        );
+        tileQueue.push({ tx, ty, url });
       }
     }
 
-    const loaded = await Promise.all(tilePromises);
+    const loaded = await loadTilesBatched(tileQueue);
     const grid: (HTMLImageElement | null)[][] = Array.from({ length: n }, () => Array(n).fill(null));
+    let layerCount = 0;
     loaded.forEach(({ tx, ty, img }) => {
       if (img) {
         grid[tx][ty] = img;
+        layerCount++;
         tilesLoaded++;
       }
     });
 
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    const stripHeight = 4;
+    if (layerCount === 0) return;
+
+    // Proietta senza filtro su scratch canvas (velocissimo su CPU/GPU mobile), poi applica UN solo pass blur
+    const scratchCanvas = document.createElement('canvas');
+    scratchCanvas.width = width;
+    scratchCanvas.height = height;
+    const scratchCtx = scratchCanvas.getContext('2d');
+    if (!scratchCtx) return;
+
+    if ('imageSmoothingEnabled' in scratchCtx) {
+      scratchCtx.imageSmoothingEnabled = true;
+    }
+    if ('imageSmoothingQuality' in scratchCtx) {
+      scratchCtx.imageSmoothingQuality = 'high';
+    }
+
+    const stripHeight = 2;
     const colWidth = width / n;
 
-    // Proietta per bande di latitudine da equirettangolare -> Mercator
     for (let dy = 0; dy < height; dy += stripHeight) {
       const lat = 90 - ((dy + stripHeight * 0.5) / height) * 180;
-      if (Math.abs(lat) > 85) continue;
+      if (Math.abs(lat) > 80) continue;
 
       const mercY = latLngToMercatorTileFrac(lat, 0, zoom).y;
       const ty = Math.min(n - 1, Math.max(0, Math.floor(mercY)));
@@ -154,7 +195,7 @@ export async function composeRainViewerGlobeCanvas(
       for (let tx = 0; tx < n; tx++) {
         const tileImg = grid[tx][ty];
         if (!tileImg) continue;
-        ctx.drawImage(
+        scratchCtx.drawImage(
           tileImg,
           0,
           srcY,
@@ -167,13 +208,29 @@ export async function composeRainViewerGlobeCanvas(
         );
       }
     }
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    if ('imageSmoothingEnabled' in ctx) {
+      ctx.imageSmoothingEnabled = true;
+    }
+    if ('filter' in ctx) {
+      ctx.filter = 'blur(2.5px)';
+    }
+    ctx.drawImage(scratchCanvas, 0, 0, width, height);
+    if ('filter' in ctx) {
+      ctx.filter = 'none';
+    }
     ctx.restore();
+
+    scratchCanvas.width = 0;
+    scratchCanvas.height = 0;
   }
 
   // 1. Strato nuvoloso reale all'infrarosso satellitare RainViewer
-  await projectLayerTiles(latestSatellite, '0/0_0.png', 0.45);
-  // 2. Strato precipitazioni radar Doppler reale RainViewer (color scheme 2 = Universal Blue, smooth + snow)
-  await projectLayerTiles(latestRadar, '2/1_1.png', 0.88);
+  await projectLayerTiles(latestSatellite, '0/0_0.png', 0.42);
+  // 2. Strato precipitazioni radar Doppler reale RainViewer sfumato e morbido (senza quadratoni netti)
+  await projectLayerTiles(latestRadar, '2/1_1.png', 0.62);
 
   return {
     radarFrame: latestRadar,

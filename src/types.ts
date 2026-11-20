@@ -171,9 +171,10 @@ export interface HaveWantListing {
     city: string;
     province?: string;
   };
-  // Mandatory Geolocation coordinates for User-Driven Community Activation
-  lat: number;
-  lng: number;
+  // Optional Geolocation coordinates (omitted if unresolved instead of Null Island 0,0)
+  lat?: number;
+  lng?: number;
+  countryCode?: string;
   locationArea: string; // Generic area/neighborhood (Privacy Masked)
   isFuzzyLocation?: boolean; // True if using centroid rather than private street address
   createdAt: string;
@@ -397,8 +398,8 @@ export interface CertifiedMeetingPoint {
   province: string;
   city: string;
   address: string;
-  lat: number;
-  lng: number;
+  lat?: number;
+  lng?: number;
   securityFeatures: string[]; // es. "Videosorveglianza attiva H24", "Presidio pubblico", "Illuminazione notturna"
   recommendedHours: string; // es. "08:00 - 20:00"
   description: string;

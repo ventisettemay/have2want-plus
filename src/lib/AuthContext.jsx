@@ -6,11 +6,16 @@ import {
   setAdStreamEnabledPreference,
   pointsToPi,
 } from './communityRewardsService';
+import {
+  clearPiSession,
+  exchangePiTokenForFirebaseSession,
+  getCurrentPiAccessToken,
+} from './piSdkService';
 
 const DEFAULT_USER_BASE = {
   id: 'user_pioneer_001',
   name: 'Pioniere Solidale',
-  email: 'brandoriginalword@gmail.com',
+  email: 'pioneer@have2want.local',
   username: '@pioniere_001',
   category: 'CITADINO_PRIVATO',
   trust_rating: 4.9,
@@ -61,11 +66,23 @@ export function AuthProvider({ children }) {
     const merged = buildSyncedUser({ ...DEFAULT_USER_BASE, ...userData }, rewards);
     setUser(merged);
     if (merged) {
-      setActiveWalletUser(merged.uid || merged.id, merged.username).catch(() => {});
+      const piToken = userData?.accessToken || getCurrentPiAccessToken();
+      if (piToken) {
+        exchangePiTokenForFirebaseSession(piToken)
+          .catch(() => {})
+          .finally(() => {
+            setActiveWalletUser(merged.uid || merged.id, merged.username).catch(() => {});
+          });
+      } else {
+        setActiveWalletUser(merged.uid || merged.id, merged.username).catch(() => {});
+      }
     }
   };
 
-  const logout = () => setUser(null);
+  const logout = () => {
+    setUser(null);
+    clearPiSession().catch(() => {});
+  };
 
   const updateUser = (updates) => {
     if (typeof updates?.ad_stream_enabled === 'boolean') {

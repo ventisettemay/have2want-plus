@@ -39,17 +39,21 @@ import {
   executePiSdkPayment,
   checkIsPiBrowser
 } from "../lib/piSdkService";
+import { useAuth } from "../lib/AuthContext";
 import { toast } from "sonner";
 
 interface LegalWelcomeShieldProps {
   onAcceptTerms: (agreement?: LegalShieldAgreement) => void;
+  onClose?: () => void;
 }
 
 type ShieldTab = "intro" | "no_fiat" | "ads_credits" | "p2p_voice" | "commercial_pi" | "pi_sdk" | "legal_compliance";
 
 export const LegalWelcomeShield: React.FC<LegalWelcomeShieldProps> = ({
   onAcceptTerms,
+  onClose,
 }) => {
+  const { login } = useAuth();
   const [activeTab, setActiveTab] = useState<ShieldTab>("intro");
   const [selectedCountryCode, setSelectedCountryCode] = useState<string>("IT");
   const [showCertificate, setShowCertificate] = useState(false);
@@ -158,6 +162,14 @@ export const LegalWelcomeShield: React.FC<LegalWelcomeShieldProps> = ({
     setPiAuthLoading(false);
     if (res.success && res.user) {
       setPiAuthUser(res.user);
+      login({
+        id: res.user.uid,
+        uid: res.firebaseUid || res.user.uid,
+        name: res.user.username,
+        username: res.user.username,
+        accessToken: res.accessToken,
+        verified_pioneer: !res.isSimulated,
+      });
       toast.success(`Autenticato con Pi Portal: ${res.user.username}`);
     } else {
       toast.error(res.error || "Impossibile autenticarsi con Pi Portal.");
@@ -229,9 +241,15 @@ export const LegalWelcomeShield: React.FC<LegalWelcomeShieldProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => onAcceptTerms()}
+                onClick={() => {
+                  if (onClose) {
+                    onClose();
+                  } else {
+                    handleConfirm();
+                  }
+                }}
                 className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
-                title="Chiudi guida"
+                title={onClose ? "Chiudi guida" : "Conferma spunte per chiudere"}
               >
                 <X className="w-5 h-5" />
               </button>

@@ -145,10 +145,10 @@ export interface WeeklyPricingResult {
  * Calcola il prezzo settimanale (7 giorni) in base allo Stato e alle visualizzazioni registrate.
  */
 export function getWeeklyAdvertisingPrice(
-  countryCodeInput: string = 'IT',
+  countryCodeInput: string = 'GLOBAL',
   simulatedViews?: number
 ): WeeklyPricingResult {
-  const code = (countryCodeInput || 'IT').toUpperCase();
+  const code = (countryCodeInput || 'GLOBAL').toUpperCase();
   const tier = COUNTRY_PRICING_CATALOG[code] || COUNTRY_PRICING_CATALOG.GLOBAL;
 
   // Stima o rilevazione delle visualizzazioni settimanali dello Stato (default: traffico di lancio < 1000)

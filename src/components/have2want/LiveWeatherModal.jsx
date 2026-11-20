@@ -19,10 +19,11 @@ import {
   Calendar,
   Layers,
   Activity,
-  ShieldCheck
+  ShieldCheck,
+  Waves
 } from 'lucide-react';
 import { getLocalTimeString } from '@/lib/worldAtlas';
-import { getRealtimeWeather, getRainViewerRadarData } from '@/lib/weatherService';
+import { getRealtimeWeather, getRealtimeMarineWeather, getRainViewerRadarData } from '@/lib/weatherService';
 
 export default function LiveWeatherModal({
   isOpen,
@@ -34,38 +35,65 @@ export default function LiveWeatherModal({
   onToggleWeatherEffects
 }) {
   const [weather, setWeather] = useState(initialWeather || null);
+  const [marineWeather, setMarineWeather] = useState(null);
   const [isLoading, setIsLoading] = useState(!initialWeather);
   const [loadError, setLoadError] = useState(null);
   const [activeTab, setActiveTab] = useState('CURRENT'); // 'CURRENT' | '14DAYS' | 'RADAR'
   const [radarData, setRadarData] = useState(null);
   const [isRadarLoading, setIsRadarLoading] = useState(false);
 
-  // Determina la località target (da place o da country o default Italia/Roma)
+  // Determina la località target esclusivamente da place o country (nessun fallback su Roma)
   const targetPlace = place || (country ? {
     name: country.capital || country.name,
     countryName: country.name,
     lat: country.lat,
     lng: country.lng,
-    timezone: country.timezone || 'Europe/Rome'
+    timezone: country.timezone || 'UTC'
   } : {
-    name: 'Roma',
-    countryName: 'Italia',
-    lat: 41.8902,
-    lng: 12.4922,
-    timezone: 'Europe/Rome'
+    name: 'Territorio non selezionato',
+    countryName: 'Mondo',
+    lat: null,
+    lng: null,
+    timezone: 'UTC'
   });
 
+  const hasValidTargetCoords =
+    typeof targetPlace.lat === 'number' &&
+    !Number.isNaN(targetPlace.lat) &&
+    typeof targetPlace.lng === 'number' &&
+    !Number.isNaN(targetPlace.lng) &&
+    !(targetPlace.lat === 0 && targetPlace.lng === 0);
+
+  const loadMarine = async () => {
+    if (!hasValidTargetCoords) return;
+    try {
+      const marine = await getRealtimeMarineWeather(targetPlace.lat, targetPlace.lng);
+      setMarineWeather(marine);
+    } catch (e) {
+      console.warn('Errore caricamento dati marini:', e);
+    }
+  };
+
   const loadLiveWeather = async () => {
+    if (!hasValidTargetCoords) {
+      setIsLoading(false);
+      setLoadError('Seleziona un Paese o una zona sulla mappa per visualizzare il meteo locale.');
+      return;
+    }
     setIsLoading(true);
     setLoadError(null);
     try {
-      const lat = targetPlace.lat ?? 41.8902;
-      const lng = targetPlace.lng ?? 12.4922;
-      const liveData = await getRealtimeWeather(lat, lng);
+      const [liveData, marineData] = await Promise.all([
+        getRealtimeWeather(targetPlace.lat, targetPlace.lng),
+        getRealtimeMarineWeather(targetPlace.lat, targetPlace.lng),
+      ]);
       if (liveData) {
         setWeather(liveData);
       } else {
         setLoadError('Dati meteo al momento non disponibili dalla stazione di rilevamento.');
+      }
+      if (marineData) {
+        setMarineWeather(marineData);
       }
     } catch (err) {
       console.error('Errore caricamento meteo:', err);
@@ -92,6 +120,7 @@ export default function LiveWeatherModal({
       if (initialWeather) {
         setWeather(initialWeather);
         setIsLoading(false);
+        loadMarine();
       } else {
         loadLiveWeather();
       }
@@ -262,6 +291,54 @@ export default function LiveWeatherModal({
                     </div>
                     <div className="text-[10px] text-indigo-300 font-mono">Precipitazioni: {weather.precipitation} mm</div>
                   </div>
+                </div>
+
+                {/* Blocco Telemetria Marina & Onde (Meteo Marino Open-Meteo Copernicus EWAM) */}
+                <div className="p-3.5 rounded-2xl bg-sky-950/30 border border-sky-500/30 flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Waves className="w-4 h-4 text-cyan-400" />
+                      <span className="text-[11px] font-black uppercase tracking-wider text-cyan-300">
+                        Stato del Mare & Onde (Meteo Marino)
+                      </span>
+                    </div>
+                    {marineWeather?.seaState?.badge && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-cyan-500/20 text-cyan-300 border border-cyan-400/30">
+                        {marineWeather.seaState.badge}
+                      </span>
+                    )}
+                  </div>
+
+                  {marineWeather?.isCoastal ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                      <div className="p-2 rounded-xl bg-zinc-950/80 border border-zinc-800">
+                        <div className="text-[10px] text-zinc-400">Altezza Onde</div>
+                        <div className="font-black text-white text-sm">{marineWeather.waveHeight} m</div>
+                      </div>
+                      <div className="p-2 rounded-xl bg-zinc-950/80 border border-zinc-800">
+                        <div className="text-[10px] text-zinc-400">Stato Mare</div>
+                        <div className="font-bold text-cyan-300 text-xs">{marineWeather.seaState?.label}</div>
+                      </div>
+                      <div className="p-2 rounded-xl bg-zinc-950/80 border border-zinc-800">
+                        <div className="text-[10px] text-zinc-400">Periodo Onda</div>
+                        <div className="font-black text-white text-sm">
+                          {marineWeather.wavePeriod !== null ? `${marineWeather.wavePeriod} s` : 'N/D'}
+                        </div>
+                      </div>
+                      <div className="p-2 rounded-xl bg-zinc-950/80 border border-zinc-800">
+                        <div className="text-[10px] text-zinc-400">Direzione / Onda Lunga</div>
+                        <div className="font-bold text-sky-300 text-[11px] truncate">
+                          {marineWeather.waveDirection}
+                          {marineWeather.swellWaveHeight !== null ? ` • Swell ${marineWeather.swellWaveHeight}m` : ''}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-zinc-300 flex items-center justify-between gap-2 bg-zinc-950/60 px-3 py-2 rounded-xl border border-zinc-800/80">
+                      <span>{marineWeather?.note || 'Rilevamento condizioni marine per la coordinata corrente...'}</span>
+                      <span className="text-[10px] font-mono text-cyan-400 shrink-0">Open-Meteo Marine</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Previsioni Orarie Prossime 24 Ore */}

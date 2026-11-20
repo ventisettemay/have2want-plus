@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Coins, Volume2, Globe, Clock, ArrowRightLeft, Check, Sparkles, X } from 'lucide-react';
 import { formatLocalPrice, getLocalTimeString } from '@/lib/worldAtlas';
+import { getCachedPiRealPrice, PI_REAL_PRICE_EUR } from '@/lib/piRealPriceService';
 import { toast } from 'sonner';
 
 export default function LocalCurrencyModal({ place, onClose, onLanguageChange, onCurrencyChange }) {
@@ -12,7 +13,8 @@ export default function LocalCurrencyModal({ place, onClose, onLanguageChange, o
   if (!place) return null;
 
   const { language, currency, timezone, countryName, name: placeName, flag } = place;
-  const rate = currency?.rateToEur ? Number((currency.rateToEur * 0.0674).toFixed(4)) : (currency?.piRate || 0.0674);
+  const piBaseEur = getCachedPiRealPrice()?.priceEur || PI_REAL_PRICE_EUR;
+  const rate = currency?.rateToEur ? Number((currency.rateToEur * piBaseEur).toFixed(4)) : (currency?.piRate || piBaseEur);
   const localTime = getLocalTimeString(timezone || 'UTC');
 
   // Gestione conversione reattiva

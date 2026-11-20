@@ -15,7 +15,6 @@ import {
   AlertTriangle,
   ExternalLink
 } from 'lucide-react';
-import { WORLD_EMERGENCY_SERVICES } from '@/lib/externalGatewayServices';
 import { SAMPLE_GLOBAL_CARPOOLS } from '@/data/carpoolTrips';
 import { PRACTICAL_MEMORY_GUIDES } from '@/data/craftMemoryGuides';
 import { toast } from 'sonner';
@@ -277,7 +276,7 @@ export function ClassicEssentialView({
 
                     <span className="text-xs font-bold text-slate-400 flex items-center gap-1">
                       <MapPin className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>{listing.city || 'Italia'}</span>
+                      <span>{listing.city || listing.locationArea || 'Territorio Locale'}</span>
                     </span>
 
                     {listing.privacy_mode_active && (

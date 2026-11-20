@@ -18,8 +18,14 @@ import {
 } from 'lucide-react';
 import {
   WORLD_COUNTRIES,
-  searchAnyWorldPlace
+  searchAnyWorldPlace,
+  findCountryByNameOrCode,
+  computeRealPiRate
 } from '@/lib/worldAtlas';
+import {
+  getCachedPiRealPrice,
+  PI_REAL_PRICE_EUR
+} from '@/lib/piRealPriceService';
 import {
   GLOBAL_HIERARCHY,
   getHierarchyForCountry
@@ -30,8 +36,8 @@ export default function WorldNavigatorModal({
   isOpen,
   onClose,
   onSelectLocation,
-  currentCountry = 'Italia',
-  currentCity = 'Roma'
+  currentCountry = '',
+  currentCity = ''
 }) {
   const [activeTab, setActiveTab] = useState('TERRITORI'); // 'TERRITORI' | 'BACHECA_MONDIALE' | 'SEARCH' | 'MONDO' | 'METROPOLI'
   const [selectedContinent, setSelectedContinent] = useState('Tutti');
@@ -41,7 +47,10 @@ export default function WorldNavigatorModal({
   const [isPending, startTransition] = useTransition();
 
   // Stato Gerarchico Multi-Livello (Stato -> Regione -> Provincia -> Comune)
-  const [selectedHierarchyCountryCode, setSelectedHierarchyCountryCode] = useState('IT');
+  const initialCountryMatch = findCountryByNameOrCode(currentCountry);
+  const [selectedHierarchyCountryCode, setSelectedHierarchyCountryCode] = useState(
+    initialCountryMatch?.code || WORLD_COUNTRIES[0]?.code || 'GLOBAL'
+  );
   const activeHierarchy = getHierarchyForCountry(selectedHierarchyCountryCode) || GLOBAL_HIERARCHY[0];
   
   const availableRegions = activeHierarchy?.regions || [];
@@ -119,20 +128,24 @@ export default function WorldNavigatorModal({
     return c.continent === selectedContinent;
   });
 
-  // Metropoli globali veloci
+  // Metropoli globali veloci (Europa, Africa, Americhe, Asia, Oceania)
   const metropoli = [
-    { name: 'Roma', country: 'Italia', flag: '🇮🇹', lat: 41.8902, lng: 12.4922, desc: 'Colosseo e Centro Storico', lang: 'Italiano', curr: 'EUR (€)' },
-    { name: 'Milano', country: 'Italia', flag: '🇮🇹', lat: 45.4642, lng: 9.1900, desc: 'Duomo, Navigli e CityLife', lang: 'Italiano', curr: 'EUR (€)' },
-    { name: 'Napoli', country: 'Italia', flag: '🇮🇹', lat: 40.8384, lng: 14.2529, desc: 'Spaccanapoli e Golfo', lang: 'Italiano', curr: 'EUR (€)' },
-    { name: 'Torino', country: 'Italia', flag: '🇮🇹', lat: 45.0703, lng: 7.6869, desc: 'Mole Antonelliana e Po', lang: 'Italiano', curr: 'EUR (€)' },
-    { name: 'Parigi', country: 'Francia', flag: '🇫🇷', lat: 48.8566, lng: 2.3522, desc: 'Tour Eiffel e Senna', lang: 'Français', curr: 'EUR (€)' },
-    { name: 'New York', country: 'Stati Uniti', flag: '🇺🇸', lat: 40.7128, lng: -74.0060, desc: 'Manhattan e Broadway', lang: 'English', curr: 'USD ($)' },
-    { name: 'Tokyo', country: 'Giappone', flag: '🇯🇵', lat: 35.6762, lng: 139.6503, desc: 'Shibuya e Shinjuku', lang: '日本語', curr: 'JPY (¥)' },
-    { name: 'Londra', country: 'Regno Unito', flag: '🇬🇧', lat: 51.5074, lng: -0.1278, desc: 'Big Ben e Westminster', lang: 'English', curr: 'GBP (£)' },
-    { name: 'Barcellona', country: 'Spagna', flag: '🇪🇸', lat: 41.3851, lng: 2.1734, desc: 'Sagrada Família', lang: 'Español', curr: 'EUR (€)' },
-    { name: 'Berlino', country: 'Germania', flag: '🇩🇪', lat: 52.5200, lng: 13.4050, desc: 'Porta di Brandeburgo', lang: 'Deutsch', curr: 'EUR (€)' },
-    { name: 'Dubai', country: 'Emirati Arabi', flag: '🇦🇪', lat: 25.2048, lng: 55.2708, desc: 'Burj Khalifa e Downtown', lang: 'العربية', curr: 'AED (د.إ)' },
-    { name: 'Sydney', country: 'Australia', flag: '🇦🇺', lat: -33.8688, lng: 151.2093, desc: 'Opera House e Harbour', lang: 'English', curr: 'AUD (A$)' },
+    { name: 'Roma', country: 'Italia', countryCode: 'IT', flag: '🇮🇹', lat: 41.8902, lng: 12.4922, desc: 'Colosseo e Centro Storico', lang: 'Italiano', curr: 'EUR (€)', rateToEur: 1.0 },
+    { name: 'Milano', country: 'Italia', countryCode: 'IT', flag: '🇮🇹', lat: 45.4642, lng: 9.1900, desc: 'Duomo, Navigli e CityLife', lang: 'Italiano', curr: 'EUR (€)', rateToEur: 1.0 },
+    { name: 'Parigi', country: 'Francia', countryCode: 'FR', flag: '🇫🇷', lat: 48.8566, lng: 2.3522, desc: 'Tour Eiffel e Senna', lang: 'Français', curr: 'EUR (€)', rateToEur: 1.0 },
+    { name: 'Londra', country: 'Regno Unito', countryCode: 'GB', flag: '🇬🇧', lat: 51.5074, lng: -0.1278, desc: 'Big Ben e Westminster', lang: 'English', curr: 'GBP (£)', rateToEur: 0.85 },
+    { name: 'New York', country: 'Stati Uniti', countryCode: 'US', flag: '🇺🇸', lat: 40.7128, lng: -74.0060, desc: 'Manhattan e Broadway', lang: 'English', curr: 'USD ($)', rateToEur: 1.09 },
+    { name: 'Tokyo', country: 'Giappone', countryCode: 'JP', flag: '🇯🇵', lat: 35.6762, lng: 139.6503, desc: 'Shibuya e Shinjuku', lang: '日本語', curr: 'JPY (¥)', rateToEur: 162.0 },
+    { name: 'Dubai', country: 'Emirati Arabi Uniti', countryCode: 'AE', flag: '🇦🇪', lat: 25.2048, lng: 55.2708, desc: 'Burj Khalifa e Downtown', lang: 'العربية', curr: 'AED (د.إ)', rateToEur: 4.0 },
+    { name: 'Il Cairo', country: 'Egitto', countryCode: 'EG', flag: '🇪🇬', lat: 30.0444, lng: 31.2357, desc: 'Zamalek, Nilo e Giza', lang: 'العربية', curr: 'EGP (£)', rateToEur: 53.0 },
+    { name: 'Lagos', country: 'Nigeria', countryCode: 'NG', flag: '🇳🇬', lat: 6.5244, lng: 3.3792, desc: 'Victoria Island e Lekki', lang: 'English', curr: 'NGN (₦)', rateToEur: 1720.0 },
+    { name: 'Nairobi', country: 'Kenya', countryCode: 'KE', flag: '🇰🇪', lat: -1.2921, lng: 36.8219, desc: 'Westlands e Hub Tech', lang: 'Swahili / English', curr: 'KES (KSh)', rateToEur: 140.0 },
+    { name: 'Città del Capo', country: 'Sudafrica', countryCode: 'ZA', flag: '🇿🇦', lat: -33.9249, lng: 18.4241, desc: 'Table Mountain e Waterfront', lang: 'English / Zulu', curr: 'ZAR (R)', rateToEur: 19.6 },
+    { name: 'San Paolo', country: 'Brasile', countryCode: 'BR', flag: '🇧🇷', lat: -23.5505, lng: -46.6333, desc: 'Avenida Paulista e Pinheiros', lang: 'Português', curr: 'BRL (R$)', rateToEur: 5.95 },
+    { name: 'Buenos Aires', country: 'Argentina', countryCode: 'AR', flag: '🇦🇷', lat: -34.6037, lng: -58.3816, desc: 'Palermo e Puerto Madero', lang: 'Español', curr: 'ARS ($)', rateToEur: 1080.0 },
+    { name: 'Seul', country: 'Corea del Sud', countryCode: 'KR', flag: '🇰🇷', lat: 37.5665, lng: 126.9780, desc: 'Gangnam e Myeongdong', lang: '한국어', curr: 'KRW (₩)', rateToEur: 1490.0 },
+    { name: 'Singapore', country: 'Singapore', countryCode: 'SG', flag: '🇸🇬', lat: 1.3521, lng: 103.8198, desc: 'Marina Bay e Orchard Road', lang: 'English / 中文', curr: 'SGD (S$)', rateToEur: 1.45 },
+    { name: 'Sydney', country: 'Australia', countryCode: 'AU', flag: '🇦🇺', lat: -33.8688, lng: 151.2093, desc: 'Opera House e Harbour', lang: 'English', curr: 'AUD (A$)', rateToEur: 1.65 },
   ];
 
   const handleSelectPlace = (place) => {
@@ -142,7 +155,7 @@ export default function WorldNavigatorModal({
       name: place.name,
       displayName: place.displayName || place.name,
       countryName: place.countryName || place.country || 'Mondo',
-      countryCode: place.countryCode || 'IT',
+      countryCode: place.countryCode || '',
       stateOrRegion: place.stateOrRegion || '',
       flag: place.flag || '📍',
       language: place.language,
@@ -542,18 +555,18 @@ export default function WorldNavigatorModal({
                 )}
               </div>
 
-              {/* LIVELLO 1: SELETTORE STATO (TUTTI GLI STATI) */}
+              {/* LIVELLO 1: SELETTORE STATO (TUTTI GLI STATI DEL PIANETA) */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-bold text-slate-300 flex items-center gap-1">
                     <span>1. Seleziona Stato / Nazione:</span>
                   </span>
                   <span className="text-[10px] text-slate-400 font-mono">
-                    {GLOBAL_HIERARCHY.length} Stati con gerarchia completa
+                    {WORLD_COUNTRIES.length} Stati con gerarchia territoriale
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-                  {GLOBAL_HIERARCHY.map((c) => {
+                  {WORLD_COUNTRIES.map((c) => {
                     const isSelected = c.code === selectedHierarchyCountryCode;
                     return (
                       <button
@@ -793,7 +806,10 @@ export default function WorldNavigatorModal({
           {/* TAB 4: METROPOLI GLOBALI */}
           {activeTab === 'METROPOLI' && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {metropoli.map((metro) => (
+              {metropoli.map((metro) => {
+                const livePiEur = getCachedPiRealPrice()?.priceEur || PI_REAL_PRICE_EUR;
+                const dynamicPiRate = Number((computeRealPiRate(metro.rateToEur) * (livePiEur / PI_REAL_PRICE_EUR)).toFixed(4));
+                return (
                 <div
                   key={metro.name}
                   onClick={() =>
@@ -802,10 +818,11 @@ export default function WorldNavigatorModal({
                       lat: metro.lat,
                       lng: metro.lng,
                       countryName: metro.country,
+                      countryCode: metro.countryCode,
                       flag: metro.flag,
                       displayName: `${metro.flag} ${metro.name} (${metro.country})`,
                       language: { name: metro.lang, code: 'und', greeting: `Benvenuto a ${metro.name}!` },
-                      currency: { code: metro.curr.split(' ')[0], symbol: metro.curr.split('(')[1]?.replace(')', '') || '€', piRate: 0.0674 },
+                      currency: { code: metro.curr.split(' ')[0], symbol: metro.curr.split('(')[1]?.replace(')', '') || '€', rateToEur: metro.rateToEur, piRate: dynamicPiRate },
                     })
                   }
                   className="p-3 rounded-2xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700/80 hover:border-emerald-500/60 cursor-pointer transition-all flex items-center justify-between group"
@@ -829,7 +846,8 @@ export default function WorldNavigatorModal({
                     <ArrowRight className="w-3.5 h-3.5" />
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

@@ -27,6 +27,7 @@ import {
   Droplets,
   Maximize2,
   Minimize2,
+  Search,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import WorldNavigatorModal from './WorldNavigatorModal';
@@ -34,16 +35,80 @@ import LocalCurrencyModal from './LocalCurrencyModal';
 import LiveWeatherModal from './LiveWeatherModal';
 import WeatherAtmosphereOverlay from './WeatherAtmosphereOverlay';
 import StreetView360Modal from './StreetView360Modal';
+import MerchantDetailModal from './MerchantDetailModal';
 import { getRealtimeWeather } from '@/lib/weatherService';
 import { getExternalServicesForArea } from '@/lib/externalGatewayServices';
+import { calculateRealRoute } from '@/lib/routingService';
+import { SPONSORED_BUSINESSES } from '@/data/regions';
+import { subscribeToCloudShops } from '@/lib/firestoreService';
 import {
   formatLocalPrice,
   lookupLocationFromCoords,
   getLocalTimeString,
-  WORLD_COUNTRIES
+  searchAnyWorldPlace,
+  WORLD_COUNTRIES,
+  isValidCoord,
 } from '@/lib/worldAtlas';
+import { getCachedPiRealPrice, PI_REAL_PRICE_EUR } from '@/lib/piRealPriceService';
 import { getListingOriginBadge } from '@/lib/listingOrigin';
 import { classifyMerchantPin } from '@/lib/merchantPinClassifier';
+
+export const INITIAL_PI_MERCHANTS = SPONSORED_BUSINESSES;
+
+export function haversineMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+export function computeBearingDeg(lat1, lng1, lat2, lng2) {
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const toDeg = (rad) => (rad * 180) / Math.PI;
+  const phi1 = toRad(lat1);
+  const phi2 = toRad(lat2);
+  const dLambda = toRad(lng2 - lng1);
+  const y = Math.sin(dLambda) * Math.cos(phi2);
+  const x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLambda);
+  return (toDeg(Math.atan2(y, x)) + 360) % 360;
+}
+
+export function buildNextTurnBanner(route, curLat, curLng) {
+  if (!route || !Array.isArray(route.steps) || route.steps.length === 0) {
+    return { distanceMeters: 0, instruction: 'Procedi lungo il percorso', text: 'Tra 0 metri: Procedi lungo il percorso' };
+  }
+  const steps = route.steps;
+  // Preferisci il prossimo passo significativo dopo la partenza se disponibile
+  let chosenStep = steps.length > 1 ? steps[1] : steps[0];
+  let bestDist = Infinity;
+
+  if (typeof curLat === 'number' && typeof curLng === 'number') {
+    for (let i = 0; i < steps.length; i++) {
+      const st = steps[i];
+      if (!Array.isArray(st.location) || st.location.length < 2) continue;
+      const d = haversineMeters(curLat, curLng, st.location[1], st.location[0]);
+      if (i === 0 && steps.length > 1 && d < 25) continue;
+      if (d < bestDist) {
+        bestDist = d;
+        chosenStep = st;
+      }
+    }
+  }
+
+  const distMeters = Number.isFinite(bestDist)
+    ? Math.max(0, Math.round(bestDist))
+    : Math.max(0, Math.round(chosenStep.distanceMeters || route.totalDistanceMeters || 0));
+  const instruction = chosenStep.instruction || 'Prosegui dritto';
+  return {
+    distanceMeters: distMeters,
+    instruction,
+    text: `Tra ${distMeters} metri: ${instruction}`,
+  };
+}
 
 // Generatore procedurale di edifici 3D volumetrici realistici ad alta definizione
 // Garantisce la presenza immediata di palazzi 3D volumetrici estrusi in qualsiasi città o quartiere
@@ -102,12 +167,45 @@ function generateProceduralBuildingsGeoJSON(centerLat, centerLng) {
   };
 }
 
+function getInitialTargetCoords(selectedCountry) {
+  if (
+    selectedCountry &&
+    typeof selectedCountry.lat === 'number' &&
+    !Number.isNaN(selectedCountry.lat) &&
+    typeof selectedCountry.lng === 'number' &&
+    !Number.isNaN(selectedCountry.lng) &&
+    !(selectedCountry.lat === 0 && selectedCountry.lng === 0)
+  ) {
+    return { lat: selectedCountry.lat, lng: selectedCountry.lng };
+  }
+  return null;
+}
+
+export function computeGpsCameraEaseOptions({
+  uLat,
+  uLng,
+  heading = 0,
+  userHasAdjustedZoom = false,
+  userHasPanned = false,
+}) {
+  if (userHasPanned) return null;
+  const options = {
+    center: [uLng, uLat],
+    bearing: heading,
+    duration: 550,
+  };
+  if (!userHasAdjustedZoom) {
+    options.pitch = 62;
+  }
+  return options;
+}
+
 export default function Urbano3D({
-  centroLat = 41.8902,
-  centroLng = 12.4922,
+  centroLat,
+  centroLng,
   lat,
   lng,
-  countryName = 'Roma',
+  countryName = 'Territorio',
   placeData = null,
   onLocationChange,
   filter = 'ALL',
@@ -122,24 +220,51 @@ export default function Urbano3D({
   onSelectExternalPlace = () => {},
   isFullscreen = false,
   onToggleFullscreen = null,
+  activeChannel = null,
 }) {
-  const effectiveLat = typeof centroLat === 'number' && !isNaN(centroLat) ? centroLat : (typeof lat === 'number' ? lat : 41.8902);
-  const effectiveLng = typeof centroLng === 'number' && !isNaN(centroLng) ? centroLng : (typeof lng === 'number' ? lng : 12.4922);
+  const initialPlaceCoords = getInitialTargetCoords(placeData);
+  const effectiveLat =
+    typeof centroLat === 'number' && !Number.isNaN(centroLat)
+      ? centroLat
+      : typeof placeData?.lat === 'number' && !Number.isNaN(placeData.lat)
+      ? placeData.lat
+      : typeof lat === 'number' && !Number.isNaN(lat)
+      ? lat
+      : initialPlaceCoords?.lat ?? null;
+  const effectiveLng =
+    typeof centroLng === 'number' && !Number.isNaN(centroLng)
+      ? centroLng
+      : typeof placeData?.lng === 'number' && !Number.isNaN(placeData.lng)
+      ? placeData.lng
+      : typeof lng === 'number' && !Number.isNaN(lng)
+      ? lng
+      : initialPlaceCoords?.lng ?? null;
+  const hasValidCoords = isValidCoord(effectiveLat, effectiveLng);
 
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const markersRef = useRef([]);
+  const merchantMarkersRef = useRef([]);
+  const userArrowMarkerRef = useRef(null);
+  const userArrowInnerRef = useRef(null);
+  const watchIdRef = useRef(null);
+  const prevGpsRef = useRef(null);
+  const activeRouteRef = useRef(null);
   const orbitIntervalRef = useRef(null);
+  const userHasAdjustedZoomRef = useRef(false);
+  const userHasPannedRef = useRef(false);
 
   const [selectedSponsor, setSelectedSponsor] = useState(null);
-  const [pitch, setPitch] = useState(58); // 58° = Prospettiva 3D volumetrica reale per visualizzare gli edifici che sorgono
+  const [selectedMerchantModal, setSelectedMerchantModal] = useState(null);
+  const [cloudMerchants, setCloudMerchants] = useState([]);
+  const [pitch, setPitch] = useState(60); // 60° = Prospettiva 3D volumetrica reale per visualizzare gli edifici che sorgono
   const [bearing, setBearing] = useState(15);
   const [is3D, setIs3D] = useState(true); // 3D attivo di default
   const [isOrbiting, setIsOrbiting] = useState(false);
   const [mapStyleMode, setMapStyleMode] = useState('vector3d'); // DEFAULT: 'vector3d' con confini nitidi
   const [showBuildings3D, setShowBuildings3D] = useState(true); // EDIFICI 3D SEMPRE ATTIVI DI DEFAULT
   const [showTerrain3D, setShowTerrain3D] = useState(false);
-  const [selectedCity, setSelectedCity] = useState(countryName || 'Roma');
+  const [selectedCity, setSelectedCity] = useState(countryName || placeData?.name || 'Territorio');
   const [showWorldModal, setShowWorldModal] = useState(false);
   const [showCurrencyModal, setShowCurrencyModal] = useState(false);
   const [showWeatherModal, setShowWeatherModal] = useState(false);
@@ -148,6 +273,96 @@ export default function Urbano3D({
   const [weatherEffectsEnabled, setWeatherEffectsEnabled] = useState(true);
   const [activeRoute, setActiveRoute] = useState(null);
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [isGpsFollowPaused, setIsGpsFollowPaused] = useState(false);
+  const [navProfile, setNavProfile] = useState('driving'); // 'driving' | 'walking'
+  const [userLocation, setUserLocation] = useState(null);
+  const [navDestination, setNavDestination] = useState(null);
+  const [placeSearchQuery, setPlaceSearchQuery] = useState('');
+  const [placeSearchResults, setPlaceSearchResults] = useState([]);
+  const [isSearchingPlace, setIsSearchingPlace] = useState(false);
+
+  activeRouteRef.current = activeRoute;
+
+  // Unisci sempre INITIAL_PI_MERCHANTS + prop sponsoredBusinesses + Firestore senza duplicati
+  const allMerchants = useMemo(() => {
+    const merged = new Map();
+    INITIAL_PI_MERCHANTS.forEach((b) => {
+      if (b && b.id) merged.set(b.id, b);
+    });
+    if (Array.isArray(sponsoredBusinesses)) {
+      sponsoredBusinesses.forEach((b) => {
+        if (b && b.id) merged.set(b.id, b);
+      });
+    }
+    cloudMerchants.forEach((b) => {
+      if (b && b.id) merged.set(b.id, b);
+    });
+    return Array.from(merged.values());
+  }, [sponsoredBusinesses, cloudMerchants]);
+
+  // Ricerca immediata di vie, città, piazze o commercianti direttamente dalla barra in Urbano 3D
+  useEffect(() => {
+    const clean = placeSearchQuery.trim();
+    if (clean.length < 2) {
+      setPlaceSearchResults([]);
+      setIsSearchingPlace(false);
+      return;
+    }
+    let active = true;
+    setIsSearchingPlace(true);
+    const timer = setTimeout(async () => {
+      try {
+        const lower = clean.toLowerCase();
+        const localMatches = allMerchants
+          .filter((b) =>
+            (b.name || '').toLowerCase().includes(lower) ||
+            (b.city || '').toLowerCase().includes(lower) ||
+            (b.address || '').toLowerCase().includes(lower)
+          )
+          .slice(0, 3)
+          .map((b) => {
+            const hasBizCoords = isValidCoord(b.lat, b.lng);
+            return {
+              id: `biz_${b.id}`,
+              name: b.name,
+              displayName: `🏪 ${b.name} (${b.city || selectedCity})`,
+              lat: hasBizCoords ? b.lat : effectiveLat,
+              lng: hasBizCoords ? b.lng : effectiveLng,
+              countryName: b.country || placeData?.countryName || (countryName !== 'Territorio' ? countryName : '') || 'Mondo',
+              flag: '🏪',
+              isMerchant: true,
+            };
+          })
+          .filter((item) => isValidCoord(item.lat, item.lng));
+
+        const worldPlaces = await searchAnyWorldPlace(clean);
+        if (!active) return;
+        setPlaceSearchResults([...localMatches, ...worldPlaces.slice(0, 6)]);
+      } catch {
+        if (active) setPlaceSearchResults([]);
+      } finally {
+        if (active) setIsSearchingPlace(false);
+      }
+    }, 260);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [placeSearchQuery, allMerchants, selectedCity, effectiveLat, effectiveLng]);
+
+  // Carica in tempo reale eventuali commercianti da Firestore
+  useEffect(() => {
+    const unsubscribe = subscribeToCloudShops((shops) => {
+      if (Array.isArray(shops)) {
+        setCloudMerchants(shops);
+      }
+    });
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, []);
 
   // Stato luogo corrente con Nazione, Lingua, Valuta e Fuso Orario
   const [currentPlace, setCurrentPlace] = useState(() => {
@@ -164,7 +379,12 @@ export default function Urbano3D({
         ? { code: 'it-IT', name: 'Italiano', greeting: 'Benvenuto in Italia!' }
         : { code: 'und', name: 'Lingua Locale', greeting: `Benvenuto in ${countryName || 'Have2Want'}!` },
       currency: isIt
-        ? { code: 'EUR', symbol: '€', name: 'Euro', piRate: 0.0674 }
+        ? {
+            code: 'EUR',
+            symbol: '€',
+            name: 'Euro',
+            piRate: getCachedPiRealPrice()?.priceEur || PI_REAL_PRICE_EUR,
+          }
         : { code: 'PI', symbol: 'π', name: 'Pi Coin', piRate: 1.0 },
       timezone: isIt ? 'Europe/Rome' : 'UTC',
       greeting: `Benvenuto in ${countryName || 'Have2Want'}!`
@@ -173,6 +393,7 @@ export default function Urbano3D({
 
   // Carica i dati meteo in tempo reale sincronizzati con il fuso orario del luogo
   useEffect(() => {
+    if (!hasValidCoords) return;
     let isMounted = true;
     getRealtimeWeather(effectiveLat, effectiveLng).then((w) => {
       if (isMounted && w) {
@@ -182,7 +403,7 @@ export default function Urbano3D({
     return () => {
       isMounted = false;
     };
-  }, [effectiveLat, effectiveLng, selectedCity, currentPlace?.name]);
+  }, [hasValidCoords, effectiveLat, effectiveLng, selectedCity, currentPlace?.name]);
 
   // Sincronizza se il parent passa nuovi placeData
   useEffect(() => {
@@ -194,6 +415,7 @@ export default function Urbano3D({
 
   // Normalizza gli annunci con coordinate visibili e supporto dedicato a ogni città
   const annunci = useMemo(() => {
+    if (!hasValidCoords) return [];
     // Se il filtro è LIBRI_SCOLASTICI, genera punti di scambio libri scolastici usati attivi per la città corrente
     if (filter === 'LIBRI_SCOLASTICI' || filter === 'LIBRI') {
       const schoolBooksForCity = [
@@ -371,11 +593,11 @@ export default function Urbano3D({
         lng: effectiveLng + 0.0019,
       },
     ];
-  }, [filteredListings, effectiveLat, effectiveLng, selectedCity, filter]);
+  }, [filteredListings, hasValidCoords, effectiveLat, effectiveLng, selectedCity, filter]);
 
   // Se la prop selectedListing cambia dall'esterno, centra la mappa
   useEffect(() => {
-    if (selectedListing && mapRef.current) {
+    if (selectedListing && hasValidCoords && mapRef.current) {
       mapRef.current.flyTo({
         center: [effectiveLng, effectiveLat],
         zoom: 17,
@@ -383,11 +605,11 @@ export default function Urbano3D({
         duration: 1000,
       });
     }
-  }, [selectedListing, effectiveLat, effectiveLng]);
+  }, [selectedListing, hasValidCoords, effectiveLat, effectiveLng]);
 
   // Inizializzazione Mappa WebGL 3D ad alta definizione (Google Earth 3D, Google Maps 3D e Stradale HD)
   useEffect(() => {
-    if (!mapContainerRef.current) return;
+    if (!mapContainerRef.current || !hasValidCoords) return;
 
     // Tile Raster Satellitari HD (Esri World Imagery)
     const esriSatelliteTiles = [
@@ -419,11 +641,6 @@ export default function Urbano3D({
 
     let mapStyle;
 
-    const proceduralBuildingsSource = {
-      type: 'geojson',
-      data: generateProceduralBuildingsGeoJSON(effectiveLat, effectiveLng),
-    };
-
     const sourcesConfig = isSatellite
       ? {
           'satellite-base': {
@@ -443,7 +660,6 @@ export default function Urbano3D({
             type: 'vector',
             url: 'https://tiles.openfreemap.org/planet',
           },
-          'procedural-buildings': proceduralBuildingsSource,
           'places-overlay': {
             type: 'raster',
             tiles: esriPlacesTiles,
@@ -471,7 +687,6 @@ export default function Urbano3D({
             type: 'vector',
             url: 'https://tiles.openfreemap.org/planet',
           },
-          'procedural-buildings': proceduralBuildingsSource,
           'terrain-dem': {
             type: 'raster-dem',
             tiles: ['https://demotiles.maplibre.org/terrain-tiles/{z}/{x}/{y}.png'],
@@ -498,7 +713,6 @@ export default function Urbano3D({
             type: 'vector',
             url: 'https://tiles.openfreemap.org/planet',
           },
-          'procedural-buildings': proceduralBuildingsSource,
           'terrain-dem': {
             type: 'raster-dem',
             tiles: ['https://demotiles.maplibre.org/terrain-tiles/{z}/{x}/{y}.png'],
@@ -508,50 +722,13 @@ export default function Urbano3D({
           },
         };
 
-    const procedural3DLayer = {
-      id: 'procedural-3d-buildings-layer',
-      source: 'procedural-buildings',
-      type: 'fill-extrusion',
-      minzoom: 12,
-      layout: {
-        visibility: showBuildings3D ? 'visible' : 'none',
-      },
-      paint: {
-        'fill-extrusion-color': isNight3D
-          ? [
-              'interpolate',
-              ['linear'],
-              ['get', 'render_height'],
-              15, '#0f172a',
-              30, '#0369a1',
-              50, '#0284c7',
-              75, '#38bdf8',
-            ]
-          : isSatellite
-          ? [
-              'interpolate',
-              ['linear'],
-              ['get', 'render_height'],
-              15, '#64748b',
-              30, '#0284c7',
-              50, '#38bdf8',
-              75, '#f8fafc',
-            ]
-          : [
-              'interpolate',
-              ['linear'],
-              ['get', 'render_height'],
-              15, '#94a3b8',
-              30, '#0284c7',
-              50, '#0ea5e9',
-              75, '#38bdf8',
-            ],
-        'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 24],
-        'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
-        'fill-extrusion-opacity': 0.88,
-        'fill-extrusion-vertical-gradient': true,
-      },
-    };
+    const safeBaseExpr = ['max', ['coalesce', ['get', 'render_min_height'], 0], 0];
+    const safeHeightExpr = [
+      'max',
+      ['coalesce', ['get', 'render_height'], 18],
+      ['+', safeBaseExpr, 12],
+    ];
+    const safeColorHeightExpr = ['coalesce', ['get', 'render_height'], 18];
 
     const layersConfig = isSatellite
       ? [
@@ -576,6 +753,7 @@ export default function Urbano3D({
             'source-layer': 'building',
             type: 'fill-extrusion',
             minzoom: 12,
+            filter: ['!=', ['get', 'hide_3d'], true],
             layout: {
               visibility: showBuildings3D ? 'visible' : 'none',
             },
@@ -583,9 +761,9 @@ export default function Urbano3D({
               'fill-extrusion-color': [
                 'interpolate',
                 ['linear'],
-                ['get', 'render_height'],
-                0, '#94a3b8',
-                15, '#64748b',
+                safeColorHeightExpr,
+                0, '#cbd5e1',
+                15, '#94a3b8',
                 35, '#0ea5e9',
                 80, '#38bdf8',
                 150, '#f8fafc',
@@ -595,15 +773,14 @@ export default function Urbano3D({
                 ['linear'],
                 ['zoom'],
                 12, 0,
-                13, ['coalesce', ['get', 'render_height'], 18],
-                16, ['coalesce', ['get', 'render_height'], 24],
+                13, safeHeightExpr,
+                16, safeHeightExpr,
               ],
-              'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
-              'fill-extrusion-opacity': 0.85,
+              'fill-extrusion-base': safeBaseExpr,
+              'fill-extrusion-opacity': 0.88,
               'fill-extrusion-vertical-gradient': true,
             },
           },
-          procedural3DLayer,
           {
             id: 'places-overlay-layer',
             type: 'raster',
@@ -628,6 +805,7 @@ export default function Urbano3D({
             'source-layer': 'building',
             type: 'fill-extrusion',
             minzoom: 12,
+            filter: ['!=', ['get', 'hide_3d'], true],
             layout: {
               visibility: showBuildings3D ? 'visible' : 'none',
             },
@@ -635,27 +813,26 @@ export default function Urbano3D({
               'fill-extrusion-color': [
                 'interpolate',
                 ['linear'],
-                ['get', 'render_height'],
-                0, '#e2e8f0',
-                15, '#cbd5e1',
-                35, '#94a3b8',
-                70, '#0ea5e9',
-                140, '#0284c7',
+                safeColorHeightExpr,
+                0, '#94a3b8',
+                15, '#64748b',
+                30, '#475569',
+                60, '#0284c7',
+                120, '#0369a1',
               ],
               'fill-extrusion-height': [
                 'interpolate',
                 ['linear'],
                 ['zoom'],
                 12, 0,
-                13, ['coalesce', ['get', 'render_height'], 18],
-                16, ['coalesce', ['get', 'render_height'], 26],
+                13, safeHeightExpr,
+                16, safeHeightExpr,
               ],
-              'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
-              'fill-extrusion-opacity': 0.88,
+              'fill-extrusion-base': safeBaseExpr,
+              'fill-extrusion-opacity': 0.9,
               'fill-extrusion-vertical-gradient': true,
             },
           },
-          procedural3DLayer,
         ]
       : [
           {
@@ -671,6 +848,7 @@ export default function Urbano3D({
             'source-layer': 'building',
             type: 'fill-extrusion',
             minzoom: 12,
+            filter: ['!=', ['get', 'hide_3d'], true],
             layout: {
               visibility: showBuildings3D ? 'visible' : 'none',
             },
@@ -678,9 +856,9 @@ export default function Urbano3D({
               'fill-extrusion-color': [
                 'interpolate',
                 ['linear'],
-                ['get', 'render_height'],
-                0, '#0f172a',
-                15, '#1e293b',
+                safeColorHeightExpr,
+                0, '#1e293b',
+                15, '#334155',
                 40, '#0369a1',
                 80, '#06b6d4',
                 160, '#38bdf8',
@@ -690,15 +868,14 @@ export default function Urbano3D({
                 ['linear'],
                 ['zoom'],
                 12, 0,
-                13, ['coalesce', ['get', 'render_height'], 18],
-                16, ['coalesce', ['get', 'render_height'], 26],
+                13, safeHeightExpr,
+                16, safeHeightExpr,
               ],
-              'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
-              'fill-extrusion-opacity': 0.90,
+              'fill-extrusion-base': safeBaseExpr,
+              'fill-extrusion-opacity': 0.92,
               'fill-extrusion-vertical-gradient': true,
             },
           },
-          procedural3DLayer,
           {
             id: 'night-labels-layer',
             type: 'raster',
@@ -719,8 +896,8 @@ export default function Urbano3D({
       container: mapContainerRef.current,
       style: mapStyle,
       center: [effectiveLng, effectiveLat],
-      zoom: 16.4, // Vista a livello strada: edifici 3D immediatamente visibili con strade e piazze
-      pitch: 58,  // Prospettiva 3D inclinata
+      zoom: 16.5, // Vista a livello strada: edifici 3D immediatamente visibili con strade e piazze
+      pitch: 60,  // Prospettiva 3D inclinata a 60°
       bearing: 15,
       minPitch: 0,
       maxPitch: 85,
@@ -737,7 +914,10 @@ export default function Urbano3D({
 
     mapRef.current = map;
 
+    let envApplied = false;
     const setup3DEnvironment = () => {
+      if (envApplied) return;
+      envApplied = true;
       try {
         // Se siamo in modalità Liberty vettoriale, aggiungiamo la sorgente DEM se non presente
         if (isVector3D && !map.getSource('terrain-dem')) {
@@ -759,7 +939,7 @@ export default function Urbano3D({
         map.setLight({
           anchor: 'viewport',
           color: '#ffffff',
-          intensity: 0.7,
+          intensity: 0.75,
           position: [1.5, 210, 50],
         });
 
@@ -780,18 +960,8 @@ export default function Urbano3D({
     };
 
     map.on('load', setup3DEnvironment);
-    map.on('styledata', setup3DEnvironment);
-
-    map.on('moveend', () => {
-      try {
-        const c = map.getCenter();
-        const src = map.getSource('procedural-buildings');
-        if (src && typeof src.setData === 'function') {
-          src.setData(generateProceduralBuildingsGeoJSON(c.lat, c.lng));
-        }
-      } catch {
-        // non-blocking
-      }
+    map.on('error', (err) => {
+      console.warn('MapLibre Urbano 3D notice:', err?.error?.message || err?.message || err);
     });
 
     map.on('pitch', () => {
@@ -802,6 +972,25 @@ export default function Urbano3D({
 
     map.on('rotate', () => {
       setBearing(Math.round(map.getBearing()));
+    });
+
+    map.on('zoomstart', (e) => {
+      if (e?.originalEvent) {
+        userHasAdjustedZoomRef.current = true;
+      }
+    });
+
+    map.on('dragstart', (e) => {
+      if (e?.originalEvent) {
+        userHasPannedRef.current = true;
+        setIsGpsFollowPaused(true);
+      }
+    });
+
+    map.on('pitchstart', (e) => {
+      if (e?.originalEvent) {
+        userHasAdjustedZoomRef.current = true;
+      }
     });
 
     // ResizeObserver per aggiornare costantemente il viewport WebGL
@@ -824,18 +1013,29 @@ export default function Urbano3D({
       resizeObserver.disconnect();
       markersRef.current.forEach((m) => m.remove());
       markersRef.current = [];
+      merchantMarkersRef.current.forEach((m) => m.remove());
+      merchantMarkersRef.current = [];
+      if (userArrowMarkerRef.current) {
+        userArrowMarkerRef.current.remove();
+        userArrowMarkerRef.current = null;
+      }
+      if (watchIdRef.current !== null && typeof navigator !== 'undefined' && navigator.geolocation?.clearWatch) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
       if (orbitIntervalRef.current) clearInterval(orbitIntervalRef.current);
       map.remove();
       mapRef.current = null;
     };
-  }, [mapStyleMode]);
+  }, [mapStyleMode, hasValidCoords]);
 
-  // Gestione dinamica visibilità Palazzi 3D
+  // Gestione dinamica visibilità Palazzi 3D (nascosti temporaneamente se il filtro STRADARIO mostra solo le strade)
   useEffect(() => {
     if (!mapRef.current) return;
     const map = mapRef.current;
     try {
-      const visibility = showBuildings3D ? 'visible' : 'none';
+      const isRoadsOnly = activeChannel === 'STRADARIO';
+      const visibility = showBuildings3D && !isRoadsOnly ? 'visible' : 'none';
       if (map.getLayer('3d-buildings')) {
         map.setLayoutProperty('3d-buildings', 'visibility', visibility);
       }
@@ -848,7 +1048,7 @@ export default function Urbano3D({
     } catch (e) {
       console.warn('Toggle palazzi 3D error:', e);
     }
-  }, [showBuildings3D]);
+  }, [showBuildings3D, activeChannel]);
 
   // Gestione dinamica visibilità Terreno DEM 3D
   useEffect(() => {
@@ -867,21 +1067,21 @@ export default function Urbano3D({
 
   // Aggiorna posizione quando cambiano le coordinate del centro
   useEffect(() => {
-    if (mapRef.current) {
+    if (mapRef.current && hasValidCoords) {
       mapRef.current.flyTo({
         center: [effectiveLng, effectiveLat],
-        zoom: 16.2, // Quota urbana 3D: edifici volumetrici e strade dettagliate
-        pitch: 58,  // Prospettiva 3D volumetrica
+        zoom: 16.5, // Quota urbana 3D: edifici volumetrici e strade dettagliate
+        pitch: 60,  // Prospettiva 3D volumetrica a 60°
         bearing: 15,
         duration: 1200,
         essential: true,
       });
     }
-  }, [effectiveLat, effectiveLng]);
+  }, [hasValidCoords, effectiveLat, effectiveLng]);
 
   // Renderizza i Marker interattivi sulla mappa
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!mapRef.current || !hasValidCoords) return;
     const map = mapRef.current;
 
     // Pulisci vecchi marker
@@ -889,6 +1089,7 @@ export default function Urbano3D({
     markersRef.current = [];
 
     annunci.forEach((item) => {
+      if (!isValidCoord(item.lat, item.lng)) return;
       // Elemento DOM per il punto (Ingrandito ed Accentuato ad Alta Visibilità)
       const el = document.createElement('div');
       el.className = 'group cursor-pointer select-none';
@@ -1043,168 +1244,18 @@ export default function Urbano3D({
       markersRef.current.push(marker);
     });
 
-    // RENDER MARKER COMMERCIANTI SECONDO GRAMMATICA A 3 LIVELLI
-    // 1. Viola e oro lampeggiante (Accetta Pi)
-    // 2. Oro puro (Solo Vetrina / Pubblicità)
-    // 3. Doppio anello concentrico (Accetta Pi + Vetrina / Pubblicità)
-    if (Array.isArray(sponsoredBusinesses)) {
-      sponsoredBusinesses.forEach((biz, idx) => {
-        const bizLat = biz.lat || (effectiveLat + (idx === 0 ? 0.002 : -0.002) + (Math.sin(idx) * 0.001));
-        const bizLng = biz.lng || (effectiveLng + (idx === 0 ? 0.0025 : -0.0015) + (Math.cos(idx) * 0.001));
-        const pinType = classifyMerchantPin(biz);
-
-        const el = document.createElement('div');
-        el.className = 'group cursor-pointer select-none';
-        el.style.position = 'relative';
-        el.style.width = '46px';
-        el.style.height = '46px';
-        el.style.display = 'flex';
-        el.style.alignItems = 'center';
-        el.style.justifyContent = 'center';
-        el.style.zIndex = '28';
-
-        // Anello / Alone esterno
-        if (pinType.type === 'DOUBLE_RING') {
-          // DOPPIO ANELLO CONCENTRICO: Oro esterno + Viola interno
-          const outerRing = document.createElement('div');
-          outerRing.style.position = 'absolute';
-          outerRing.style.inset = '-8px';
-          outerRing.style.borderRadius = '50%';
-          outerRing.style.border = '2.5px solid #ffd700';
-          outerRing.style.boxShadow = '0 0 16px rgba(255, 215, 0, 0.7)';
-          outerRing.style.animation = 'ping 2.6s cubic-bezier(0, 0, 0.2, 1) infinite';
-          outerRing.style.pointerEvents = 'none';
-
-          const innerRing = document.createElement('div');
-          innerRing.style.position = 'absolute';
-          innerRing.style.inset = '-3px';
-          innerRing.style.borderRadius = '50%';
-          innerRing.style.border = '2px solid #a855f7';
-          innerRing.style.boxShadow = '0 0 10px rgba(168, 85, 247, 0.6)';
-          innerRing.style.pointerEvents = 'none';
-
-          el.appendChild(outerRing);
-          el.appendChild(innerRing);
-        } else if (pinType.type === 'PI_ACCEPTED') {
-          // VIOLA E ORO LAMPEGGIANTE (Circuito Pi Coin)
-          const ring = document.createElement('div');
-          ring.style.position = 'absolute';
-          ring.style.inset = '-6px';
-          ring.style.borderRadius = '50%';
-          ring.style.backgroundColor = 'rgba(168, 85, 247, 0.4)';
-          ring.style.border = '2px solid #ffd700';
-          ring.style.animation = 'ping 2.2s cubic-bezier(0, 0, 0.2, 1) infinite';
-          ring.style.pointerEvents = 'none';
-          el.appendChild(ring);
-        } else {
-          // ORO PURO (Solo Pubblicità / Vetrina)
-          const ring = document.createElement('div');
-          ring.style.position = 'absolute';
-          ring.style.inset = '-6px';
-          ring.style.borderRadius = '50%';
-          ring.style.backgroundColor = 'rgba(245, 158, 11, 0.4)';
-          ring.style.border = '2px solid #ffd700';
-          ring.style.animation = 'ping 2.4s cubic-bezier(0, 0, 0.2, 1) infinite';
-          ring.style.pointerEvents = 'none';
-          el.appendChild(ring);
-        }
-
-        // Badge centrale sagomato
-        const dot = document.createElement('div');
-        dot.style.position = 'relative';
-        dot.style.width = '36px';
-        dot.style.height = '36px';
-        dot.style.borderRadius = '50%';
-        dot.style.display = 'flex';
-        dot.style.alignItems = 'center';
-        dot.style.justifyContent = 'center';
-        dot.style.fontSize = '16px';
-        dot.style.fontWeight = '900';
-        dot.style.transition = 'transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)';
-
-        if (pinType.type === 'DOUBLE_RING') {
-          dot.style.background = 'linear-gradient(135deg, #7c3aed 0%, #d97706 100%)';
-          dot.style.border = '3px solid #ffd700';
-          dot.style.boxShadow = '0 6px 20px rgba(0,0,0,0.9), 0 0 16px rgba(255, 215, 0, 0.9)';
-          dot.innerHTML = '👑';
-        } else if (pinType.type === 'PI_ACCEPTED') {
-          dot.style.background = 'linear-gradient(135deg, #6b21a8 0%, #9333ea 100%)';
-          dot.style.border = '2.5px solid #ffd700';
-          dot.style.boxShadow = '0 6px 20px rgba(0,0,0,0.8), 0 0 14px rgba(168, 85, 247, 0.8)';
-          dot.innerHTML = '🪙';
-        } else {
-          dot.style.background = 'linear-gradient(135deg, #fbbf24 0%, #b45309 100%)';
-          dot.style.border = '2.5px solid #ffffff';
-          dot.style.boxShadow = '0 6px 20px rgba(0,0,0,0.8), 0 0 14px rgba(251, 191, 36, 0.8)';
-          dot.innerHTML = '📢';
-        }
-
-        // Tooltip fluttuante informativo
-        const tooltip = document.createElement('div');
-        tooltip.style.position = 'absolute';
-        tooltip.style.bottom = '125%';
-        tooltip.style.left = '50%';
-        tooltip.style.transform = 'translateX(-50%)';
-        tooltip.style.padding = '7px 14px';
-        tooltip.style.borderRadius = '12px';
-        tooltip.style.backgroundColor = '#05070e';
-        tooltip.style.border = `2px solid ${pinType.type === 'DOUBLE_RING' ? '#ffd700' : pinType.type === 'PI_ACCEPTED' ? '#a855f7' : '#f59e0b'}`;
-        tooltip.style.color = '#ffffff';
-        tooltip.style.fontSize = '12px';
-        tooltip.style.fontWeight = '800';
-        tooltip.style.letterSpacing = '0.02em';
-        tooltip.style.whiteSpace = 'nowrap';
-        tooltip.style.boxShadow = '0 10px 30px rgba(0,0,0,0.95)';
-        tooltip.style.pointerEvents = 'none';
-        tooltip.style.opacity = '0';
-        tooltip.style.transition = 'opacity 0.15s ease';
-        tooltip.style.zIndex = '40';
-
-        const badgeLabel = pinType.type === 'DOUBLE_RING'
-          ? '👑 DOPPIO ANELLO (Accetta Pi + Vetrina)'
-          : pinType.type === 'PI_ACCEPTED'
-          ? '🪙 ACCETTA PI NETWORK'
-          : '📢 VETRINA PUBBLICITARIA';
-
-        tooltip.innerHTML = `<span style="color:${pinType.badgeBg}; font-size:10px; display:block;">${badgeLabel}</span><strong>${biz.name}</strong> • ${biz.promo || biz.category || 'Esercizio Locale'}`;
-
-        el.appendChild(dot);
-        el.appendChild(tooltip);
-
-        el.addEventListener('mouseenter', () => {
-          dot.style.transform = 'scale(1.3)';
-          tooltip.style.opacity = '1';
-        });
-        el.addEventListener('mouseleave', () => {
-          dot.style.transform = 'scale(1)';
-          tooltip.style.opacity = '0';
-        });
-
-        el.addEventListener('click', (e) => {
-          e.stopPropagation();
-          setSelectedSponsor(biz);
-          map.easeTo({
-            center: [bizLng, bizLat],
-            zoom: Math.max(map.getZoom(), 17.2),
-            duration: 600,
-          });
-        });
-
-        const bizMarker = new maplibregl.Marker({
-          element: el,
-          anchor: 'center',
-        })
-          .setLngLat([bizLng, bizLat])
-          .addTo(map);
-
-        markersRef.current.push(bizMarker);
-      });
-    }
+    // I commercianti sono gestiti in merchantMarkersRef dedicata (sempre visibile sopra tutto, anche in navigazione)
 
     // RENDER PIN DIRETTO SERVIZI REALI (GATEWAY ESTERNO: SUPERMERCATI, VOLANTINI, NOTTE, LOCKER, SANITÀ)
     // Nessun database o spesa interna: solo link e navigatore nativo
-    const externalServices = getExternalServicesForArea(effectiveLat, effectiveLng, selectedCity);
+    const externalServices = getExternalServicesForArea(
+      effectiveLat,
+      effectiveLng,
+      selectedCity,
+      currentPlace?.countryCode || ''
+    );
     externalServices.forEach((svc) => {
+      if (!isValidCoord(svc.lat, svc.lng)) return;
       const el = document.createElement('div');
       el.className = 'group cursor-pointer select-none';
       el.style.position = 'relative';
@@ -1294,7 +1345,182 @@ export default function Urbano3D({
 
       markersRef.current.push(svcMarker);
     });
-  }, [annunci, sponsoredBusinesses, onBazarSelect, onSelectListing, onSelectExternalPlace, selectedCity, effectiveLat, effectiveLng]);
+  }, [annunci, onBazarSelect, onSelectListing, onSelectExternalPlace, selectedCity, effectiveLat, effectiveLng]);
+
+  // 1B. RENDER SEMPRE VISIBILE DI TUTTI I COMMERCIANTI (INITIAL_PI_MERCHANTS + Firestore)
+  // Rimangono visibili sia a mappa ferma che durante la navigazione a piedi/in auto e SOPRA il percorso
+  useEffect(() => {
+    if (!mapRef.current || !hasValidCoords) return;
+    const map = mapRef.current;
+
+    merchantMarkersRef.current.forEach((m) => m.remove());
+    merchantMarkersRef.current = [];
+
+    allMerchants.forEach((biz, idx) => {
+      const hasBizCoords = isValidCoord(biz.lat, biz.lng);
+      const bizLat = hasBizCoords
+        ? biz.lat
+        : effectiveLat + (idx === 0 ? 0.002 : -0.002) + Math.sin(idx) * 0.001;
+      const bizLng = hasBizCoords
+        ? biz.lng
+        : effectiveLng + (idx === 0 ? 0.0025 : -0.0015) + Math.cos(idx) * 0.001;
+      if (!isValidCoord(bizLat, bizLng)) return;
+
+      const pinType = classifyMerchantPin(biz);
+
+      const el = document.createElement('div');
+      el.className = 'merchant-pin-always-visible cursor-pointer select-none';
+      el.style.position = 'relative';
+      el.style.width = pinType.type === 'DOUBLE_RING' ? '54px' : '46px';
+      el.style.height = '46px';
+      el.style.display = 'flex';
+      el.style.alignItems = 'center';
+      el.style.justifyContent = 'center';
+      el.style.zIndex = '60';
+
+      if (pinType.type === 'DOUBLE_RING') {
+        // Entrambi: Doppio Anello (Viola e Oro) con entrambi i simboli π e 🏪
+        const outerRing = document.createElement('div');
+        outerRing.style.position = 'absolute';
+        outerRing.style.inset = '-7px';
+        outerRing.style.borderRadius = '999px';
+        outerRing.style.border = '2.5px solid #ffd700';
+        outerRing.style.boxShadow = '0 0 16px rgba(255, 215, 0, 0.8)';
+        outerRing.style.pointerEvents = 'none';
+
+        const innerRing = document.createElement('div');
+        innerRing.style.position = 'absolute';
+        innerRing.style.inset = '-2px';
+        innerRing.style.borderRadius = '999px';
+        innerRing.style.border = '2px solid #a855f7';
+        innerRing.style.boxShadow = '0 0 12px rgba(168, 85, 247, 0.75)';
+        innerRing.style.pointerEvents = 'none';
+
+        el.appendChild(outerRing);
+        el.appendChild(innerRing);
+      } else if (pinType.type === 'PI_ACCEPTED') {
+        // Accetta Pi: icona π (Viola/Oro lampeggiante)
+        const blinkRing = document.createElement('div');
+        blinkRing.style.position = 'absolute';
+        blinkRing.style.inset = '-6px';
+        blinkRing.style.borderRadius = '50%';
+        blinkRing.style.backgroundColor = 'rgba(168, 85, 247, 0.45)';
+        blinkRing.style.border = '2px solid #ffd700';
+        blinkRing.style.animation = 'ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite';
+        blinkRing.style.pointerEvents = 'none';
+        el.appendChild(blinkRing);
+      } else {
+        // Solo Pubblicità: icona 🏪 (Oro fisso)
+        const solidRing = document.createElement('div');
+        solidRing.style.position = 'absolute';
+        solidRing.style.inset = '-4px';
+        solidRing.style.borderRadius = '50%';
+        solidRing.style.border = '2px solid #ffd700';
+        solidRing.style.boxShadow = '0 0 12px rgba(255, 215, 0, 0.65)';
+        solidRing.style.pointerEvents = 'none';
+        el.appendChild(solidRing);
+      }
+
+      const dot = document.createElement('div');
+      dot.style.position = 'relative';
+      dot.style.height = '36px';
+      dot.style.width = pinType.type === 'DOUBLE_RING' ? '48px' : '36px';
+      dot.style.borderRadius = pinType.type === 'DOUBLE_RING' ? '999px' : '50%';
+      dot.style.display = 'flex';
+      dot.style.alignItems = 'center';
+      dot.style.justifyContent = 'center';
+      dot.style.gap = '2px';
+      dot.style.fontWeight = '900';
+      dot.style.transition = 'transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)';
+
+      if (pinType.type === 'DOUBLE_RING') {
+        dot.style.background = 'linear-gradient(135deg, #7c3aed 0%, #d97706 100%)';
+        dot.style.border = '2.5px solid #ffd700';
+        dot.style.boxShadow = '0 6px 20px rgba(0,0,0,0.92), 0 0 16px rgba(255, 215, 0, 0.85)';
+        dot.style.color = '#ffd700';
+        dot.style.fontSize = '14px';
+        dot.innerHTML = '<span style="font-family:serif;font-weight:900;color:#ffffff">π</span><span style="font-size:13px">🏪</span>';
+      } else if (pinType.type === 'PI_ACCEPTED') {
+        dot.style.background = 'linear-gradient(135deg, #6b21a8 0%, #9333ea 100%)';
+        dot.style.border = '2.5px solid #ffd700';
+        dot.style.boxShadow = '0 6px 20px rgba(0,0,0,0.9), 0 0 16px rgba(168, 85, 247, 0.9)';
+        dot.style.color = '#ffd700';
+        dot.style.fontSize = '19px';
+        dot.style.animation = 'pulse 1.5s ease-in-out infinite';
+        dot.innerHTML = '<span style="font-family:serif;font-weight:900;">π</span>';
+      } else {
+        dot.style.background = 'linear-gradient(135deg, #fbbf24 0%, #d97706 100%)';
+        dot.style.border = '2.5px solid #ffffff';
+        dot.style.boxShadow = '0 6px 20px rgba(0,0,0,0.85), 0 0 14px rgba(251, 191, 36, 0.85)';
+        dot.style.fontSize = '16px';
+        dot.innerHTML = '<span>🏪</span>';
+      }
+
+      const tooltip = document.createElement('div');
+      tooltip.style.position = 'absolute';
+      tooltip.style.bottom = '125%';
+      tooltip.style.left = '50%';
+      tooltip.style.transform = 'translateX(-50%)';
+      tooltip.style.padding = '7px 14px';
+      tooltip.style.borderRadius = '12px';
+      tooltip.style.backgroundColor = '#05070e';
+      tooltip.style.border = `2px solid ${pinType.type === 'PI_ACCEPTED' ? '#a855f7' : '#ffd700'}`;
+      tooltip.style.color = '#ffffff';
+      tooltip.style.fontSize = '12px';
+      tooltip.style.fontWeight = '800';
+      tooltip.style.whiteSpace = 'nowrap';
+      tooltip.style.boxShadow = '0 10px 30px rgba(0,0,0,0.95)';
+      tooltip.style.pointerEvents = 'none';
+      tooltip.style.opacity = '0';
+      tooltip.style.transition = 'opacity 0.15s ease';
+      tooltip.style.zIndex = '80';
+
+      const badgeLabel = pinType.type === 'DOUBLE_RING'
+        ? 'π 🏪 DOPPIO ANELLO (Accetta Pi + Vetrina)'
+        : pinType.type === 'PI_ACCEPTED'
+        ? 'π ACCETTA PI NETWORK'
+        : '🏪 VETRINA PUBBLICITARIA (ORO FISSO)';
+
+      tooltip.innerHTML = `<span style="color:${pinType.badgeBg}; font-size:10px; display:block;">${badgeLabel}</span><strong>${biz.name}</strong> • ${biz.city || selectedCity}`;
+
+      el.appendChild(dot);
+      el.appendChild(tooltip);
+
+      el.addEventListener('mouseenter', () => {
+        dot.style.transform = 'scale(1.25)';
+        tooltip.style.opacity = '1';
+      });
+      el.addEventListener('mouseleave', () => {
+        dot.style.transform = 'scale(1)';
+        tooltip.style.opacity = '0';
+      });
+
+      // Al click su un pin commerciante -> apre sempre MerchantDetailModal
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        setSelectedSponsor(null);
+        setSelectedMerchantModal(biz);
+        map.easeTo({
+          center: [bizLng, bizLat],
+          zoom: Math.max(map.getZoom(), 17.0),
+          duration: 600,
+        });
+      });
+
+      const bizMarker = new maplibregl.Marker({
+        element: el,
+        anchor: 'center',
+      })
+        .setLngLat([bizLng, bizLat])
+        .addTo(map);
+
+      if (bizMarker.getElement()) {
+        bizMarker.getElement().style.zIndex = '60';
+      }
+
+      merchantMarkersRef.current.push(bizMarker);
+    });
+  }, [allMerchants, mapStyleMode, hasValidCoords, effectiveLat, effectiveLng, selectedCity]);
 
   // Gestione Rotazione Automatica 360°
   useEffect(() => {
@@ -1470,52 +1696,128 @@ export default function Urbano3D({
     );
   };
 
-  const handleCalculateRoute = async (destLat, destLng, destName) => {
-    if (!mapRef.current) return;
+  const renderRouteOnMap = (routeCoordinates) => {
+    const map = mapRef.current;
+    if (!map) return;
+    const geojsonData = {
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'LineString',
+        coordinates: routeCoordinates,
+      },
+    };
+
+    if (map.getSource('real-route-source')) {
+      map.getSource('real-route-source').setData(geojsonData);
+    } else {
+      map.addSource('real-route-source', {
+        type: 'geojson',
+        data: geojsonData,
+      });
+      map.addLayer({
+        id: 'real-route-line',
+        type: 'line',
+        source: 'real-route-source',
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round',
+        },
+        paint: {
+          'line-color': '#00ff66',
+          'line-width': 6,
+          'line-opacity': 0.9,
+        },
+      });
+    }
+
+    // Assicura che i marker commercianti restino sempre in primo piano sopra la linea del percorso
+    merchantMarkersRef.current.forEach((m) => {
+      if (m && typeof m.getElement === 'function' && m.getElement()) {
+        m.getElement().style.zIndex = '60';
+      }
+    });
+  };
+
+  const ensureBlueArrowMarker = (uLat, uLng, headingDeg = 0) => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (!userArrowMarkerRef.current) {
+      const containerEl = document.createElement('div');
+      containerEl.style.width = '46px';
+      containerEl.style.height = '46px';
+      containerEl.style.display = 'flex';
+      containerEl.style.alignItems = 'center';
+      containerEl.style.justifyContent = 'center';
+      containerEl.style.position = 'relative';
+      containerEl.style.zIndex = '70';
+      containerEl.style.pointerEvents = 'none';
+
+      const halo = document.createElement('div');
+      halo.style.position = 'absolute';
+      halo.style.inset = '-4px';
+      halo.style.borderRadius = '50%';
+      halo.style.backgroundColor = 'rgba(59, 130, 246, 0.35)';
+      halo.style.animation = 'ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite';
+
+      const inner = document.createElement('div');
+      inner.style.width = '36px';
+      inner.style.height = '36px';
+      inner.style.borderRadius = '50%';
+      inner.style.background = 'rgba(15, 23, 42, 0.85)';
+      inner.style.border = '2.5px solid #60a5fa';
+      inner.style.boxShadow = '0 0 18px rgba(37, 99, 235, 0.9)';
+      inner.style.display = 'flex';
+      inner.style.alignItems = 'center';
+      inner.style.justifyContent = 'center';
+      inner.style.transition = 'transform 0.3s ease';
+      inner.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 2L20 20L12 16L4 20L12 2Z" fill="#3b82f6" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/></svg>`;
+
+      containerEl.appendChild(halo);
+      containerEl.appendChild(inner);
+      userArrowInnerRef.current = inner;
+
+      const marker = new maplibregl.Marker({
+        element: containerEl,
+        anchor: 'center',
+      })
+        .setLngLat([uLng, uLat])
+        .addTo(map);
+
+      if (marker.getElement()) {
+        marker.getElement().style.zIndex = '70';
+      }
+      userArrowMarkerRef.current = marker;
+    } else {
+      userArrowMarkerRef.current.setLngLat([uLng, uLat]);
+    }
+
+    if (userArrowInnerRef.current && Number.isFinite(headingDeg)) {
+      userArrowInnerRef.current.style.transform = `rotate(${headingDeg}deg)`;
+    }
+  };
+
+  const handleCalculateRoute = async (destLat, destLng, destName, customProfile = navProfile, startCoords = null) => {
+    if (!mapRef.current || !isValidCoord(destLat, destLng)) return null;
+    const startLat = startCoords?.lat ?? userLocation?.lat ?? effectiveLat;
+    const startLng = startCoords?.lng ?? userLocation?.lng ?? effectiveLng;
+    if (!isValidCoord(startLat, startLng)) return null;
     setIsCalculatingRoute(true);
     try {
-      const { calculateRealRoute } = await import('@/lib/routingService');
-      const route = await calculateRealRoute(effectiveLat, effectiveLng, destLat, destLng, 'driving');
+      const route = await calculateRealRoute(startLat, startLng, destLat, destLng, customProfile);
       if (route) {
-        setActiveRoute({ ...route, destinationName: destName });
-        toast.success(`🧭 Percorso OSRM verso ${destName}: ${route.totalDistanceKm} km (${route.totalDurationMinutes} min)`);
-        
-        const map = mapRef.current;
-        const geojsonData = {
-          type: 'Feature',
-          properties: {},
-          geometry: {
-            type: 'LineString',
-            coordinates: route.coordinates,
-          },
-        };
+        const nextRoute = { ...route, destinationName: destName, destLat, destLng };
+        setActiveRoute(nextRoute);
+        setNavDestination({ lat: destLat, lng: destLng, name: destName });
+        toast.success(`🧭 Percorso (${customProfile === 'walking' ? 'A piedi' : 'Auto'}) verso ${destName}: ${route.totalDistanceKm} km (${route.totalDurationMinutes} min)`);
 
-        if (map.getSource('real-route-source')) {
-          map.getSource('real-route-source').setData(geojsonData);
-        } else {
-          map.addSource('real-route-source', {
-            type: 'geojson',
-            data: geojsonData,
-          });
-          map.addLayer({
-            id: 'real-route-line',
-            type: 'line',
-            source: 'real-route-source',
-            layout: {
-              'line-join': 'round',
-              'line-cap': 'round',
-            },
-            paint: {
-              'line-color': '#00ff66',
-              'line-width': 6,
-              'line-opacity': 0.9,
-            },
-          });
-        }
+        renderRouteOnMap(route.coordinates);
 
         const bounds = new maplibregl.LngLatBounds();
         route.coordinates.forEach((coord) => bounds.extend(coord));
-        map.fitBounds(bounds, { padding: 60, duration: 800 });
+        mapRef.current.fitBounds(bounds, { padding: 70, duration: 800 });
+        return nextRoute;
       }
     } catch (err) {
       console.error('Errore calcolo percorso:', err);
@@ -1523,10 +1825,189 @@ export default function Urbano3D({
     } finally {
       setIsCalculatingRoute(false);
     }
+    return null;
+  };
+
+  const stopTurnByTurnNavigation = () => {
+    if (watchIdRef.current !== null && typeof navigator !== 'undefined' && navigator.geolocation?.clearWatch) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+    if (userArrowMarkerRef.current) {
+      userArrowMarkerRef.current.remove();
+      userArrowMarkerRef.current = null;
+    }
+    userArrowInnerRef.current = null;
+    prevGpsRef.current = null;
+    userHasAdjustedZoomRef.current = false;
+    userHasPannedRef.current = false;
+    setIsGpsFollowPaused(false);
+    setIsNavigating(false);
+    toast.info('🛑 Navigazione terminata');
+  };
+
+  const recenterGpsNavigation = () => {
+    userHasPannedRef.current = false;
+    userHasAdjustedZoomRef.current = false;
+    setIsGpsFollowPaused(false);
+    if (mapRef.current && userLocation) {
+      mapRef.current.easeTo({
+        center: [userLocation.lng, userLocation.lat],
+        bearing: userLocation.heading || 0,
+        pitch: 62,
+        zoom: 17.5,
+        duration: 600,
+      });
+    }
+  };
+
+  const startTurnByTurnNavigation = async (targetDest = null, forcedProfile = null) => {
+    if (!mapRef.current || !hasValidCoords) return;
+    const profileToUse = forcedProfile || navProfile;
+
+    // Determina destinazione (passata, già selezionata o commerciante più vicino)
+    let dest = targetDest;
+    if (!dest && navDestination && isValidCoord(navDestination.lat, navDestination.lng)) {
+      dest = navDestination;
+    }
+    if (!dest && (selectedMerchantModal || selectedSponsor)) {
+      const biz = selectedMerchantModal || selectedSponsor;
+      const hasBizCoords = isValidCoord(biz.lat, biz.lng);
+      dest = {
+        lat: hasBizCoords ? biz.lat : effectiveLat + 0.004,
+        lng: hasBizCoords ? biz.lng : effectiveLng + 0.004,
+        name: biz.name,
+      };
+    }
+    if (!dest && allMerchants.length > 0) {
+      let nearestBiz = allMerchants[0];
+      let minD = Infinity;
+      allMerchants.forEach((b) => {
+        if (isValidCoord(b.lat, b.lng)) {
+          const d = haversineMeters(effectiveLat, effectiveLng, b.lat, b.lng);
+          if (d < minD) {
+            minD = d;
+            nearestBiz = b;
+          }
+        }
+      });
+      const hasNearestCoords = isValidCoord(nearestBiz.lat, nearestBiz.lng);
+      dest = {
+        lat: hasNearestCoords ? nearestBiz.lat : effectiveLat + 0.004,
+        lng: hasNearestCoords ? nearestBiz.lng : effectiveLng + 0.004,
+        name: nearestBiz.name,
+      };
+    }
+    if (!dest) {
+      dest = { lat: effectiveLat + 0.004, lng: effectiveLng + 0.004, name: `${selectedCity} Centro` };
+    }
+
+    // Ottieni posizione iniziale GPS se disponibile (con fallback rapido alla vista corrente)
+    const getStartPosition = () =>
+      new Promise((resolve) => {
+        if (typeof navigator === 'undefined' || !navigator.geolocation) {
+          resolve({ lat: effectiveLat, lng: effectiveLng, heading: 0 });
+          return;
+        }
+        let settled = false;
+        const fallbackTimer = setTimeout(() => {
+          if (!settled) {
+            settled = true;
+            resolve({ lat: effectiveLat, lng: effectiveLng, heading: 0 });
+          }
+        }, 2500);
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            if (!settled) {
+              settled = true;
+              clearTimeout(fallbackTimer);
+              resolve({
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+                heading: Number.isFinite(pos.coords.heading) ? pos.coords.heading : 0,
+              });
+            }
+          },
+          () => {
+            if (!settled) {
+              settled = true;
+              clearTimeout(fallbackTimer);
+              resolve({ lat: effectiveLat, lng: effectiveLng, heading: 0 });
+            }
+          },
+          { enableHighAccuracy: true, timeout: 2200 }
+        );
+      });
+
+    const initialPos = await getStartPosition();
+    const calculated = await handleCalculateRoute(dest.lat, dest.lng, dest.name, profileToUse, initialPos);
+    if (!calculated) return;
+
+    const initialHeading = computeBearingDeg(initialPos.lat, initialPos.lng, dest.lat, dest.lng);
+    userHasAdjustedZoomRef.current = false;
+    userHasPannedRef.current = false;
+    setIsGpsFollowPaused(false);
+    setUserLocation({ lat: initialPos.lat, lng: initialPos.lng, heading: initialHeading });
+    ensureBlueArrowMarker(initialPos.lat, initialPos.lng, initialHeading);
+    setIsNavigating(true);
+
+    if (mapRef.current) {
+      mapRef.current.easeTo({
+        center: [initialPos.lng, initialPos.lat],
+        bearing: initialHeading,
+        pitch: 62,
+        zoom: 17.5,
+        duration: 800,
+      });
+    }
+
+    if (typeof navigator !== 'undefined' && navigator.geolocation && typeof navigator.geolocation.watchPosition === 'function') {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+      watchIdRef.current = navigator.geolocation.watchPosition(
+        (pos) => {
+          const uLat = pos.coords.latitude;
+          const uLng = pos.coords.longitude;
+          let heading = pos.coords.heading;
+          if (typeof heading !== 'number' || Number.isNaN(heading)) {
+            if (prevGpsRef.current) {
+              const moved = haversineMeters(prevGpsRef.current.lat, prevGpsRef.current.lng, uLat, uLng);
+              if (moved > 2) {
+                heading = computeBearingDeg(prevGpsRef.current.lat, prevGpsRef.current.lng, uLat, uLng);
+              }
+            }
+            if (typeof heading !== 'number' || Number.isNaN(heading)) {
+              heading = computeBearingDeg(uLat, uLng, dest.lat, dest.lng);
+            }
+          }
+          prevGpsRef.current = { lat: uLat, lng: uLng };
+          setUserLocation({ lat: uLat, lng: uLng, heading });
+          ensureBlueArrowMarker(uLat, uLng, heading);
+
+          const easeOptions = computeGpsCameraEaseOptions({
+            uLat,
+            uLng,
+            heading,
+            userHasAdjustedZoom: userHasAdjustedZoomRef.current,
+            userHasPanned: userHasPannedRef.current,
+          });
+          if (mapRef.current && easeOptions) {
+            mapRef.current.easeTo(easeOptions);
+          }
+        },
+        (err) => {
+          console.warn('GPS watchPosition notice:', err?.message || err);
+        },
+        { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
+      );
+    }
   };
 
   const handleClearRoute = () => {
+    stopTurnByTurnNavigation();
     setActiveRoute(null);
+    setNavDestination(null);
     if (mapRef.current && mapRef.current.getSource('real-route-source')) {
       mapRef.current.getSource('real-route-source').setData({
         type: 'FeatureCollection',
@@ -1535,36 +2016,79 @@ export default function Urbano3D({
     }
   };
 
+  const nextTurnBanner = useMemo(
+    () => buildNextTurnBanner(activeRoute, userLocation?.lat ?? effectiveLat, userLocation?.lng ?? effectiveLng),
+    [activeRoute, userLocation, effectiveLat, effectiveLng]
+  );
+
   return (
-    <div className="relative w-full h-full bg-[#0b1120] overflow-hidden select-none">
-      {/* HUD PERCORSO STRADALE REALE OSRM */}
-      {activeRoute && (
-        <div className="absolute top-16 left-4 right-4 z-40 pointer-events-auto max-w-xl mx-auto bg-black/95 backdrop-blur-md p-3.5 rounded-2xl border border-emerald-500/50 shadow-2xl flex items-center justify-between gap-3 text-white">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-500 text-black flex items-center justify-center font-black shrink-0 shadow-lg shadow-emerald-500/30">
-              <Navigation className="w-5 h-5 fill-current" />
+    <div className={`relative w-full h-full overflow-hidden select-none ${mapStyleMode === 'night3d' ? 'bg-[#0b1120]' : 'bg-[#e2e8f0]'}`}>
+      {/* BANNER SUPERIORE NAVIGAZIONE ATTIVA (Turn-by-Turn) OPPURE BARRA DI RICERCA DESTINAZIONE */}
+      {isNavigating && activeRoute ? (
+        <div className="absolute top-14 left-2.5 right-14 z-40 pointer-events-auto max-w-xl bg-gradient-to-r from-sky-950/95 via-slate-950/95 to-emerald-950/95 backdrop-blur-md p-3 rounded-2xl border-2 border-sky-400/80 shadow-2xl flex items-center justify-between gap-2.5 text-white">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-sky-500 text-white flex items-center justify-center font-black shrink-0 shadow-lg shadow-sky-500/40 animate-pulse">
+              <Navigation className="w-4 h-4 fill-current" />
             </div>
-            <div>
-              <div className="text-xs font-black flex items-center gap-2">
-                <span>Verso: {activeRoute.destinationName}</span>
-                <span className="px-1.5 py-0.2 rounded text-[9px] bg-emerald-500/20 text-[#00ff66] font-mono border border-emerald-500/30">OSRM REALE</span>
+            <div className="min-w-0">
+              <div className="text-xs sm:text-sm font-black text-sky-300 truncate">
+                {nextTurnBanner.text}
               </div>
-              <div className="text-[11px] text-zinc-300 font-bold mt-0.5">
-                {activeRoute.totalDistanceKm} km • {activeRoute.totalDurationMinutes} min stimati
-              </div>
-              <div className="text-[10px] text-zinc-400 truncate max-w-xs mt-0.5">
-                {activeRoute.steps?.[0]?.instruction || 'Procedi lungo il percorso'}
+              <div className="text-[11px] text-zinc-200 font-bold flex items-center gap-2 mt-0.5 flex-wrap">
+                <span>{navProfile === 'walking' ? '🚶 A piedi' : '🚗 In auto'} • Verso {activeRoute.destinationName}</span>
+                <span className="text-[#00ff66]">{activeRoute.totalDistanceKm} km ({activeRoute.totalDurationMinutes} min)</span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 shrink-0">
+            {isGpsFollowPaused && (
+              <button
+                id="btn-recenter-gps"
+                type="button"
+                onClick={recenterGpsNavigation}
+                className="px-2.5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-[11px] shrink-0 cursor-pointer shadow-lg active:scale-95"
+              >
+                🎯 Ricentra GPS
+              </button>
+            )}
             <button
+              id="btn-stop-turn-by-turn"
               type="button"
-              onClick={() => setShowStreetView(true)}
-              className="px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-black text-xs cursor-pointer shadow-md"
+              onClick={stopTurnByTurnNavigation}
+              className="px-2.5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-black text-[11px] shrink-0 cursor-pointer shadow-lg active:scale-95"
             >
-              360°
+              Termina Navigazione
+            </button>
+          </div>
+        </div>
+      ) : activeRoute ? (
+        <div className="absolute top-14 left-2.5 right-14 z-40 pointer-events-auto max-w-xl bg-black/95 backdrop-blur-md p-3 rounded-2xl border border-emerald-500/50 shadow-2xl flex items-center justify-between gap-2.5 text-white">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500 text-black flex items-center justify-center font-black shrink-0 shadow-lg shadow-emerald-500/30">
+              <Navigation className="w-4 h-4 fill-current" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-black flex items-center gap-2 truncate">
+                <span>Verso: {activeRoute.destinationName}</span>
+              </div>
+              <div className="text-[11px] text-zinc-300 font-bold mt-0.5">
+                {activeRoute.totalDistanceKm} km • {activeRoute.totalDurationMinutes} min ({navProfile === 'walking' ? '🚶 A piedi' : '🚗 In auto'})
+              </div>
+              <div className="text-[10px] text-sky-300 font-bold truncate max-w-xs mt-0.5">
+                {nextTurnBanner.text}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              id="btn-start-turn-by-turn"
+              type="button"
+              onClick={() => startTurnByTurnNavigation()}
+              className="px-2.5 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-[11px] cursor-pointer shadow-md"
+            >
+              Avvia Navigazione
             </button>
             <button
               type="button"
@@ -1576,9 +2100,169 @@ export default function Urbano3D({
             </button>
           </div>
         </div>
+      ) : (
+        /* BARRA DI RICERCA DESTINAZIONE DIRETTA: Scrivi città, via, piazza o negozio */
+        <div className="absolute top-14 left-2.5 right-14 z-30 pointer-events-auto max-w-lg">
+          <div className="flex items-center gap-1.5 bg-black/90 backdrop-blur-md border border-zinc-700 focus-within:border-[#00ff66] rounded-xl px-2.5 py-1.5 shadow-2xl">
+            <Search className="w-4 h-4 text-[#00ff66] shrink-0" />
+            <input
+              id="input-urbano-search-place"
+              type="text"
+              value={placeSearchQuery}
+              onChange={(e) => setPlaceSearchQuery(e.target.value)}
+              placeholder="Scrivi città, via, piazza o negozio..."
+              className="w-full bg-transparent text-xs text-white placeholder-zinc-400 outline-none font-medium"
+            />
+            {placeSearchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPlaceSearchQuery('');
+                  setPlaceSearchResults([]);
+                }}
+                className="p-0.5 text-zinc-400 hover:text-white cursor-pointer"
+                title="Cancella ricerca"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowWorldModal(true)}
+              className="px-2 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-[10px] font-black text-sky-300 shrink-0 cursor-pointer"
+              title="Sfoglia Paesi, Regioni e Comuni"
+            >
+              🌍 Città
+            </button>
+          </div>
+
+          {(isSearchingPlace || placeSearchResults.length > 0) && (
+            <div className="mt-1 bg-black/95 backdrop-blur-xl border border-zinc-700 rounded-xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto">
+              {isSearchingPlace && placeSearchResults.length === 0 && (
+                <div className="px-3 py-2 text-xs text-zinc-400">Cerco luoghi e vie in corso...</div>
+              )}
+              {placeSearchResults.map((resItem) => (
+                <div
+                  key={resItem.id}
+                  className="px-3 py-2 border-b border-zinc-900 last:border-b-0 flex items-center justify-between gap-2 hover:bg-zinc-900/80"
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSelectWorldPlace(resItem);
+                      setPlaceSearchQuery('');
+                      setPlaceSearchResults([]);
+                    }}
+                    className="flex-1 text-left min-w-0 cursor-pointer"
+                  >
+                    <div className="text-xs font-bold text-white truncate">{resItem.displayName || resItem.name}</div>
+                  </button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleSelectWorldPlace(resItem);
+                        setPlaceSearchQuery('');
+                        setPlaceSearchResults([]);
+                      }}
+                      className="px-2 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white text-[10px] font-black cursor-pointer"
+                    >
+                      👁️ Vedi 3D
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPlaceSearchQuery('');
+                        setPlaceSearchResults([]);
+                        startTurnByTurnNavigation({
+                          lat: resItem.lat,
+                          lng: resItem.lng,
+                          name: resItem.name,
+                        });
+                      }}
+                      className="px-2 py-1 rounded-lg bg-[#00ff66] hover:bg-[#00e65c] text-black text-[10px] font-black cursor-pointer"
+                    >
+                      🧭 Naviga
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* BARRA RAPIDA AVVIO / MODALITÀ NAVIGAZIONE GPS SEMPRE ACCESSIBILE IN BASSO A SINISTRA */}
+      {!isNavigating && (
+        <div className="absolute bottom-12 left-3 sm:left-4 z-30 pointer-events-auto flex items-center gap-1.5 bg-black/90 border border-zinc-800 rounded-xl p-1 shadow-xl">
+          <button
+            type="button"
+            onClick={() => setNavProfile('walking')}
+            className={`px-2 py-1 rounded-lg text-[10px] font-black cursor-pointer transition-colors ${
+              navProfile === 'walking' ? 'bg-sky-500 text-slate-950' : 'text-zinc-300 hover:bg-zinc-900'
+            }`}
+            title="Modalità navigazione a piedi"
+          >
+            🚶 A piedi
+          </button>
+          <button
+            type="button"
+            onClick={() => setNavProfile('driving')}
+            className={`px-2 py-1 rounded-lg text-[10px] font-black cursor-pointer transition-colors ${
+              navProfile === 'driving' ? 'bg-sky-500 text-slate-950' : 'text-zinc-300 hover:bg-zinc-900'
+            }`}
+            title="Modalità navigazione in auto"
+          >
+            🚗 Auto
+          </button>
+          <button
+            id="btn-quick-start-navigation"
+            type="button"
+            onClick={() => startTurnByTurnNavigation()}
+            disabled={isCalculatingRoute}
+            className="px-2.5 py-1 rounded-lg bg-[#00ff66] hover:bg-[#00e65c] text-black text-[10px] font-black flex items-center gap-1 cursor-pointer shadow-md"
+          >
+            <Navigation className="w-3 h-3" />
+            <span>{isCalculatingRoute ? 'Calcolo...' : 'Avvia Navigazione'}</span>
+          </button>
+        </div>
       )}
       {/* 1. LAYER MAPPA SATELLITARE WEBGL (FULL SCREEN) */}
-      <div ref={mapContainerRef} className="absolute inset-0 w-full h-full z-0 bg-[#0b1120]" />
+      <div ref={mapContainerRef} className={`absolute inset-0 w-full h-full z-0 ${mapStyleMode === 'night3d' ? 'bg-[#0b1120]' : 'bg-[#e2e8f0]'}`} />
+
+      {!hasValidCoords && (
+        <div className="absolute inset-0 z-20 bg-slate-950/92 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-zinc-950 border border-zinc-800 rounded-3xl p-6 text-center shadow-2xl space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 text-[#00ff66] flex items-center justify-center mx-auto">
+              <Globe className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-white">Seleziona un Territorio o una Città</h3>
+              <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                Nessuna coordinata territoriale preselezionata. Scegli un Paese o una città dal navigatore globale oppure torna al Globo 3D.
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-2.5 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setShowWorldModal(true)}
+                className="px-4 py-2.5 rounded-xl bg-[#00ff66] hover:bg-[#00e65c] text-black text-xs font-black cursor-pointer transition-colors"
+              >
+                🌍 Scegli Paese / Città
+              </button>
+              {onBackToGlobe && (
+                <button
+                  type="button"
+                  onClick={onBackToGlobe}
+                  className="px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 text-xs font-bold cursor-pointer transition-colors"
+                >
+                  ← Torna al Globo 3D
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 1b. LAYER PARTICELLE METEO REALI TRASPARENTI (Pioggia fine, neve o nubi leggere senza oscurare la visuale 3D) */}
       <WeatherAtmosphereOverlay weather={weatherData} enabled={weatherEffectsEnabled} />
@@ -1838,7 +2522,9 @@ export default function Urbano3D({
                   <div>
                     <span className="font-bold text-white block">Posizione Edificio 3D Accertata</span>
                     <span className="text-[10px] text-zinc-400 font-mono">
-                      Lat: {(selectedSponsor.lat || effectiveLat).toFixed(4)} • Lng: {(selectedSponsor.lng || effectiveLng).toFixed(4)}
+                      {isValidCoord(selectedSponsor.lat ?? effectiveLat, selectedSponsor.lng ?? effectiveLng)
+                        ? `Lat: ${(selectedSponsor.lat ?? effectiveLat).toFixed(4)} • Lng: ${(selectedSponsor.lng ?? effectiveLng).toFixed(4)}`
+                        : 'Coordinate non disponibili'}
                     </span>
                   </div>
                 </div>
@@ -1910,7 +2596,9 @@ export default function Urbano3D({
               <button
                 type="button"
                 onClick={() => {
-                  handleCalculateRoute(selectedSponsor.lat, selectedSponsor.lng, selectedSponsor.name);
+                  const destLat = isValidCoord(selectedSponsor.lat, selectedSponsor.lng) ? selectedSponsor.lat : effectiveLat;
+                  const destLng = isValidCoord(selectedSponsor.lat, selectedSponsor.lng) ? selectedSponsor.lng : effectiveLng;
+                  handleCalculateRoute(destLat, destLng, selectedSponsor.name);
                 }}
                 disabled={isCalculatingRoute}
                 className="py-2.5 px-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[11px] font-black flex flex-col items-center justify-center gap-1 shadow-lg shadow-emerald-500/25 cursor-pointer active:scale-95 transition-all"
@@ -1925,14 +2613,47 @@ export default function Urbano3D({
         );
       })()}
 
+      {/* MODALE UFFICIALE DETTAGLIO COMMERCIANTE (Aperto al click su qualsiasi pin commerciante) */}
+      <MerchantDetailModal
+        isOpen={Boolean(selectedMerchantModal)}
+        onClose={() => setSelectedMerchantModal(null)}
+        businesses={allMerchants}
+        selectedBusiness={selectedMerchantModal}
+        onSelectBusiness={(biz) => setSelectedMerchantModal(biz)}
+        onOpenVoiceChat={(biz) => {
+          if (onOpenVoiceChat) onOpenVoiceChat(biz);
+        }}
+        onFlyToBusiness={(biz) => {
+          if (mapRef.current && isValidCoord(biz.lat, biz.lng)) {
+            mapRef.current.flyTo({
+              center: [biz.lng, biz.lat],
+              zoom: 17.5,
+              pitch: 60,
+              duration: 900,
+            });
+          }
+        }}
+        onNavigateToBusiness={(biz) => {
+          const destLat = isValidCoord(biz.lat, biz.lng) ? biz.lat : effectiveLat + 0.004;
+          const destLng = isValidCoord(biz.lat, biz.lng) ? biz.lng : effectiveLng + 0.004;
+          if (isValidCoord(destLat, destLng)) {
+            startTurnByTurnNavigation({
+              lat: destLat,
+              lng: destLng,
+              name: biz.name,
+            });
+          }
+        }}
+      />
+
       {/* MODAL STREET VIEW 360° CON NAVIGAZIONE STRADALE SVOLTA PER SVOLTA */}
       <StreetView360Modal
         isOpen={showStreetView}
         onClose={() => setShowStreetView(false)}
-        lat={effectiveLat}
-        lng={effectiveLng}
-        cityName={selectedCity}
-        streetName={`Via ${selectedCity}`}
+        lat={isValidCoord(selectedSponsor?.lat, selectedSponsor?.lng) ? selectedSponsor.lat : effectiveLat}
+        lng={isValidCoord(selectedSponsor?.lat, selectedSponsor?.lng) ? selectedSponsor.lng : effectiveLng}
+        cityName={selectedSponsor?.city || selectedCity}
+        streetName={selectedSponsor?.address || `Via ${selectedCity}`}
       />
     </div>
   );

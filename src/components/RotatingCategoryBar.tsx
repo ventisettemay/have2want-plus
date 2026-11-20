@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Play, Pause, Sparkles, Check } from 'lucide-react';
-import { REAL_CATEGORIES_MATRIX } from '../categories';
+import { REAL_CATEGORIES_MATRIX, CATEGORY_FALLBACK_IMAGE } from '../categories';
 
 export interface RotatingBarItem {
   id: string;
@@ -58,7 +58,7 @@ export const ROTATING_BAR_ITEMS: RotatingBarItem[] = [
     key: 'auto_moto_veicoli',
     title: 'Veicoli, Ricambi & Meccanica',
     subtitle: 'Pneumatici, freni, batterie, cargo bike e trasferte carpool',
-    realImage: 'https://images.unsplash.com/photo-1486006920555-c77dce18193b?w=600&auto=format&fit=crop&q=80',
+    realImage: CATEGORY_FALLBACK_IMAGE,
     badge: 'MECCANICA REALE',
     badgeColor: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
     type: 'category',
