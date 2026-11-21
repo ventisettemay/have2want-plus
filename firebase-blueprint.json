@@ -102,6 +102,22 @@
         "createdAt": { "type": "string", "maxLength": 64 }
       },
       "required": ["key", "kind", "createdAt"]
+    },
+    "PiPaymentRecord": {
+      "title": "PiPaymentRecord",
+      "description": "Record di pagamento Pi Network (server-only, accesso negato a client). Traccia approvazione, completamento e metadati on-chain.",
+      "type": "object",
+      "properties": {
+        "paymentId": { "type": "string", "minLength": 3, "maxLength": 128 },
+        "txid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "amountPi": { "type": "number" },
+        "status": { "type": "string", "enum": ["approved", "completed", "cancelled", "failed"] },
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "walletAddress": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "completedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["paymentId", "amountPi", "status", "uid"]
     }
   },
   "firestore": {
@@ -132,6 +148,10 @@
     "/pi_idempotency/{keyHash}": {
       "schema": { "$ref": "#/entities/PiIdempotencyRecord" },
       "description": "Collezione esclusivamente server-side per lock atomici di idempotenza Pi Network."
+    },
+    "/pi_payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/PiPaymentRecord" },
+      "description": "Record pagamenti Pi Network (server-only). Traccia approvazione, completamento e metadati on-chain."
     }
   }
 }

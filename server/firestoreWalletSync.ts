@@ -93,20 +93,45 @@ function pemToPkcs8Bytes(pem: string): Uint8Array {
 }
 
 export function parseServiceAccount(env: Record<string, any>): FirestoreServiceAccount | null {
-  const raw = env?.FIREBASE_SERVICE_ACCOUNT_JSON;
-  if (!raw || typeof raw !== 'string') return null;
-  try {
-    const parsed = JSON.parse(raw);
-    if (parsed?.project_id && parsed?.client_email && parsed?.private_key) {
-      return {
-        project_id: String(parsed.project_id),
-        client_email: String(parsed.client_email),
-        private_key: String(parsed.private_key),
-      };
+  const rawJson =
+    typeof env?.FIREBASE_SERVICE_ACCOUNT_JSON === 'string'
+      ? env.FIREBASE_SERVICE_ACCOUNT_JSON.trim()
+      : '';
+  if (rawJson && rawJson !== 'PLACEHOLDER') {
+    try {
+      const parsed = JSON.parse(rawJson);
+      if (parsed?.client_email && parsed?.private_key) {
+        return {
+          project_id: parsed.project_id || env.FIREBASE_PROJECT_ID || 'gen-lang-client-0597053183',
+          client_email: String(parsed.client_email).trim(),
+          private_key: String(parsed.private_key).trim(),
+        };
+      }
+    } catch {
+      return null;
     }
-  } catch {
-    return null;
   }
+
+  const clientEmail =
+    typeof env?.FIREBASE_CLIENT_EMAIL === 'string' ? env.FIREBASE_CLIENT_EMAIL.trim() : '';
+  const privateKey =
+    typeof env?.FIREBASE_PRIVATE_KEY === 'string' ? env.FIREBASE_PRIVATE_KEY.trim() : '';
+
+  if (
+    clientEmail &&
+    privateKey &&
+    privateKey !== 'PLACEHOLDER' &&
+    privateKey.includes('PRIVATE KEY')
+  ) {
+    return {
+      project_id:
+        (typeof env?.FIREBASE_PROJECT_ID === 'string' && env.FIREBASE_PROJECT_ID.trim()) ||
+        'gen-lang-client-0597053183',
+      client_email: clientEmail,
+      private_key: privateKey,
+    };
+  }
+
   return null;
 }
 
