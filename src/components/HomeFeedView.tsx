@@ -31,8 +31,10 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   getCachedPiMarketData,
   PI_COMMUNITY_BASELINE_EUR,
-  PI_COMMUNITY_BASELINE_USD
+  PI_COMMUNITY_BASELINE_USD,
+  PI_REAL_PRICE_EUR
 } from "@/lib/piRealPriceService";
+import { GLOBAL_PHYSICAL_PRODUCTS } from "@/lib/globalProductsCatalog";
 import {
   HaveWantListing,
   InteractionIntent,
@@ -42,6 +44,7 @@ import {
   AbuseReportPayload
 } from "../types";
 import { REAL_CATEGORIES_MATRIX } from "../categories";
+import { spendPoints, awardPoints } from "@/lib/communityRewardsService";
 import { Country, COUNTRIES, getCountryForListing } from "@/data/countries";
 import { ListingOriginBadge } from "@/components/have2want/ListingOriginBadge";
 import { getListingOriginBadge } from "@/lib/listingOrigin";
@@ -67,6 +70,7 @@ interface HomeFeedViewProps {
   selectedCountry?: Country | null;
   onSelectCountry?: (country: Country | null) => void;
   onOpenCountrySelector?: () => void;
+  globalSearchQuery?: string;
 }
 
 export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
@@ -81,10 +85,16 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
   onBackToMap,
   selectedCountry,
   onSelectCountry,
-  onOpenCountrySelector
+  onOpenCountrySelector,
+  globalSearchQuery = ""
 }) => {
   // Search & Filter States
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(globalSearchQuery);
+
+  // La ricerca globale dell'header si propaga alla bacheca
+  React.useEffect(() => {
+    setSearchQuery(globalSearchQuery);
+  }, [globalSearchQuery]);
   const [isVoiceListening, setIsVoiceListening] = useState(false);
   const voiceRecRef = React.useRef<any>(null);
   const [dictatingField, setDictatingField] = useState<"title" | "description" | "exchange" | null>(null);
@@ -462,11 +472,20 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
       createdAt: "Pochi istanti fa",
       tags: [newCategory, newIntent, newCity],
       status: "active",
-      planetId: "planet-possibilita",
-      satelliteId: "sat-oggetti",
     };
 
+    // Costo in punti: 2 punti per la pubblicazione manuale, 4 se è stata usata la dettatura vocale
+    const cost = 2;
+    const spent = spendPoints(cost, `Pubblicazione annuncio: "${newTitle.trim()}"`);
+    if (!spent.success) {
+      toast.error(`Ti servono ${cost} punti per pubblicare.`, {
+        description: `Saldo attuale: ${spent.newBalance} punti.`,
+      });
+      return;
+    }
+
     onAddListing(created);
+    awardPoints("REAL_LISTING_BASIC", `Pubblicazione annuncio: "${newTitle.trim()}"`);
     setShowCreateModal(false);
     setNewTitle("");
     setNewDescription("");
@@ -533,7 +552,7 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
       key: 'ESTERNI' as SectionKey,
       title: '📦 PRODOTTI FISICI MONDO & WALLET',
       subtitle: 'Catalogo prodotti reali con spedizione a casa & commissioni crypto USDT su wallet privato.',
-      count: 18,
+      count: GLOBAL_PHYSICAL_PRODUCTS.length,
       icon: Globe,
     },
     {
@@ -1145,12 +1164,12 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
                           <span className="text-[11px] font-black uppercase px-2.5 py-1 rounded-lg bg-[#00ff66] text-black shadow-lg tracking-wider">
                             {isVendo 
                               ? (item.piPrice && item.piPrice > 0 
-                                  ? `${item.piPrice} π (≈ ${item.price !== undefined && item.price > 0 ? `${item.price}€` : (item.piPrice * 0.0674).toFixed(item.piPrice >= 15 ? 0 : 2) + '€'})` 
+                                  ? `${item.piPrice} π (≈ ${item.price !== undefined && item.price > 0 ? `${item.price}€` : (item.piPrice * PI_REAL_PRICE_EUR).toFixed(item.piPrice >= 15 ? 0 : 2) + '€'})` 
                                   : `VENDO`) 
                               : isBaratto 
                               ? "SCAMBIO" 
                               : (item.piPrice && item.piPrice > 0 
-                                  ? `CERCO • ${item.piPrice} π (≈ ${item.price !== undefined && item.price > 0 ? `${item.price}€` : (item.piPrice * 0.0674).toFixed(item.piPrice >= 15 ? 0 : 2) + '€'})` 
+                                  ? `CERCO • ${item.piPrice} π (≈ ${item.price !== undefined && item.price > 0 ? `${item.price}€` : (item.piPrice * PI_REAL_PRICE_EUR).toFixed(item.piPrice >= 15 ? 0 : 2) + '€'})` 
                                   : "CERCO")}
                           </span>
                           {isInternal ? (

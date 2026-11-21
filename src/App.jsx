@@ -1564,7 +1564,7 @@ function Have2WantPlusMain() {
               onNavigate={(tab) => {
                 if (tab === 'citta-viva' || tab === 'map') setViewMode('URBANO_3D');
                 else if (tab === 'universe') setViewMode('GLOBO');
-                else if (tab === 'planet-salvavatutto') setShowGuides(true);
+                else if (tab === 'salvavatutto') setShowGuides(true);
               }}
               onReportAbuse={() => {
                 toast.success("Segnalazione inviata al Comitato di Moderazione Etico.");
@@ -1576,6 +1576,7 @@ function Have2WantPlusMain() {
               selectedCountry={selectedCountry}
               onSelectCountry={handleSelectCountry}
               onOpenCountrySelector={() => setShowCountrySelector(true)}
+              globalSearchQuery={searchQuery}
             />
           </div>
         ) : (
@@ -1703,9 +1704,10 @@ function Have2WantPlusMain() {
               <DiscreetAIAssistant
                 listings={listings}
                 guides={guides}
-                onNavigateToPlanet={(planet) => {
-                  if (planet === 'planet-possibilita') setViewMode('BACHECA');
-                  if (planet === 'planet-salvavatutto') setShowGuides(true);
+                onNavigate={(target) => {
+                  if (target === 'bacheca') setViewMode('BACHECA');
+                  else if (target === 'salvavatutto') setShowGuides(true);
+                  else if (target === 'mappa') setViewMode('GLOBO');
                   setShowAIAssistant(false);
                 }}
               />

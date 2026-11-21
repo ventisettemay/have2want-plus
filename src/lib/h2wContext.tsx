@@ -29,6 +29,7 @@ export interface H2WContextValue {
   getRemainingMonthly: (isExerciser: boolean) => number;
   deductMerchantSubscription: (period: "DAILY" | "WEEKLY" | "MONTHLY" | "DAILY_SCONTO" | "WEEKLY_SCONTO" | "MONTHLY_SCONTO") => boolean;
   addMerchantPiBalance: (amount: number) => void;
+  spendMerchantPi: (amountPi: number, description?: string) => boolean;
 }
 
 const H2WContext = createContext<H2WContextValue | null>(null);
@@ -280,6 +281,15 @@ export function H2WProvider({ children }: H2WProviderProps) {
     setMerchantPiBalance(updated);
   }, []);
 
+  // Spesa generica dal saldo esercente (vetrine pubblicitarie, quota X, servizi)
+  const spendMerchantPi = useCallback((amountPi: number, description = 'Spesa vetrina esercente') => {
+    const result = spendMerchantPiBalance(amountPi, description);
+    if (!result.success) return false;
+    merchantBalanceRef.current = result.newMerchantBalance;
+    setMerchantPiBalance(result.newMerchantBalance);
+    return true;
+  }, []);
+
   // BUG RISOLTO: Verifica e addebito SINCRONI (zero dipendenza dal batching asincrono di setState)
   const deductMerchantSubscription = useCallback(
     (period: "DAILY" | "WEEKLY" | "MONTHLY" | "DAILY_SCONTO" | "WEEKLY_SCONTO" | "MONTHLY_SCONTO"): boolean => {
@@ -354,6 +364,7 @@ export function H2WProvider({ children }: H2WProviderProps) {
       getRemainingMonthly,
       deductMerchantSubscription,
       addMerchantPiBalance,
+      spendMerchantPi,
     }),
     [
       h2wPoints,
@@ -377,6 +388,7 @@ export function H2WProvider({ children }: H2WProviderProps) {
       getRemainingMonthly,
       deductMerchantSubscription,
       addMerchantPiBalance,
+      spendMerchantPi,
     ]
   );
 

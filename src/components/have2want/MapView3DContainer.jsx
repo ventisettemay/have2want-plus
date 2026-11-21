@@ -19,6 +19,7 @@ import { COUNTRIES } from '@/data/countries';
 import { SPONSORED_BUSINESSES, ITALIAN_REGIONS } from '@/data/regions';
 import { WORLD_COUNTRIES, formatLocalPrice } from '@/lib/worldAtlas';
 import { getDisplayCoordinates, filterVisibleListings, applyGeoPrivacy } from '@/lib/geoPrivacy';
+import { PI_REAL_PRICE_EUR } from '@/lib/piRealPriceService';
 import { publishShopToCloud, subscribeToCloudShops } from '@/lib/firestoreService';
 import MerchantDetailModal from './MerchantDetailModal';
 import StrettaDiMano from './StrettaDiMano';
@@ -117,7 +118,7 @@ function resolveCountryData(countryData) {
       lang: 'Italiano',
       currency: 'EUR (€)',
       language: { code: 'it-IT', name: 'Italiano' },
-      currencyData: { code: 'EUR', symbol: '€', name: 'Euro', piRate: 0.0674 },
+      currencyData: { code: 'EUR', symbol: '€', name: 'Euro', piRate: PI_REAL_PRICE_EUR },
       timezone: 'Europe/Rome',
     };
   }
@@ -287,6 +288,21 @@ export default function MapView3DContainer({
     return () => unsubscribe();
   }, []);
 
+  // Rimuove automaticamente le vetrine sponsorizzate scadute (expiresAt)
+  useEffect(() => {
+    const pruneExpired = () => {
+      const now = Date.now();
+      setSponsoredBusinesses((prev) => {
+        if (!Array.isArray(prev)) return prev;
+        const active = prev.filter((b) => !b?.expiresAt || new Date(b.expiresAt).getTime() > now);
+        return active.length === prev.length ? prev : active;
+      });
+    };
+    pruneExpired();
+    const interval = setInterval(pruneExpired, 60_000);
+    return () => clearInterval(interval);
+  }, []);
+
   useEffect(() => {
     if (selectedCountryId) {
       const match = resolveCountryData({ id: selectedCountryId });
@@ -337,7 +353,7 @@ export default function MapView3DContainer({
   };
 
   const handleAddSponsoredBusiness = (newBiz) => {
-    setSponsoredBusinesses((prev) => [newBiz, ...prev]);
+    setSponsoredBusinesses((prev) => [newBiz, ...prev.filter((b) => b?.id !== newBiz?.id)]);
     publishShopToCloud(newBiz).catch(() => {});
   };
 

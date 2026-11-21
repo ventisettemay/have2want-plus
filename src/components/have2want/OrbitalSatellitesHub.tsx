@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { CloudSun, Store, ShoppingBag, Briefcase, X, ChevronRight, Sparkles, ShieldCheck, MapPin, Truck, Satellite } from 'lucide-react';
 import VetrinaKmZero from './VetrinaKmZero';
 import { GlobalMarketplaceView } from './GlobalMarketplaceView';
 import BachecaLavoroP2P from './BachecaLavoroP2P';
+import VetrinaAgenziePaywall from './VetrinaAgenziePaywall';
 import LiveWeatherModal from './LiveWeatherModal';
 import SpacecraftInspectorModal from './SpacecraftInspectorModal';
-import { SatelliteId } from '@/lib/satelliteModularEngine';
+import { SatelliteId, satelliteEngine } from '@/lib/satelliteModularEngine';
 
 interface OrbitalSatellitesHubProps {
   currentUser?: any;
@@ -22,13 +23,22 @@ export default function OrbitalSatellitesHub({
   onTogglePolitical,
   isPoliticalActive = false,
   onToggleWeather,
-  isWeatherActive = true,
+  isWeatherActive: isWeatherActiveProp = true,
 }: OrbitalSatellitesHubProps) {
-  const [activeChannel, setActiveChannel] = useState<'METEO' | 'KMZERO' | 'SUPERMARKET' | 'LAVORO' | null>(null);
+  const [activeChannel, setActiveChannel] = useState<'METEO' | 'KMZERO' | 'SUPERMARKET' | 'LAVORO' | 'AGENZIE' | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isFleetModalOpen, setIsFleetModalOpen] = useState(false);
   const [selectedSatForFleet, setSelectedSatForFleet] = useState<SatelliteId | null>(null);
   const [fleetTab, setFleetTab] = useState<'INSPECTOR' | 'CONTROLS'>('CONTROLS');
+
+  // Stato reale degli 8 satelliti condiviso con il motore modulare
+  const [satelliteStates, setSatelliteStates] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(satelliteEngine.getAllSatellites().map((s) => [s.id, s.isActive]))
+  );
+
+  useEffect(() => satelliteEngine.subscribe((states) => setSatelliteStates(states)), []);
+
+  const isWeatherActive = satelliteStates['METEO_SAT'] ?? isWeatherActiveProp;
 
   const channels = [
     {
@@ -66,6 +76,15 @@ export default function OrbitalSatellitesHub({
       color: 'from-purple-500 to-indigo-600',
       badge: 'LAVORO & SERVIZI',
       badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
+    },
+    {
+      id: 'AGENZIE' as const,
+      name: 'Agenzie & Interinali',
+      desc: 'Vetrina a pagamento per agenzie, con le stesse tariffe dei commercianti',
+      icon: ShieldCheck,
+      color: 'from-rose-500 to-pink-600',
+      badge: 'ABBONAMENTO',
+      badgeColor: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
     },
   ];
 
@@ -128,7 +147,7 @@ export default function OrbitalSatellitesHub({
                   </div>
                   <div>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-black text-white">CONTROLLO FLOTTA 14 SATELLITI</span>
+                      <span className="text-xs font-black text-white">CONTROLLO FLOTTA 8 SATELLITI</span>
                       <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-emerald-400 text-black">7 PRESET</span>
                     </div>
                     <p className="text-[10px] text-zinc-300">Interruttori ON/OFF, Ispezione 3D, orbite ed azionamenti</p>
@@ -169,6 +188,35 @@ export default function OrbitalSatellitesHub({
                   </button>
                 );
               })}
+            </div>
+
+            {/* Interruttori diretti degli 8 satelliti */}
+            <div className="mt-3 pt-2.5 border-t border-zinc-800/80">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-black text-zinc-300 uppercase tracking-wider">Satelliti · ON/OFF</span>
+                <span className="text-[9px] font-black text-[#00ff66]">
+                  {satelliteEngine.getActiveCount()}/{satelliteEngine.getTotalCount()} ATTIVI
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {satelliteEngine.getAllSatellites().map((sat) => (
+                  <button
+                    key={sat.id}
+                    type="button"
+                    onClick={() => satelliteEngine.toggleSatellite(sat.id)}
+                    className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg border text-[10px] font-bold transition-all cursor-pointer ${
+                      satelliteStates[sat.id]
+                        ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-200'
+                        : 'bg-zinc-900/60 border-zinc-800 text-zinc-500'
+                    }`}
+                    title={`${sat.name} · ${sat.codeName}`}
+                  >
+                    <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${satelliteStates[sat.id] ? 'bg-[#00ff66]' : 'bg-zinc-600'}`} />
+                    <span className="truncate">{sat.name}</span>
+                    <span className="ml-auto text-[8px] font-black">{satelliteStates[sat.id] ? 'ON' : 'OFF'}</span>
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Quick Controls Section inside the menu */}
@@ -326,6 +374,29 @@ export default function OrbitalSatellitesHub({
         </div>
       )}
 
+      {/* CANALE 5: VETRINA AGENZIE A PAGAMENTO */}
+      {activeChannel === 'AGENZIE' && (
+        <div className="fixed inset-0 z-50 bg-slate-950 overflow-y-auto animate-in fade-in duration-200">
+          <div className="sticky top-0 z-40 bg-slate-900/95 border-b border-slate-800 px-4 py-3 flex items-center justify-between backdrop-blur-md">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🏢</span>
+              <span className="text-xs font-black text-rose-400 uppercase tracking-wider">
+                VETRINA AGENZIE & INTERINALI (ABBONAMENTO)
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveChannel(null)}
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+              <span>Chiudi</span>
+            </button>
+          </div>
+          <VetrinaAgenziePaywall currentUser={currentUser} />
+        </div>
+      )}
+
       {/* 🛰️ MODALE CONTROLLO FLOTTA 8 SATELLITI & ISPEZIONE 3D */}
       <SpacecraftInspectorModal
         isOpen={isFleetModalOpen}
@@ -336,7 +407,9 @@ export default function OrbitalSatellitesHub({
           setIsFleetModalOpen(false);
           if (satId === 'METEO_SAT') setActiveChannel('METEO');
           else if (satId === 'KM0_SAT') setActiveChannel('KMZERO');
-          else setActiveChannel('SUPERMARKET');
+          else if (satId === 'GLOBAL_MARKET_SAT' || satId === 'EXTERNAL_MARKET_SAT') setActiveChannel('SUPERMARKET');
+          else if (satId === 'PI_CHAT_SAT') setActiveChannel('LAVORO');
+          else if (satId === 'COMMUNITY_RESCUE_SAT' || satId === 'BUSINESS_ADS_SAT') setActiveChannel('KMZERO');
         }}
         onSelectSatellite={(satId) => setSelectedSatForFleet(satId)}
       />

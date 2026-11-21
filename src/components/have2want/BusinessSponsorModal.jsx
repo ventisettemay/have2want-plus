@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Store, Megaphone, Sparkles, MapPin, Phone, Globe, X, Check, Mic, DollarSign, Calendar, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { getWeeklyAdvertisingPrice, COUNTRY_PRICING_CATALOG } from '@/lib/countryAdvertisingPricing';
+import { useH2W } from '@/lib/h2wContext';
 
 export default function BusinessSponsorModal({
   isOpen = false,
@@ -21,6 +22,7 @@ export default function BusinessSponsorModal({
   const [hours, setHours] = useState('Lun-Sab: 09:00 - 19:30');
   const [piAccepted, setPiAccepted] = useState(true);
   const [hasAd, setHasAd] = useState(true);
+  const { spendMerchantPi, merchantPiBalance } = useH2W();
 
   const pricing = getWeeklyAdvertisingPrice(countryCode);
 
@@ -36,6 +38,14 @@ export default function BusinessSponsorModal({
     const effectivePi = Boolean(piAccepted);
     const effectiveAd = Boolean(hasAd || promo.trim().length > 0);
     const effectivePromo = effectiveAd ? (promo.trim() || 'Volantino promozionale attivo in vetrina') : '';
+
+    // Addebito reale del prezzo pubblicitario settimanale dal saldo esercente
+    if (!spendMerchantPi(pricing.currentPricePi, `Vetrina sponsorizzata 7 giorni (${countryCode})`)) {
+      toast.error('Saldo Pi esercente insufficiente', {
+        description: `Servono ${pricing.currentPricePi} π. Ricarica il credito esercente dall'Hub Ricompense.`,
+      });
+      return;
+    }
 
     const newBiz = {
       id: `biz-${Date.now()}`,
@@ -70,7 +80,7 @@ export default function BusinessSponsorModal({
 
     onAddSponsoredBusiness(newBiz);
     toast.success(`Vetrina "${name}" attivata per 7 giorni!`, {
-      description: `Spazio settimanale attivo sulla mappa 3D (${pricing.currentPricePi} π)`,
+      description: `Addebitati ${pricing.currentPricePi} π dal credito esercente (saldo residuo: ${Math.max(0, merchantPiBalance - pricing.currentPricePi).toFixed(2)} π).`,
       duration: 4000
     });
     onClose();

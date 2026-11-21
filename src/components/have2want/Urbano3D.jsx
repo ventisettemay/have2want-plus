@@ -44,6 +44,7 @@ import {
 } from '@/lib/worldAtlas';
 import { getListingOriginBadge } from '@/lib/listingOrigin';
 import { classifyMerchantPin } from '@/lib/merchantPinClassifier';
+import { PI_REAL_PRICE_EUR } from '@/lib/piRealPriceService';
 
 // Generatore procedurale di edifici 3D volumetrici realistici ad alta definizione
 // Garantisce la presenza immediata di palazzi 3D volumetrici estrusi in qualsiasi città o quartiere
@@ -147,6 +148,7 @@ export default function Urbano3D({
   const [weatherData, setWeatherData] = useState(null);
   const [weatherEffectsEnabled, setWeatherEffectsEnabled] = useState(true);
   const [activeRoute, setActiveRoute] = useState(null);
+  const [routeProfile, setRouteProfile] = useState('driving');
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
 
   // Stato luogo corrente con Nazione, Lingua, Valuta e Fuso Orario
@@ -164,7 +166,7 @@ export default function Urbano3D({
         ? { code: 'it-IT', name: 'Italiano', greeting: 'Benvenuto in Italia!' }
         : { code: 'und', name: 'Lingua Locale', greeting: `Benvenuto in ${countryName || 'Have2Want'}!` },
       currency: isIt
-        ? { code: 'EUR', symbol: '€', name: 'Euro', piRate: 0.0674 }
+        ? { code: 'EUR', symbol: '€', name: 'Euro', piRate: PI_REAL_PRICE_EUR }
         : { code: 'PI', symbol: 'π', name: 'Pi Coin', piRate: 1.0 },
       timezone: isIt ? 'Europe/Rome' : 'UTC',
       greeting: `Benvenuto in ${countryName || 'Have2Want'}!`
@@ -1470,14 +1472,15 @@ export default function Urbano3D({
     );
   };
 
-  const handleCalculateRoute = async (destLat, destLng, destName) => {
+  const handleCalculateRoute = async (destLat, destLng, destName, profileOverride) => {
     if (!mapRef.current) return;
     setIsCalculatingRoute(true);
+    const effectiveProfile = profileOverride || routeProfile;
     try {
       const { calculateRealRoute } = await import('@/lib/routingService');
-      const route = await calculateRealRoute(effectiveLat, effectiveLng, destLat, destLng, 'driving');
+      const route = await calculateRealRoute(effectiveLat, effectiveLng, destLat, destLng, effectiveProfile);
       if (route) {
-        setActiveRoute({ ...route, destinationName: destName });
+        setActiveRoute({ ...route, destinationName: destName, destinationLat: destLat, destinationLng: destLng });
         toast.success(`🧭 Percorso OSRM verso ${destName}: ${route.totalDistanceKm} km (${route.totalDurationMinutes} min)`);
         
         const map = mapRef.current;
@@ -1554,6 +1557,31 @@ export default function Urbano3D({
               </div>
               <div className="text-[10px] text-zinc-400 truncate max-w-xs mt-0.5">
                 {activeRoute.steps?.[0]?.instruction || 'Procedi lungo il percorso'}
+              </div>
+              <div className="flex items-center gap-1 mt-1">
+                {[
+                  { id: 'driving', label: 'Auto' },
+                  { id: 'walking', label: 'Piedi' },
+                  { id: 'cycling', label: 'Bici' },
+                ].map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      setRouteProfile(p.id);
+                      if (typeof activeRoute.destinationLat === 'number' && typeof activeRoute.destinationLng === 'number') {
+                        handleCalculateRoute(activeRoute.destinationLat, activeRoute.destinationLng, activeRoute.destinationName, p.id);
+                      }
+                    }}
+                    className={`px-2 py-0.5 rounded text-[9px] font-black border cursor-pointer transition-all ${
+                      routeProfile === p.id
+                        ? 'bg-emerald-500 text-black border-emerald-400'
+                        : 'bg-zinc-900 text-zinc-400 border-zinc-700 hover:text-white'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
               </div>
             </div>
           </div>

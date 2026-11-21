@@ -21,7 +21,7 @@ export default function VetrinaKmZero({
 }: VetrinaKmZeroProps) {
   if (!isOpen) return null;
 
-  const { merchantPiBalance, deductMerchantSubscription } = useH2W();
+  const { deductMerchantSubscription } = useH2W();
   const [acceptsPi, setAcceptsPi] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [shareLocation, setShareLocation] = useState(() => localStorage.getItem('h2w_share_location') === 'true');
@@ -79,9 +79,8 @@ export default function VetrinaKmZero({
 
   const handlePayAndPublish = (e: React.FormEvent) => {
     e.preventDefault();
-    const cost = acceptsPi ? 10 : 20;
     const success = deductMerchantSubscription(acceptsPi ? "DAILY_SCONTO" : "DAILY");
-    if (!success && merchantPiBalance < cost) {
+    if (!success) {
       toast.error("Saldo Pi insufficiente per pubblicare la locandina aziendale.");
       return;
     }

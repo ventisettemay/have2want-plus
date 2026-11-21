@@ -48,7 +48,7 @@ export const WORLD_COUNTRIES: WorldCountry[] = [
     lng: 12.4922,
     flag: '🇮🇹',
     language: { code: 'it', name: 'Italiano', nativeName: 'Italiano', greeting: 'Benvenuto in Italia!' },
-    currency: { code: 'EUR', symbol: '€', name: 'Euro', rateToEur: 1.0, piRate: 0.0674 },
+    currency: { code: 'EUR', symbol: '€', name: 'Euro', rateToEur: 1.0, piRate: PI_REAL_PRICE_EUR },
     timezone: 'Europe/Rome',
     regions: [
       { name: 'Abruzzo', capital: "L'Aquila", lat: 42.3498, lng: 13.3995 },
@@ -84,7 +84,7 @@ export const WORLD_COUNTRIES: WorldCountry[] = [
     lng: 2.3522,
     flag: '🇫🇷',
     language: { code: 'fr', name: 'Francese', nativeName: 'Français', greeting: 'Bienvenue en France !' },
-    currency: { code: 'EUR', symbol: '€', name: 'Euro', rateToEur: 1.0, piRate: 0.0674 },
+    currency: { code: 'EUR', symbol: '€', name: 'Euro', rateToEur: 1.0, piRate: PI_REAL_PRICE_EUR },
     timezone: 'Europe/Paris',
     regions: [
       { name: 'Île-de-France', capital: 'Parigi', lat: 48.8566, lng: 2.3522 },
@@ -105,7 +105,7 @@ export const WORLD_COUNTRIES: WorldCountry[] = [
     lng: -3.7038,
     flag: '🇪🇸',
     language: { code: 'es', name: 'Spagnolo', nativeName: 'Español', greeting: '¡Bienvenido a España!' },
-    currency: { code: 'EUR', symbol: '€', name: 'Euro', rateToEur: 1.0, piRate: 0.0674 },
+    currency: { code: 'EUR', symbol: '€', name: 'Euro', rateToEur: 1.0, piRate: PI_REAL_PRICE_EUR },
     timezone: 'Europe/Madrid',
     regions: [
       { name: 'Comunidad de Madrid', capital: 'Madrid', lat: 40.4168, lng: -3.7038 },
@@ -126,7 +126,7 @@ export const WORLD_COUNTRIES: WorldCountry[] = [
     lng: 13.4050,
     flag: '🇩🇪',
     language: { code: 'de', name: 'Tedesco', nativeName: 'Deutsch', greeting: 'Willkommen in Deutschland!' },
-    currency: { code: 'EUR', symbol: '€', name: 'Euro', rateToEur: 1.0, piRate: 0.0674 },
+    currency: { code: 'EUR', symbol: '€', name: 'Euro', rateToEur: 1.0, piRate: PI_REAL_PRICE_EUR },
     timezone: 'Europe/Berlin',
     regions: [
       { name: 'Bayern', capital: 'Monaco di Baviera', lat: 48.1351, lng: 11.5820 },
@@ -187,7 +187,7 @@ export const WORLD_COUNTRIES: WorldCountry[] = [
     lng: -9.1393,
     flag: '🇵🇹',
     language: { code: 'pt', name: 'Portoghese', nativeName: 'Português', greeting: 'Bem-vindo a Portugal!' },
-    currency: { code: 'EUR', symbol: '€', name: 'Euro', rateToEur: 1.0, piRate: 0.0674 },
+    currency: { code: 'EUR', symbol: '€', name: 'Euro', rateToEur: 1.0, piRate: PI_REAL_PRICE_EUR },
     timezone: 'Europe/Lisbon',
     regions: [
       { name: 'Lisbona', capital: 'Lisbona', lat: 38.7223, lng: -9.1393 },
@@ -206,7 +206,7 @@ export const WORLD_COUNTRIES: WorldCountry[] = [
     lng: 4.9041,
     flag: '🇳🇱',
     language: { code: 'nl', name: 'Olandese', nativeName: 'Nederlands', greeting: 'Welkom in Nederland!' },
-    currency: { code: 'EUR', symbol: '€', name: 'Euro', rateToEur: 1.0, piRate: 0.0674 },
+    currency: { code: 'EUR', symbol: '€', name: 'Euro', rateToEur: 1.0, piRate: PI_REAL_PRICE_EUR },
     timezone: 'Europe/Amsterdam',
   },
   {
@@ -220,7 +220,7 @@ export const WORLD_COUNTRIES: WorldCountry[] = [
     lng: 4.3517,
     flag: '🇧🇪',
     language: { code: 'fr-BE', name: 'Francese / Fiammingo', nativeName: 'Français / Nederlands', greeting: 'Bienvenue / Welkom!' },
-    currency: { code: 'EUR', symbol: '€', name: 'Euro', rateToEur: 1.0, piRate: 0.0674 },
+    currency: { code: 'EUR', symbol: '€', name: 'Euro', rateToEur: 1.0, piRate: PI_REAL_PRICE_EUR },
     timezone: 'Europe/Brussels',
   },
   {
@@ -234,7 +234,7 @@ export const WORLD_COUNTRIES: WorldCountry[] = [
     lng: 16.3738,
     flag: '🇦🇹',
     language: { code: 'de-AT', name: 'Tedesco', nativeName: 'Deutsch', greeting: 'Herzlich willkommen in Österreich!' },
-    currency: { code: 'EUR', symbol: '€', name: 'Euro', rateToEur: 1.0, piRate: 0.0674 },
+    currency: { code: 'EUR', symbol: '€', name: 'Euro', rateToEur: 1.0, piRate: PI_REAL_PRICE_EUR },
     timezone: 'Europe/Vienna',
   },
   {
@@ -248,7 +248,7 @@ export const WORLD_COUNTRIES: WorldCountry[] = [
     lng: 23.7275,
     flag: '🇬🇷',
     language: { code: 'el', name: 'Greco', nativeName: 'Ελληνικά', greeting: 'Καλώς ήρθατε στην Ελλάδα!' },
-    currency: { code: 'EUR', symbol: '€', name: 'Euro', rateToEur: 1.0, piRate: 0.0674 },
+    currency: { code: 'EUR', symbol: '€', name: 'Euro', rateToEur: 1.0, piRate: PI_REAL_PRICE_EUR },
     timezone: 'Europe/Athens',
   },
   {
@@ -890,7 +890,7 @@ export async function searchAnyWorldPlace(query: string): Promise<WorldPlaceResu
             symbol: '€',
             name: 'Euro / Valuta Globale',
             rateToEur: 1.0,
-            piRate: 0.0674,
+            piRate: PI_REAL_PRICE_EUR,
           };
           const timezone = matchedCountry?.timezone || 'UTC';
 
@@ -1000,7 +1000,7 @@ export async function lookupLocationFromCoords(lat: number, lng: number): Promis
           symbol: '€',
           name: 'Euro',
           rateToEur: 1.0,
-          piRate: 0.0674,
+          piRate: PI_REAL_PRICE_EUR,
         };
 
         return {

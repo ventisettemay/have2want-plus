@@ -344,7 +344,7 @@ export default function AppTutorModal({ isOpen, onClose, onActionTrigger }: AppT
                 <span className="text-xl shrink-0">🌍</span>
                 <div>
                   <h5 className="text-xs font-black text-[#00ff66]">1. TERRITORIO 3D VIVO</h5>
-                  <p className="text-[11px] text-zinc-300">Non un elenco statico: la tua città, il pianeta, meteo e botteghe reali in 3D.</p>
+                  <p className="text-[11px] text-zinc-300">Non un elenco statico: la tua città, il tuo territorio, meteo e botteghe reali in 3D.</p>
                 </div>
               </div>
 

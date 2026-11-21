@@ -25,6 +25,7 @@ import {
   getHierarchyForCountry
 } from '@/lib/territoryHierarchy';
 import { toast } from 'sonner';
+import { PI_REAL_PRICE_EUR } from '@/lib/piRealPriceService';
 
 export default function WorldNavigatorModal({
   isOpen,
@@ -805,7 +806,7 @@ export default function WorldNavigatorModal({
                       flag: metro.flag,
                       displayName: `${metro.flag} ${metro.name} (${metro.country})`,
                       language: { name: metro.lang, code: 'und', greeting: `Benvenuto a ${metro.name}!` },
-                      currency: { code: metro.curr.split(' ')[0], symbol: metro.curr.split('(')[1]?.replace(')', '') || '€', piRate: 0.0674 },
+                      currency: { code: metro.curr.split(' ')[0], symbol: metro.curr.split('(')[1]?.replace(')', '') || '€', piRate: PI_REAL_PRICE_EUR },
                     })
                   }
                   className="p-3 rounded-2xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700/80 hover:border-emerald-500/60 cursor-pointer transition-all flex items-center justify-between group"

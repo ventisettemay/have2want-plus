@@ -17,6 +17,7 @@ import {
   AlertCircle 
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { PI_REAL_PRICE_EUR } from '@/lib/piRealPriceService';
 
 export interface ListingDetailItem {
   id: string;
@@ -212,7 +213,7 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({
                 </span>
                 {listing.piPrice ? (
                   <span className="text-[10px] text-zinc-400 font-mono block">
-                    ≈ {(listing.price !== undefined && listing.price > 0 ? listing.price : (listing.piPrice * 0.0674)).toFixed(2)} € (Mercato CMC ~0,075$)
+                    ≈ {(listing.price !== undefined && listing.price > 0 ? listing.price : (listing.piPrice * PI_REAL_PRICE_EUR)).toFixed(2)} € (Mercato CMC ~0,075$)
                   </span>
                 ) : null}
               </div>

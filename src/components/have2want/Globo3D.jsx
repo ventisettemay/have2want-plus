@@ -1644,7 +1644,7 @@ export default function Globo3D({
               description: sat.description || `${sat.scientificModel || ''} • ${sat.satData?.role || ''}`,
             });
             if (onOpenSatelliteRef.current) {
-              onOpenSatelliteRef.current(sat.satelliteId || sat.satelliteType);
+              onOpenSatelliteRef.current(sat.id || sat.satelliteType);
             }
             return;
           }

@@ -180,8 +180,6 @@ export interface HaveWantListing {
   imageUrl?: string;
   tags: string[];
   status: "active" | "matched" | "completed";
-  planetId?: string;
-  satelliteId?: string;
   channelId?: string; // Canale territoriale reale
   // Indicatori di provenienza: portale esterno (es. Subito, Facebook, eBay) o demo/illustrativo
   isExternal?: boolean;

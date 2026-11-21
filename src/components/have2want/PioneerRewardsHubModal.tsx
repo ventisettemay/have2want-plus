@@ -14,6 +14,7 @@ import {
   Lock,
   Flame,
   Wallet,
+  Store,
   ArrowRight,
   RefreshCw,
   Award
@@ -25,6 +26,9 @@ import {
   executePiWithdrawal,
   awardPoints,
   pointsToPi,
+  piToPoints,
+  spendPoints,
+  addMerchantPiCredit,
   REWARDS_CONFIG,
   PioneerRewardsState
 } from '@/lib/communityRewardsService';
@@ -46,6 +50,7 @@ export const PioneerRewardsHubModal: React.FC<PioneerRewardsHubModalProps> = ({
   const [isProcessingWithdrawal, setIsProcessingWithdrawal] = useState(false);
   const [isWatchingAd, setIsWatchingAd] = useState(false);
   const [adCountdown, setAdCountdown] = useState(5);
+  const [merchantTopUpPi, setMerchantTopUpPi] = useState<number>(20);
   const [activeTab, setActiveTab] = useState<'convert' | 'earn' | 'history'>('convert');
 
   useEffect(() => {
@@ -70,6 +75,28 @@ export const PioneerRewardsHubModal: React.FC<PioneerRewardsHubModalProps> = ({
     rewardsState.pointsBalance >= breakdown.requiredPoints &&
     breakdown.isValidAmount &&
     targetWalletAddress.trim().length >= 4;
+
+  // Ricarica il credito esercente convertendo Punti Comunitari (1.000 punti = 1 π)
+  const handleMerchantTopUp = () => {
+    const amount = Number(merchantTopUpPi);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error('Inserisci un importo valido in π.');
+      return;
+    }
+    const costPoints = piToPoints(amount);
+    const spent = spendPoints(costPoints, `Ricarica credito esercente (${amount} π)`);
+    if (!spent.success) {
+      toast.error('Punti Comunitari insufficienti', {
+        description: `Servono ${costPoints} punti per ricaricare ${amount} π.`,
+      });
+      return;
+    }
+    const newBalance = addMerchantPiCredit(amount);
+    setRewardsState(getPioneerRewardsState());
+    toast.success(`Credito esercente ricaricato: +${amount} π`, {
+      description: `Nuovo saldo esercente: ${newBalance.toFixed(2)} π`,
+    });
+  };
 
   // Gestione visione sponsor rapido (Pi Ads / Video Sponsor)
   const handleWatchQuickAd = () => {
@@ -202,6 +229,45 @@ export const PioneerRewardsHubModal: React.FC<PioneerRewardsHubModalProps> = ({
               />
             </div>
           </div>
+        </div>
+
+        {/* CREDITO ESERCENTE: ricarica per abbonamenti e vetrine pubblicitarie */}
+        <div className="px-5 py-4 bg-zinc-950/80 border-b border-zinc-800/80">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-1.5">
+                <Store className="w-4 h-4 text-emerald-400" />
+                <span className="text-[11px] font-black uppercase tracking-wider text-emerald-300">Credito Esercente</span>
+              </div>
+              <div className="flex items-baseline gap-2 mt-0.5">
+                <span className="text-xl font-black text-white font-mono">{rewardsState.merchantPiBalance.toFixed(2)} π</span>
+                <span className="text-[10px] text-zinc-500">plafond per abbonamenti e vetrine sponsorizzate</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={merchantTopUpPi}
+                onChange={(e) => setMerchantTopUpPi(Number(e.target.value))}
+                className="w-20 px-2 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700 text-white text-xs font-mono focus:outline-none focus:border-emerald-500"
+                aria-label="Importo ricarica esercente in Pi"
+              />
+              <span className="text-xs font-bold text-zinc-400">π</span>
+              <button
+                type="button"
+                onClick={handleMerchantTopUp}
+                className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-black cursor-pointer transition-all"
+                title={`Costo: ${piToPoints(merchantTopUpPi)} Punti Comunitari`}
+              >
+                Ricarica
+              </button>
+            </div>
+          </div>
+          <p className="text-[10px] text-zinc-500 mt-1">
+            Conversione 1.000 Punti = 1 π. Il credito esercente alimenta abbonamenti, vetrine e servizi a pagamento.
+          </p>
         </div>
 
         {/* TAB NAVIGATION */}
