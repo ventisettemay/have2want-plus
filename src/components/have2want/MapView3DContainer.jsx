@@ -1204,6 +1204,14 @@ export default function MapView3DContainer({
           onClose={handleCloseSatelliteModal}
           currentUser={currentProfile}
           onTriggerHandshake={onTriggerHandshake}
+          onNavigateToProduct={(product) => {
+            if (typeof product?.lat === 'number' && typeof product?.lng === 'number') {
+              setTargetCoords({ lat: product.lat, lng: product.lng });
+              setLodLevel('URBANO_3D');
+              handleCloseSatelliteModal();
+              toast.success(`🧭 Navigazione avviata verso ${product.name} (${product.location})`);
+            }
+          }}
         />
       )}
       {(activeSatellite === 'MONDO' || activeSatellite === 'SUPERMARKET' || activeSatellite === 'EXTERNAL') && (
