@@ -27,6 +27,7 @@ import {
   executeServerWalletPointsSync,
   refundWithdrawalPoints,
   reserveAndDebitWithdrawalPoints,
+  recordPiPayment,
   type WalletSyncEnv,
 } from './server/firestoreWalletSync';
 
@@ -598,6 +599,22 @@ export async function handleWorkerRequest(
         );
       }
       console.info(`[AUDIT] Worker /api/pi/approve SUCCESS`, { paymentId, data });
+
+      // Registra in pi_payments (server-only)
+      const paymentAmount = Number(data?.payment?.amount ?? data?.amount ?? 0);
+      const paymentUid = data?.payment?.uid ?? data?.uid ?? '';
+      const paymentWalletAddress = data?.payment?.to_address ?? data?.to_address ?? '';
+      const paymentMetadata = data?.payment?.metadata ?? data?.metadata ?? {};
+
+      await recordPiPayment({
+        paymentId,
+        amountPi: paymentAmount,
+        status: 'approved',
+        uid: paymentUid,
+        walletAddress: paymentWalletAddress,
+        metadata: paymentMetadata,
+      }, env);
+
       return jsonResponse(
         {
           approved: true,
@@ -757,6 +774,18 @@ export async function handleWorkerRequest(
         );
       }
       console.info(`[AUDIT] Worker /api/pi/complete SUCCESS`, { paymentId, txid, data });
+
+      // Registra in pi_payments (server-only) - status completed con txid
+      await recordPiPayment({
+        paymentId,
+        txid,
+        amountPi: Number(data?.payment?.amount ?? data?.amount ?? 0),
+        status: 'completed',
+        uid: data?.payment?.uid ?? data?.uid ?? '',
+        walletAddress: data?.payment?.to_address ?? data?.to_address ?? '',
+        metadata: { ...(data?.payment?.metadata ?? data?.metadata ?? {}), completedAt: new Date().toISOString() },
+      }, env);
+
       return jsonResponse(
         {
           completed: true,
@@ -982,6 +1011,25 @@ export async function handleWorkerRequest(
             );
           }
           await releaseLock();
+        }
+
+        // Registra prelievo A2U in pi_payments se completato on-chain
+        if (payoutResult.body?.completed && typeof payoutResult.body?.txHash === 'string') {
+          await recordPiPayment({
+            paymentId: `a2u_${idempotencyKey}`,
+            txid: payoutResult.body.txHash,
+            amountPi: netPiSent,
+            status: 'completed',
+            uid,
+            walletAddress: walletAddress.trim(),
+            metadata: {
+              type: 'a2u_withdrawal',
+              requestedPi: amountNum,
+              feeDeducted,
+              pioneerUsername,
+              idempotencyKey,
+            },
+          }, env);
         }
 
         return jsonResponse(

@@ -876,3 +876,304 @@ export async function executeServerWalletPointsSync(params: {
   };
 }
 
+/**
+ * Registra un pagamento Pi Network nella collezione server-only pi_payments.
+ * Chiamato da /api/pi/approve e /api/pi/complete dopo operazioni riuscite.
+ */
+export async function recordPiPayment(
+  paymentData: {
+    paymentId: string;
+    txid?: string;
+    amountPi: number;
+    status: 'approved' | 'completed' | 'cancelled' | 'failed';
+    uid: string;
+    walletAddress?: string;
+    metadata?: Record<string, any>;
+  },
+  env: Record<string, any>
+): Promise<{ success: boolean; error?: string }> {
+  const sa = parseServiceAccount(env);
+  if (!sa) {
+    return { success: false, error: 'FIREBASE_SERVICE_ACCOUNT_JSON non configurato.' };
+  }
+
+  const accessToken = await getGoogleAccessToken(sa);
+  const baseUrl = getDocBaseUrl(sa.project_id, env);
+  const docUrl = `${baseUrl}/pi_payments/${encodeURIComponent(paymentData.paymentId)}`;
+
+  // Controlla se esiste già (idempotenza)
+  const existingRes = await fetch(docUrl, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (existingRes.ok) {
+    const existing = await existingRes.json().catch(() => null);
+    const existingStatus = existing?.fields?.status?.stringValue;
+    // Se già completato, non sovrascrivere
+    if (existingStatus === 'completed' && paymentData.status !== 'completed') {
+      return { success: true };
+    }
+    // Se stesso status, ok (idempotente)
+    if (existingStatus === paymentData.status) {
+      return { success: true };
+    }
+  }
+
+  const fieldsPayload: Record<string, any> = {
+    paymentId: toFirestoreValue(paymentData.paymentId),
+    amountPi: toFirestoreValue(paymentData.amountPi),
+    status: toFirestoreValue(paymentData.status),
+    uid: toFirestoreValue(paymentData.uid),
+    createdAt: toFirestoreValue(new Date().toISOString()),
+    updatedAt: toFirestoreValue(new Date().toISOString()),
+  };
+
+  if (paymentData.txid) {
+    fieldsPayload.txid = toFirestoreValue(paymentData.txid);
+  }
+  if (paymentData.walletAddress) {
+    fieldsPayload.walletAddress = toFirestoreValue(paymentData.walletAddress);
+  }
+  if (paymentData.metadata) {
+    fieldsPayload.metadata = toFirestoreValue(paymentData.metadata);
+  }
+
+  // Usa PATCH con merge per aggiornamenti parziali, o create se non esiste
+  const method = existingRes.ok ? 'PATCH' : 'POST';
+  const url = method === 'PATCH' ? docUrl : `${baseUrl}/pi_payments?documentId=${encodeURIComponent(paymentData.paymentId)}`;
+
+  const res = await fetch(url, {
+    method,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ fields: fieldsPayload }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    console.error(`[PI_PAYMENTS] Errore registrazione ${paymentData.paymentId}:`, errText);
+    return { success: false, error: `Firestore error ${res.status}: ${errText}` };
+  }
+
+  return { success: true };
+}
+
+// Funzioni economiche per Quota X, tariffari, Ecoquota, conversioni USDT
+
+export const ECONOMIC_CONSTANTS = {
+  POINTS_PER_PI: 1000,
+  PI_PER_USDT: 1.0, // 1 π = 1 USDT (peg teorico, aggiornabile via oracle)
+  QUOTA_X_PERCENT: 0.10, // 10% Quota X su transazioni commerciali
+  ECOQUOTA_PERCENT: 0.02, // 2% Ecoquota su transazioni
+  MERCHANT_FEE_PERCENT: 0.025, // 2.5% fee esercenti
+  MIN_WITHDRAWAL_PI: 0.5,
+  MAX_WITHDRAWAL_PI: 100,
+  WELCOME_BONUS_POINTS: 120,
+} as const;
+
+/**
+ * Calcola la ripartizione economica di una transazione commerciale.
+ * Restituisce gli importi per: Quota X, Ecoquota, Fee Esercente, Netto Merchant.
+ */
+export function calculateCommercialSplit(amountPi: number): {
+  quotaX: number;
+  ecoquota: number;
+  merchantFee: number;
+  netMerchant: number;
+  totalFees: number;
+} {
+  const quotaX = Number((amountPi * ECONOMIC_CONSTANTS.QUOTA_X_PERCENT).toFixed(4));
+  const ecoquota = Number((amountPi * ECONOMIC_CONSTANTS.ECOQUOTA_PERCENT).toFixed(4));
+  const merchantFee = Number((amountPi * ECONOMIC_CONSTANTS.MERCHANT_FEE_PERCENT).toFixed(4));
+  const totalFees = Number((quotaX + ecoquota + merchantFee).toFixed(4));
+  const netMerchant = Number((amountPi - totalFees).toFixed(4));
+
+  return { quotaX, ecoquota, merchantFee, netMerchant, totalFees };
+}
+
+/**
+ * Converte π in USDT (usando peg 1:1 o oracle se disponibile).
+ */
+export function convertPiToUsdt(amountPi: number): number {
+  return Number((amountPi * ECONOMIC_CONSTANTS.PI_PER_USDT).toFixed(4));
+}
+
+/**
+ * Converte USDT in π.
+ */
+export function convertUsdtToPi(amountUsdt: number): number {
+  return Number((amountUsdt / ECONOMIC_CONSTANTS.PI_PER_USDT).toFixed(4));
+}
+
+/**
+ * Accredita crediti esercenti (merchantPiBalance) con verifica idempotenza.
+ * Usata per pagamenti ricevuti da commercianti.
+ */
+export async function creditMerchantPi(
+  walletId: string,
+  amountPi: number,
+  piPaymentId: string,
+  description: string,
+  env: Record<string, any>
+): Promise<{ success: boolean; merchantPiBalance?: number; error?: string }> {
+  // Verifica che il paymentId sia completato in pi_idempotency
+  const sa = parseServiceAccount(env);
+  if (!sa) {
+    return { success: false, error: 'Service Account non configurato.' };
+  }
+
+  const accessToken = await getGoogleAccessToken(sa);
+  const baseUrl = getDocBaseUrl(sa.project_id, env);
+  const idempDocId = await sha256Hex(`complete_pay:${piPaymentId}`);
+  const checkRes = await fetch(`${baseUrl}/pi_idempotency/${encodeURIComponent(idempDocId)}`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!checkRes.ok) {
+    return { success: false, error: 'Pagamento Pi non verificato (pi_idempotency).' };
+  }
+
+  const idempDoc: any = await checkRes.json().catch(() => null);
+  const verifiedAmount = Number(idempDoc?.fields?.amount?.doubleValue ?? idempDoc?.fields?.amount?.integerValue ?? 0);
+  if (verifiedAmount <= 0 || amountPi > verifiedAmount + 0.0001) {
+    return { success: false, error: 'Importo eccede pagamento verificato.' };
+  }
+
+  // Usa syncWalletPointsAtomically con MERCHANT_REWARD_DEPOSIT
+  const result = await syncWalletPointsAtomically({
+    walletId,
+    pioneerUsername: '', // verrà letto da wallet esistente
+    pointsDelta: 0,
+    merchantPiDelta: amountPi,
+    actionType: 'MERCHANT_REWARD_DEPOSIT',
+    description,
+    txId: `merchant_credit_${piPaymentId}`,
+    piPaymentId,
+  }, env);
+
+  if (!result.synced) {
+    return { success: false, error: result.reason };
+  }
+
+  return { success: true, merchantPiBalance: result.merchantPiBalance };
+}
+
+/**
+ * Addebita crediti esercenti per fee, prelievi, ecc.
+ */
+export async function debitMerchantPi(
+  walletId: string,
+  amountPi: number,
+  description: string,
+  txId: string,
+  env: Record<string, any>
+): Promise<{ success: boolean; merchantPiBalance?: number; error?: string }> {
+  const result = await syncWalletPointsAtomically({
+    walletId,
+    pioneerUsername: '',
+    pointsDelta: 0,
+    merchantPiDelta: -amountPi,
+    actionType: 'MERCHANT_PI_ADJUST',
+    description,
+    txId,
+  }, env);
+
+  if (!result.synced) {
+    return { success: false, error: result.reason };
+  }
+
+  return { success: true, merchantPiBalance: result.merchantPiBalance };
+}
+
+/**
+ * Gestione donazioni / Pasto Sospeso / Pro-Tools.
+ * Queste operazioni usano punti comunitari, non Pi.
+ */
+export async function processCommunityDonation(
+  fromWalletId: string,
+  toWalletId: string,
+  pointsAmount: number,
+  type: 'DONATION' | 'SUSPENDED_MEAL' | 'PRO_TOOLS' | 'BADGE',
+  description: string,
+  env: Record<string, any>
+): Promise<{ success: boolean; error?: string }> {
+  if (pointsAmount <= 0) return { success: false, error: 'Importo punti non valido.' };
+
+  // Addebita donatore
+  const debitResult = await syncWalletPointsAtomically({
+    walletId: fromWalletId,
+    pioneerUsername: '',
+    pointsDelta: -pointsAmount,
+    merchantPiDelta: 0,
+    actionType: `COMMUNITY_${type}`,
+    description: `Donazione ${type}: ${description}`,
+    txId: `${type.toLowerCase()}_${Date.now()}_${fromWalletId}`,
+  }, env);
+
+  if (!debitResult.synced) {
+    return { success: false, error: `Addebito donatore fallito: ${debitResult.reason}` };
+  }
+
+  // Accredita beneficiario (se toWalletId diverso)
+  if (toWalletId !== fromWalletId) {
+    const creditResult = await syncWalletPointsAtomically({
+      walletId: toWalletId,
+      pioneerUsername: '',
+      pointsDelta: pointsAmount,
+      merchantPiDelta: 0,
+      actionType: `COMMUNITY_${type}_RECEIVED`,
+      description: `Ricevuto ${type}: ${description}`,
+      txId: `${type.toLowerCase()}_${Date.now()}_${toWalletId}`,
+    }, env);
+
+    if (!creditResult.synced) {
+      // Rollback donatore se accredito fallisce (in produzione usare transazione)
+      await syncWalletPointsAtomically({
+        walletId: fromWalletId,
+        pioneerUsername: '',
+        pointsDelta: pointsAmount,
+        merchantPiDelta: 0,
+        actionType: 'DONATION_ROLLBACK',
+        description: `Rollback donazione fallita: ${description}`,
+        txId: `rollback_${Date.now()}_${fromWalletId}`,
+      }, env);
+      return { success: false, error: `Accredito beneficiario fallito: ${creditResult.reason}` };
+    }
+  }
+
+  return { success: true };
+}
+
+/**
+ * Assegnazione distintivi (badge) - solo punti, nessun valore monetario.
+ */
+export async function awardBadge(
+  walletId: string,
+  badgeId: string,
+  pointsReward: number,
+  description: string,
+  env: Record<string, any>
+): Promise<{ success: boolean; error?: string }> {
+  if (pointsReward < 0) return { success: false, error: 'Punti badge non validi.' };
+
+  const result = await syncWalletPointsAtomically({
+    walletId,
+    pioneerUsername: '',
+    pointsDelta: pointsReward,
+    merchantPiDelta: 0,
+    actionType: 'BADGE_AWARD',
+    description: `Badge ${badgeId}: ${description}`,
+    txId: `badge_${badgeId}_${Date.now()}_${walletId}`,
+  }, env);
+
+  if (!result.synced) {
+    return { success: false, error: result.reason };
+  }
+
+  return { success: true };
+}
+
