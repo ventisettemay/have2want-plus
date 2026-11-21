@@ -258,6 +258,20 @@ export default function MapView3DContainer({
 
   // Inserzionisti & Sponsor Mappa 3D, Hub Pi Network e Note Vocali
   const [sponsoredBusinesses, setSponsoredBusinesses] = useState(SPONSORED_BUSINESSES);
+
+  // Rimozione automatica delle vetrine sponsorizzate scadute (expiresAt)
+  useEffect(() => {
+    const removeExpired = () => {
+      const now = Date.now();
+      setSponsoredBusinesses((prev) => {
+        const next = prev.filter((biz) => !biz.expiresAt || new Date(biz.expiresAt).getTime() > now);
+        return next.length === prev.length ? prev : next;
+      });
+    };
+    removeExpired();
+    const timer = setInterval(removeExpired, 60000);
+    return () => clearInterval(timer);
+  }, []);
   const [selectedMerchantModal, setSelectedMerchantModal] = useState(null);
   const [isPiHubOpen, setIsPiHubOpen] = useState(false);
   const [isRewardsHubOpen, setIsRewardsHubOpen] = useState(false);
@@ -1099,7 +1113,7 @@ export default function MapView3DContainer({
         }}
       />
 
-      {/* 🛰️ SPACECRAFT INSPECTOR & PANNELLO CONTROLLO FLOTTA (8 SATELLITI & 7 PRESET) */}
+      {/* 🛰️ SPACECRAFT INSPECTOR & PANNELLO CONTROLLO FLOTTA (8 SATELLITI & 8 PRESET) */}
       <SpacecraftInspectorModal
         isOpen={Boolean(scientificSatellite)}
         selectedSatelliteId={scientificSatellite}

@@ -22,7 +22,7 @@ import { classifyIntent, processTestnetRequest, ProcessedProduct } from "../lib/
 interface DiscreetAIAssistantProps {
   listings: HaveWantListing[];
   guides: SalvavatuttoGuide[];
-  onNavigateToPlanet: (planet: "planet-possibilita" | "planet-vita" | "planet-salvavatutto" | "pi-bridge") => void;
+  onNavigate: (target: "BACHECA" | "SALVAVATUTTO" | "PI_HUB") => void;
 }
 
 interface Message {
@@ -34,7 +34,7 @@ interface Message {
   productPayload?: ProcessedProduct;
   suggestedAction?: {
     label: string;
-    target: "planet-possibilita" | "planet-vita" | "planet-salvavatutto" | "pi-bridge";
+    target: "BACHECA" | "SALVAVATUTTO" | "PI_HUB";
   };
 }
 
@@ -69,7 +69,7 @@ export function WelcomeTechnologyCard() {
 export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
   listings,
   guides,
-  onNavigateToPlanet,
+  onNavigate,
 }) => {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -342,7 +342,7 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
             imageUrl: currentImg.dataUrl,
             suggestedAction: {
               label: "Esplora annunci simili nel catalogo",
-              target: "planet-possibilita",
+              target: "BACHECA",
             },
           },
         ]);
@@ -355,13 +355,13 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
 
       if (q.includes("scamb") || q.includes("baratt") || q.includes("offr") || q.includes("cerc")) {
         reply = `Nel catalogo comunitario ci sono ${listings.length} scambi attivi. Puoi esplorare la bacheca generale o effettuare baratti protetti.`;
-        action = { label: "Esplora Bacheca Possibilità", target: "planet-possibilita" };
+        action = { label: "Esplora Bacheca Possibilità", target: "BACHECA" };
       } else if (q.includes("guida") || q.includes("salva") || q.includes("soccorso")) {
         reply = `In Salvavatutto sono custodite ${guides.length} guide pratiche di autosufficienza e prevenzione.`;
-        action = { label: "Apri Archivio Salvavatutto", target: "planet-salvavatutto" };
+        action = { label: "Apri Archivio Salvavatutto", target: "SALVAVATUTTO" };
       } else if (q.includes("pi") || q.includes("wallet")) {
         reply = `In HAVE2WANT non esiste custodia di fondi interna. I trasferimenti avvengono sul Pi Wallet ufficiale.`;
-        action = { label: "Vedi Hub Pi Network", target: "pi-bridge" };
+        action = { label: "Vedi Hub Pi Network", target: "PI_HUB" };
       } else {
         reply = intentResult.text_response;
       }
@@ -506,7 +506,7 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
 
               {m.suggestedAction && (
                 <button
-                  onClick={() => onNavigateToPlanet(m.suggestedAction!.target)}
+                  onClick={() => onNavigate(m.suggestedAction!.target)}
                   className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30 text-[11px] transition-all cursor-pointer"
                 >
                   <span>{m.suggestedAction.label}</span>

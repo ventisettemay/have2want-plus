@@ -247,7 +247,7 @@ export const PiPaymentModal: React.FC<PiPaymentModalProps> = ({
                   Scambio & Contatto Sbloccato:
                 </div>
                 <p className="text-slate-400">
-                  Puoi ora accordarti in privato con <strong>{listing.author.name}</strong> nel Pianeta Vita per il ritiro o l'erogazione del servizio.
+                  Puoi ora accordarti in privato con <strong>{listing.author.name}</strong> nella bacheca per il ritiro o l'erogazione del servizio.
                 </p>
               </div>
 

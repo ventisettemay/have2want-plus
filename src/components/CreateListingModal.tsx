@@ -290,7 +290,6 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({
       createdAt: new Date().toISOString(),
       tags: [newCategory, newIntent, newSubcategory],
       status: "active",
-      planetId: "planet-possibilita",
       satelliteId: "sat-scambi",
       isDemo: isDemoListing
     };

@@ -12,12 +12,12 @@ import {
   X
 } from "lucide-react";
 
-interface SalvavatuttoPlanetProps {
+interface SalvavatuttoArchiveProps {
   guides: SalvavatuttoGuide[];
   onAddGuide: (guide: SalvavatuttoGuide) => void;
 }
 
-export const SalvavatuttoPlanet: React.FC<SalvavatuttoPlanetProps> = ({
+export const SalvavatuttoArchive: React.FC<SalvavatuttoArchiveProps> = ({
   guides,
   onAddGuide,
 }) => {
