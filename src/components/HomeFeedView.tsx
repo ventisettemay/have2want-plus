@@ -51,6 +51,8 @@ import { getListingOriginBadge } from "@/lib/listingOrigin";
 import { PioneerRewardsHubModal } from "@/components/have2want/PioneerRewardsHubModal";
 import { TerritorialAdBanner } from "@/components/have2want/TerritorialAdBanner";
 import { ListingDetailModal } from "@/components/have2want/ListingDetailModal";
+import MarketplaceOrderModal from "@/components/have2want/MarketplaceOrderModal";
+import MarketplaceOrdersModal from "@/components/have2want/MarketplaceOrdersModal";
 import { DedicatedCategoryPage } from "@/components/DedicatedCategoryPage";
 import { GlobalMarketplaceView } from "@/components/have2want/GlobalMarketplaceView";
 
@@ -253,6 +255,9 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
   // Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showRewardsHub, setShowRewardsHub] = useState(false);
+  const [showOrdersModal, setShowOrdersModal] = useState(false);
+  const [orderModalListing, setOrderModalListing] = useState<HaveWantListing | null>(null);
+  const [orderModalMode, setOrderModalMode] = useState<'self' | 'gift'>('self');
   const [selectedListingForDetail, setSelectedListingForDetail] = useState<HaveWantListing | null>(null);
   const [quickContactListing, setQuickContactListing] = useState<HaveWantListing | null>(null);
   const [contactMessage, setContactMessage] = useState("");
@@ -630,6 +635,14 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
               <span>π Hub</span>
             </button>
             <button
+              onClick={() => setShowOrdersModal(true)}
+              className="md:hidden px-2.5 py-1.5 rounded-xl bg-emerald-400/15 border border-emerald-400/40 text-emerald-300 font-black text-xs flex items-center gap-1 transition-transform active:scale-95 cursor-pointer"
+              title="I Miei Ordini del Marketplace Interno"
+            >
+              <ShoppingBag className="w-3.5 h-3.5" />
+              <span>Ordini</span>
+            </button>
+            <button
               onClick={() => setShowCreateModal(true)}
               className="md:hidden px-3 py-2 rounded-xl bg-[#00ff66] text-black font-black text-xs flex items-center gap-1.5 transition-transform active:scale-95 cursor-pointer"
             >
@@ -676,6 +689,14 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
 
         {/* Destra: Desktop Pubblica Annuncio & Hub Pi Network */}
         <div className="hidden md:flex items-center gap-2.5">
+          <button
+            onClick={() => setShowOrdersModal(true)}
+            className="px-3.5 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 font-black text-xs flex items-center gap-2 transition-transform active:scale-95 cursor-pointer shadow-sm"
+            title="I Miei Ordini del Marketplace Interno"
+          >
+            <ShoppingBag className="w-4 h-4" />
+            <span>Ordini</span>
+          </button>
           <button
             onClick={() => setShowRewardsHub(true)}
             className="px-3.5 py-2 rounded-xl bg-amber-400/15 hover:bg-amber-400/25 border border-amber-400/40 text-amber-300 font-black text-xs flex items-center gap-2 transition-transform active:scale-95 cursor-pointer shadow-sm"
@@ -1571,6 +1592,7 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
             authorUsername: selectedListingForDetail.author?.username,
             originType: selectedListingForDetail.originType,
             piPrice: selectedListingForDetail.piPrice,
+            intent: selectedListingForDetail.intent,
             wantsInExchange: selectedListingForDetail.concreteExchange?.itemOrServiceAccepted,
           }}
           onClose={() => setSelectedListingForDetail(null)}
@@ -1584,8 +1606,40 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
               setQuickContactListing(selectedListingForDetail);
             }
           }}
+          onBuy={() => {
+            setOrderModalMode('self');
+            setOrderModalListing(selectedListingForDetail);
+          }}
+          onGift={() => {
+            setOrderModalMode('gift');
+            setOrderModalListing(selectedListingForDetail);
+          }}
         />
       )}
+
+      {orderModalListing && (
+        <MarketplaceOrderModal
+          isOpen={!!orderModalListing}
+          listing={{
+            id: orderModalListing.id,
+            title: orderModalListing.title,
+            price: orderModalListing.price,
+            piPrice: orderModalListing.piPrice,
+            sellerName: orderModalListing.author?.name,
+            sellerUsername: orderModalListing.author?.username,
+          }}
+          currentUser={{ name: currentUser.name, username: currentUser.username }}
+          initialMode={orderModalMode}
+          onClose={() => setOrderModalListing(null)}
+          onOpenOrders={() => setShowOrdersModal(true)}
+        />
+      )}
+
+      <MarketplaceOrdersModal
+        isOpen={showOrdersModal}
+        onClose={() => setShowOrdersModal(false)}
+        currentUser={{ name: currentUser.name, username: currentUser.username }}
+      />
 
     </div>
   );

@@ -14,7 +14,9 @@ import {
   Calendar, 
   Tag, 
   UserCheck, 
-  AlertCircle 
+  AlertCircle,
+  Gift,
+  ShoppingBag,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { PI_REAL_PRICE_EUR } from '@/lib/piRealPriceService';
@@ -43,6 +45,7 @@ export interface ListingDetailItem {
   acceptsPi?: boolean;
   piPrice?: number;
   deliveryOption?: 'HANDSHAKE_ONLY' | 'SHIPPING_AVAILABLE' | 'BOTH';
+  intent?: string;
 }
 
 interface ListingDetailModalProps {
@@ -51,6 +54,8 @@ interface ListingDetailModalProps {
   onClose: () => void;
   onProposeBarter: (listing: ListingDetailItem) => void;
   onContactSeller: (listing: ListingDetailItem) => void;
+  onBuy?: (listing: ListingDetailItem) => void;
+  onGift?: (listing: ListingDetailItem) => void;
 }
 
 export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({
@@ -59,11 +64,17 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({
   onClose,
   onProposeBarter,
   onContactSeller,
+  onBuy,
+  onGift,
 }) => {
   const [selectedImageIndex, setSelectedImageIndex] = useState<number>(0);
   const [copiedLink, setCopiedLink] = useState(false);
 
   if (!isOpen || !listing) return null;
+
+  const isInternalListing = listing.originType !== 'EXTERNAL';
+  const isForSale = listing.intent === 'VENDO';
+  const isPurchasable = isInternalListing && isForSale && typeof listing.piPrice === 'number' && listing.piPrice > 0;
 
   // Immagini disponibili
   const allImages: string[] = [];
@@ -219,6 +230,42 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({
               </div>
             </div>
           </div>
+
+          {isPurchasable && (onBuy || onGift) && (
+            <div className="p-4 rounded-2xl bg-emerald-950/25 border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2 text-emerald-300 text-xs font-black uppercase tracking-wider">
+                  <ShoppingBag className="w-4 h-4" />
+                  <span>Acquisto Marketplace Interno</span>
+                </div>
+                <p className="text-[11px] text-zinc-400 mt-1">
+                  Acquista in Pi Network oppure regala questo prodotto a un altro Pioneer.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                {onBuy && (
+                  <button
+                    type="button"
+                    onClick={() => onBuy(listing)}
+                    className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-emerald-400 hover:bg-emerald-300 text-black text-xs font-black flex items-center justify-center gap-2 transition-transform active:scale-95 cursor-pointer"
+                  >
+                    <ShoppingBag className="w-4 h-4" />
+                    Acquista
+                  </button>
+                )}
+                {onGift && (
+                  <button
+                    type="button"
+                    onClick={() => onGift(listing)}
+                    className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-black text-xs font-black flex items-center justify-center gap-2 transition-transform active:scale-95 cursor-pointer"
+                  >
+                    <Gift className="w-4 h-4" />
+                    Regala
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Descrizione Integrale del Prodotto */}
           <div className="space-y-2">

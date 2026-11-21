@@ -51,6 +51,17 @@ import {
   Minimize2,
 } from 'lucide-react';
 
+// Il globo commerciale mostra esclusivamente annunci e attività interne HAVE2WANT
+const isInternalMarketplaceListing = (item) => Boolean(
+  item &&
+  !item.isExternal &&
+  !item.is_external &&
+  !item.externalPortal &&
+  !item.externalSource &&
+  item.source_type !== 'external' &&
+  item.source_type !== 'portale_esterno'
+);
+
 // Helper di risoluzione geografica ad altissima precisione (Atlante Mondiale + Regioni)
 function resolveCountryData(countryData) {
   if (!countryData) return null;
@@ -579,8 +590,8 @@ export default function MapView3DContainer({
 
         {lodLevel === 'GLOBO' ? (
           <Globo3D
-            listings={filteredListings}
-            allListings={listings}
+            listings={filteredListings.filter(isInternalMarketplaceListing)}
+            allListings={listings.filter(isInternalMarketplaceListing)}
             onSelectListing={handleBuildingSelect}
             sponsoredBusinesses={sponsoredBusinesses}
             onSelectSponsor={(biz) => {

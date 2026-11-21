@@ -149,9 +149,12 @@ export function GlobalMarketplaceView({
               <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-[#00ff66] border border-emerald-500/40">
                 Prodotti Fisici Veri
               </span>
+              <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/40">
+                Esterno · Affiliazione
+              </span>
             </h1>
             <p className="text-[11px] text-zinc-400">
-              Spedizioni a domicilio 24-48h • Ordina online o proponi baratto nella bacheca Have2Want
+              Catalogo esterno: l'acquisto avviene sui portali affiliati e i link sono tracciati. Per gli acquisti interni usa il Marketplace HAVE2WANT nella bacheca.
             </p>
           </div>
         </div>
@@ -254,9 +257,14 @@ export function GlobalMarketplaceView({
                       <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-emerald-500 text-black shadow-md">
                         {item.condition}
                       </span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-black/85 text-zinc-300 border border-zinc-700 backdrop-blur-md">
-                        {item.store}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-black/85 text-zinc-300 border border-zinc-700 backdrop-blur-md">
+                          {item.store}
+                        </span>
+                        <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-md bg-sky-500/90 text-black backdrop-blur-md">
+                          Esterno
+                        </span>
+                      </div>
                     </div>
 
                     {/* Prezzo Reale di Vendita & Controvalore Pi Reale */}
@@ -321,6 +329,9 @@ export function GlobalMarketplaceView({
                         <span>Ordina Online con Spedizione</span>
                         <ExternalLink className="w-3 h-3" />
                       </a>
+                      <span className="text-[9px] text-zinc-500 text-center block">
+                        Link affiliato tracciato · ID {walletConfig.partnerTrackingId.slice(0, 16)}{walletConfig.partnerTrackingId.length > 16 ? '…' : ''}
+                      </span>
 
                       {/* Pulsante 2: Trattenimento su Have2Want (Pubblica WANT per Baratto o Pi Coin) */}
                       <button
