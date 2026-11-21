@@ -10,50 +10,17 @@ import {
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Zap, Video, Info, Shield, AlertCircle } from 'lucide-react';
+import { Zap, Video, Info, Shield, AlertCircle, X } from 'lucide-react';
 
-interface PiAdsInterface {
-  showRewardedVideo: (options: {
-    onReward: () => void;
-    onError: (error: Error) => void;
-    onClose: () => void;
-  }) => Promise<void>;
-  showInterstitial: (options: {
-    onClose: () => void;
-    onError: (error: Error) => void;
-  }) => Promise<void>;
-  isRewardedVideoAvailable: () => Promise<boolean>;
-  isInterstitialAvailable: () => Promise<boolean>;
-}
-
-interface PiNetworkSDK {
-  init: (options: { version: string; sandbox?: boolean }) => void;
-  authenticate: (
-    scopes: string[],
-    onIncompletePaymentFound?: (payment: any) => void
-  ) => Promise<{
-    accessToken: string;
-    user: { uid: string; username: string };
-  }>;
-  createPayment: (paymentData: any, callbacks?: any) => Promise<any>;
-  Ads?: PiAdsInterface;
-}
-
-declare global {
-  interface Window {
-    Pi?: PiNetworkSDK;
-  }
-}
-
-const win = typeof window !== 'undefined' ? window : ({} as Window & { Pi?: PiNetworkSDK });
+// NOTE: Pi Ads SDK non è ufficialmente documentato nella Pi Network SDK pubblica.
+// L'integrazione Pi Ads è DISABILITATA fino a conferma ufficiale da Pi Network.
+// Non vengono create integrazioni ipotetiche, simulazioni o accrediti alternativi.
 
 export default function AdRewardHub() {
   const { user } = useAuth();
   const [rewardsState, setRewardsState] = useState(() => getPioneerRewardsState());
   const [isWatching, setIsWatching] = useState(false);
-  const [isLoadingAd, setIsLoadingAd] = useState(false);
-  const [adAvailable, setAdAvailable] = useState<{ rewarded: boolean; interstitial: boolean }>({ rewarded: false, interstitial: false });
-  const adCheckIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [adStreamEnabled, setAdStreamEnabled] = useState(() => rewardsState?.adStreamEnabled ?? true);
 
   useEffect(() => {
     setRewardsState(getPioneerRewardsState());
@@ -63,131 +30,17 @@ export default function AdRewardHub() {
     return () => unsubscribe();
   }, [user?.id]);
 
-  // Verifica disponibilità Pi Ads nativi (solo dentro Pi Browser)
-  const checkPiAdsAvailability = async () => {
-    if (typeof window !== 'undefined' && win.Pi?.Ads) {
-      try {
-        const [rewardedAvail, interstitialAvail] = await Promise.all([
-          win.Pi.Ads.isRewardedVideoAvailable(),
-          win.Pi.Ads.isInterstitialAvailable(),
-        ]);
-        setAdAvailable({ rewarded: rewardedAvail, interstitial: interstitialAvail });
-      } catch (err) {
-        console.warn('[Pi Ads] Errore verifica disponibilità:', err);
-      }
-    }
-  };
-
-  useEffect(() => {
-    checkPiAdsAvailability();
-    // Controllo periodico ogni 30 secondi
-    adCheckIntervalRef.current = window.setInterval(checkPiAdsAvailability, 30000);
-    return () => {
-      if (adCheckIntervalRef.current) clearInterval(adCheckIntervalRef.current);
-    };
-  }, []);
-
   const handleEarnListingCredit = async () => {
-    // Priorità 1: Pi Ads nativi (rewarded video) se disponibili in Pi Browser
-    if (typeof window !== 'undefined' && win.Pi?.Ads?.showRewardedVideo && adAvailable.rewarded) {
-      setIsWatching(true);
-      setIsLoadingAd(true);
-      toast.info('Caricamento video rewarded Pi Network...');
-
-      try {
-        await win.Pi.Ads.showRewardedVideo({
-          onReward: () => {
-            // Ricompensa confermata da Pi Network
-            const res = awardPoints(
-              'QUICK_SPONSOR_AD',
-              'Visione video rewarded Pi Ads (ufficiale)'
-            );
-            if (res.success) {
-              toast.success(
-                `+${res.pointsEarned} Punti Comunitari (Pi Ads ufficiale)!`,
-                {
-                  description: `Saldo attuale: ${res.newBalance} punti (${pointsToPi(res.newBalance)} π)`,
-                }
-              );
-            } else {
-              toast.error('Impossibile accreditare i punti.');
-            }
-          },
-          onError: (error: Error) => {
-            console.warn('[Pi Ads] Errore rewarded video:', error);
-            toast.error('Video non disponibile o annullato. Riprova tra poco.');
-          },
-          onClose: () => {
-            setIsWatching(false);
-            setIsLoadingAd(false);
-            // Verifica nuovamente disponibilità
-            setTimeout(checkPiAdsAvailability, 5000);
-          },
-        });
-      } catch (err) {
-        console.error('[Pi Ads] Errore showRewardedVideo:', err);
-        toast.error('Errore apertura Pi Ads. Fallback a modalità locale.');
-        setIsWatching(false);
-        setIsLoadingAd(false);
-        // Fallback al metodo locale
-        handleLocalAdWatch();
-      }
-      return;
-    }
-
-    // Priorità 2: Fallback locale (modalità web preview / senza Pi Ads disponibili)
-    handleLocalAdWatch();
-  };
-
-  const handleLocalAdWatch = async () => {
-    setIsWatching(true);
-    toast.info('Caricamento inserzione promozionale locale...');
-
-    // Simula durata visualizzazione video (min 15-30s per policy)
-    await new Promise((r) => setTimeout(r, 2500));
-
-    try {
-      const res = awardPoints(
-        'QUICK_SPONSOR_AD',
-        'Visione video sponsor locale (Hub Pubblicità & Inserzioni)'
-      );
-      if (res.success) {
-        toast.success(
-          `+${res.pointsEarned} Punti Comunitari aggiunti al tuo saldo unificato!`,
-          {
-            description: `Saldo attuale: ${res.newBalance} punti (${pointsToPi(res.newBalance)} π)`,
-          }
-        );
-      } else {
-        toast.error('Impossibile accreditare i punti in questo momento.');
-      }
-    } catch {
-      toast.error("Errore nell'accredito del credito inserzione");
-    } finally {
-      setIsWatching(false);
-    }
-  };
-
-  const handleShowInterstitial = async () => {
-    if (typeof window !== 'undefined' && win.Pi?.Ads?.showInterstitial && adAvailable.interstitial) {
-      try {
-        await win.Pi.Ads.showInterstitial({
-          onClose: () => {
-            // Interstitial chiuso
-          },
-          onError: (error: Error) => {
-            console.warn('[Pi Ads] Errore interstitial:', error);
-          },
-        });
-      } catch (err) {
-        console.error('[Pi Ads] Errore showInterstitial:', err);
-      }
-    }
+    // Pi Ads DISABILITATI: SDK non ufficialmente documentato
+    // Nessun video rewarded, interstitial o accredito simulato
+    toast.info('Pi Ads non disponibili: SDK non ufficialmente documentato da Pi Network.', {
+      description: 'I crediti per annunci verranno abilitati quando Pi Network pubblicherà la documentazione ufficiale Pi Ads SDK.',
+      duration: 5000,
+    });
   };
 
   const currentPoints = rewardsState?.pointsBalance ?? 0;
   const currentPi = pointsToPi(currentPoints);
-  const adStreamEnabled = rewardsState?.adStreamEnabled ?? true;
 
   return (
     <div className="flex flex-col gap-4 p-5 sm:p-6 bg-[#0f172a] text-slate-100 rounded-2xl border border-slate-700/80 shadow-2xl w-full max-w-md mx-auto">
@@ -203,7 +56,7 @@ export default function AdRewardHub() {
           </p>
         </div>
         <div className="text-right">
-          <span className="text-2xl font-black text-emerald-400">{currentPoints}</span>
+          <span className="text-2xl font-black text-emerald-400">{rewardsState?.pointsBalance ?? 0}</span>
           <p className="text-[9px] text-slate-400 uppercase tracking-wider font-bold">
             Punti ({currentPi} π)
           </p>
@@ -221,59 +74,23 @@ export default function AdRewardHub() {
         </div>
       </div>
 
-      {/* Azione di guadagno punti */}
-      <div className="space-y-2">
-        <Button
-          disabled={isWatching || isLoadingAd}
-          className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase py-3.5 rounded-xl shadow-lg shadow-emerald-500/20 cursor-pointer flex items-center justify-center gap-2 transition-all active:scale-98"
-          onClick={handleEarnListingCredit}
-        >
-          {isWatching ? (
-            <span className="animate-pulse">Accredito Punti in corso...</span>
-          ) : isLoadingAd ? (
-            <>
-              <span className="animate-spin">⟳</span>
-              <span>Caricamento Pi Ads...</span>
-            </>
-          ) : (
-            <>
-              <Video className="w-4 h-4" />
-              <span>Guarda Video Rewarded (+4 Punti)</span>
-              {adAvailable.rewarded && <Shield className="w-3.5 h-3.5 text-emerald-300" title="Pi Ads Ufficiale Disponibile" />}
-            </>
-          )}
-        </Button>
-
-        {/* Interstitial opzionale per navigazione */}
-        {(adAvailable.interstitial || typeof window !== 'undefined') && (
-          <Button
-            variant="outline"
-            className="w-full text-xs font-bold py-2 rounded-xl border-slate-700 hover:border-emerald-500"
-            onClick={handleShowInterstitial}
-            disabled={isWatching}
-          >
-            <span>Mostra Interstitial Pi Ads (Test)</span>
-            {adAvailable.interstitial && <Shield className="w-3.5 h-3.5 text-emerald-300" />}
-          </Button>
-        )}
-
-        {/* Status indicatori */}
-        <div className="flex items-center justify-between text-[10px] text-slate-400">
-          <span className="flex items-center gap-1">
-            {adAvailable.rewarded ? (
-              <span className="text-emerald-400">✓ Pi Rewarded Video: Disponibile</span>
-            ) : (
-              <span className="text-amber-400">⟳ Pi Rewarded Video: Verifica...</span>
-            )}
-          </span>
-          <span className="flex items-center gap-1">
-            {adAvailable.interstitial ? (
-              <span className="text-emerald-400">✓ Pi Interstitial: Disponibile</span>
-            ) : (
-              <span className="text-amber-400">⟳ Pi Interstitial: Verifica...</span>
-            )}
-          </span>
+      {/* Avviso Pi Ads disabilitati */}
+      <div className="p-3.5 rounded-xl bg-amber-950/30 border border-amber-500/40 flex items-start gap-2.5 text-xs text-amber-200">
+        <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+        <div className="text-xs text-amber-200 leading-relaxed">
+          <b>Pi Ads SDK disabilitato</b>: Il Pi Network Ads SDK non è ufficialmente documentato nella SDK pubblica Pi Network. L'integrazione rewarded video/interstitial è disabilitata per evitare integrazioni ipotetiche. Nessun accredito alternativo simulato.
         </div>
+      </div>
+
+      {/* Azione di guadagno punti (disabilitata) */}
+      <div className="space-y-2">
+        <button
+          disabled
+          className="w-full bg-slate-800 text-slate-500 text-xs uppercase py-3.5 rounded-xl cursor-not-allowed flex items-center justify-center gap-2"
+        >
+          <Video className="w-4 h-4" />
+          <span>Pi Ads Disabilitati — SDK Non Ufficiale</span>
+        </button>
       </div>
 
       {/* Ricarica passiva crediti durante la navigazione */}
@@ -289,6 +106,7 @@ export default function AdRewardHub() {
         <Switch
           checked={adStreamEnabled}
           onCheckedChange={(val) => {
+            setAdStreamEnabled(val);
             setAdStreamEnabledPreference(Boolean(val));
             toast.info(
               val
@@ -297,6 +115,14 @@ export default function AdRewardHub() {
             );
           }}
         />
+      </div>
+
+      {/* Avviso: ricarica passiva non funzionante senza Pi Ads */}
+      <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 flex items-start gap-2 text-[10px] text-slate-400">
+        <X className="w-3.5 h-3.5 text-slate-500 shrink-0 mt-0.5" />
+        <span>
+          Ricarica passiva richiede Pi Ads SDK ufficiale. Attualmente non disponibile.
+        </span>
       </div>
     </div>
   );
