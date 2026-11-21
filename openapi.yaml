@@ -1,0 +1,676 @@
+openapi: 3.0.3
+info:
+  title: HAVE2WANT PLUS API
+  version: 1.0.0
+  description: |
+    API/backend per HAVE2WANT PLUS - Piattaforma territoriale P2P con pagamenti Pi Network.
+    
+    **Autenticazione:**
+    - Pi Network Pioneer: `Authorization: Bearer <pi_access_token>`
+    - Firebase Auth: `X-Firebase-Token: <id_token>` (per `/api/wallet/points`)
+    - Server-to-server: `PI_API_KEY` (header interno, non esposto al client)
+    
+    **Idempotenza:** Header `Idempotency-Key` obbligatorio per operazioni mutanti (`/api/pi/withdraw`, consigliato per altre).
+    
+    **Rate Limiting:** 30 req/min/IP su `/api/pi/*` (header `X-RateLimit-Limit/Remaining/Reset`).
+    
+    **Errori:** Formato uniforme `{ success: false, error: string, mode?: string, details?: any }`.
+    
+    **Credenziali richieste (server-side):**
+    - `PI_API_KEY` — per `/api/pi/*` (fail-closed 503 se assente)
+    - `PI_WALLET_SEED` + `PI_WALLET_PUBLIC_KEY` — per A2U withdraw (fail-closed 501 se assenti)
+    - `FIREBASE_SERVICE_ACCOUNT_JSON` — per Auth/Firestore (fail-closed 503 se assente)
+    - `FIREBASE_WEB_API_KEY` — per verifica Firebase ID token
+
+servers:
+  - url: http://localhost:3000
+    description: Development server (Express)
+  - url: https://have2want-plus.workers.dev
+    description: Production (Cloudflare Worker)
+
+tags:
+  - name: System
+    description: Health check, configurazione, validazione
+  - name: Authentication
+    description: Bridge Pi Network → Firebase Auth
+  - name: Pi Payments
+    description: Approvazione, completamento, prelievi A2U (server-side verification)
+  - name: Wallet
+    description: Sincronizzazione punti comunitari e merchant Pi balance
+  - name: Weather
+    description: Proxy CORS RainViewer (radar + tile)
+  - name: Testnet
+    description: Flat DB prodotti/testnet (read-only in worker)
+
+paths:
+  # ==========================================
+  # SYSTEM
+  # ==========================================
+  /validation-key.txt:
+    get:
+      tags: [System]
+      summary: Chiave validazione Pi Network (root)
+      responses:
+        '200':
+          description: Chiave 128 char
+          content:
+            text/plain:
+              schema:
+                type: string
+                pattern: '^[a-f0-9]{128}$'
+        '404':
+          description: Non trovato
+
+  /.well-known/validation-key.txt:
+    get:
+      tags: [System]
+      summary: Chiave validazione Pi Network (well-known)
+      responses:
+        '200':
+          description: Chiave 128 char
+          content:
+            text/plain:
+              schema:
+                type: string
+                pattern: '^[a-f0-9]{128}$'
+
+  /api/health:
+    get:
+      tags: [System]
+      summary: Health check + stato credenziali server
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/pi/config:
+    get:
+      tags: [System]
+      summary: Configurazione Pi Network lato server
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PiConfigResponse'
+
+  # ==========================================
+  # AUTHENTICATION
+  # ==========================================
+  /api/auth/firebase-token:
+    post:
+      tags: [Authentication]
+      summary: Scambia Pi accessToken per Firebase Custom Token
+      security:
+        - PiBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: {}
+      responses:
+        '200':
+          description: Custom Token generato
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FirebaseTokenResponse'
+        '401':
+          description: Token Pi non valido/scaduto
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Firebase Service Account non configurato
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ==========================================
+  # PI PAYMENTS
+  # ==========================================
+  /api/pi/approve:
+    post:
+      tags: [Pi Payments]
+      summary: Approvazione server-side pagamento Pi (dopo onReadyForServerApproval)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PiApproveRequest'
+      responses:
+        '200':
+          description: Approvato
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PiApproveResponse'
+        '400':
+          description: paymentId mancante/non valido
+        '409':
+          description: Duplicato (già approvato/completato)
+        '503':
+          description: PI_API_KEY non configurata (fail-closed)
+        '502':
+          description: Errore connessione Pi Network
+
+  /api/pi/complete:
+    post:
+      tags: [Pi Payments]
+      summary: Completamento server-side con txid blockchain (dopo onReadyForServerCompletion)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PiCompleteRequest'
+      responses:
+        '200':
+          description: Completato
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PiCompleteResponse'
+        '400':
+          description: Campi mancanti/non validi
+        '409':
+          description: Duplicato paymentId o txid / pagamento annullato
+        '503':
+          description: PI_API_KEY non configurata
+        '502':
+          description: Errore connessione Pi Network
+
+  /api/pi/withdraw:
+    post:
+      tags: [Pi Payments]
+      summary: Prelievo App-to-User (A2U) con firma Ed25519/XDR su Horizon
+      security:
+        - PiBearer: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PiWithdrawRequest'
+      responses:
+        '200':
+          description: Prelievo completato on-chain
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PiWithdrawResponse'
+        '400':
+          description: Importo/indirizzo non validi / Idempotency-Key mancante
+        '401':
+          description: uid/accessToken mancanti o non validi
+        '403':
+          description: uid non corrisponde a /v2/me (anti-spoofing)
+        '409':
+          description: Idempotency-Key duplicata / saldo insufficiente
+        '501':
+          description: PI_WALLET_SEED/PUBLIC_KEY mancanti (firma Horizon)
+        '502':
+          description: Errore Pi Platform API / Horizon
+        '503':
+          description: PI_API_KEY non configurata (produzione)
+
+  # ==========================================
+  # WALLET
+  # ==========================================
+  /api/wallet/points:
+    post:
+      tags: [Wallet]
+      summary: Sincronizzazione atomica punti wallet su Firestore (server-authoritative)
+      security:
+        - PiBearer: []
+        - FirebaseToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WalletPointsRequest'
+      responses:
+        '200':
+          description: Sincronizzato
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WalletPointsResponse'
+        '400':
+          description: Azione non autorizzata / saldo insufficiente / piPaymentId mancante
+        '401':
+          description: Token mancante/non valido
+        '403':
+          description: Tentativo modifica wallet altrui
+        '503':
+          description: FIREBASE_SERVICE_ACCOUNT_JSON non configurato
+
+  # ==========================================
+  # WEATHER (RainViewer CORS Proxy)
+  # ==========================================
+  /api/weather/rainviewer:
+    get:
+      tags: [Weather]
+      summary: Proxy CORS per weather-maps.json (cache 2 min)
+      responses:
+        '200':
+          description: Dati radar RainViewer
+          content:
+            application/json:
+              schema:
+                type: object
+        '502':
+          description: Errore upstream
+
+  /api/weather/rainviewer/tile:
+    get:
+      tags: [Weather]
+      summary: Proxy tile immagine radar (solo domini RainViewer)
+      parameters:
+        - name: url
+          in: query
+          schema:
+            type: string
+            format: uri
+          description: URL completo tile (es. https://tilecache.rainviewer.com/...)
+        - name: path
+          in: query
+          schema:
+            type: string
+          description: Path relativo (es. /v2/radar/1/tile.png)
+      responses:
+        '200':
+          description: Immagine PNG
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: URL non valido / dominio non permesso (SSRF protection)
+        '502':
+          description: Errore upstream
+
+  # ==========================================
+  # TESTNET (Flat DB prodotti)
+  # ==========================================
+  /api/testnet/query:
+    get:
+      tags: [Testnet]
+      summary: Query prodotti testnet (lat, lng, q, category)
+      parameters:
+        - name: lat
+          in: query
+          schema:
+            type: number
+        - name: lng
+          in: query
+          schema:
+            type: number
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: category
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista prodotti
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestnetQueryResponse'
+    post:
+      tags: [Testnet]
+      summary: Query prodotti testnet (body JSON)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TestnetQueryRequest'
+      responses:
+        '200':
+          description: Lista prodotti
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestnetQueryResponse'
+
+components:
+  securitySchemes:
+    PiBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: Pi Network accessToken
+      description: Pi Pioneer accessToken da Pi.createPayment / Pi.authenticate
+    FirebaseToken:
+      type: apiKey
+      in: header
+      name: X-Firebase-Token
+      description: Firebase ID Token (alternativa a PiBearer per /api/wallet/points)
+
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: Chiave idempotenza (UUID v4) - obbligatoria per /api/pi/withdraw
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    # System
+    HealthResponse:
+      type: object
+      required: [status, validationKeyAvailable, piApiConfigured, piMode, firebaseCustomAuthConfigured, idempotencyScope, a2uHorizonSigningConfigured]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        validationKeyAvailable:
+          type: boolean
+        piApiConfigured:
+          type: boolean
+        piMode:
+          type: string
+          enum: [live_pi_api, structured_fallback, unconfigured]
+        firebaseCustomAuthConfigured:
+          type: boolean
+        idempotencyScope:
+          type: string
+          enum: [d1_global, firestore_global, local_file, edge_cache_pop, in_memory]
+        a2uHorizonSigningConfigured:
+          type: boolean
+        runtime:
+          type: string
+          enum: [express, cloudflare-worker]
+          description: Solo in worker
+
+    PiConfigResponse:
+      type: object
+      required: [sandbox, serverConfigured, mode, firebaseCustomAuthConfigured, idempotencyScope, a2uHorizonSigningConfigured]
+      properties:
+        sandbox:
+          type: boolean
+        serverConfigured:
+          type: boolean
+        mode:
+          type: string
+          enum: [live_pi_api, structured_fallback, unconfigured]
+        firebaseCustomAuthConfigured:
+          type: boolean
+        idempotencyScope:
+          type: string
+          enum: [d1_global, firestore_global, local_file, edge_cache_pop, in_memory]
+        a2uHorizonSigningConfigured:
+          type: boolean
+
+    # Auth
+    FirebaseTokenResponse:
+      type: object
+      required: [success, customToken, firebaseUid, piUid, username]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        customToken:
+          type: string
+          description: Firebase Custom Token (RS256)
+        firebaseUid:
+          type: string
+          pattern: '^[a-z0-9_-]{1,64}$'
+        piUid:
+          type: string
+        username:
+          type: string
+
+    # Pi Payments
+    PiApproveRequest:
+      type: object
+      required: [paymentId]
+      properties:
+        paymentId:
+          type: string
+          pattern: '^[A-Za-z0-9_.:-]{3,128}$'
+
+    PiApproveResponse:
+      type: object
+      required: [approved, paymentId, mode]
+      properties:
+        approved:
+          type: boolean
+        paymentId:
+          type: string
+        mode:
+          type: string
+          enum: [live_pi_api, unconfigured]
+        payment:
+          type: object
+          description: Risposta Pi API /v2/payments/{id}/approve
+        timestamp:
+          type: string
+          format: date-time
+        error:
+          type: string
+        details:
+          type: object
+
+    PiCompleteRequest:
+      type: object
+      required: [paymentId, txid]
+      properties:
+        paymentId:
+          type: string
+          pattern: '^[A-Za-z0-9_.:-]{3,128}$'
+        txid:
+          type: string
+          pattern: '^[A-Za-z0-9_.:-]{3,128}$'
+
+    PiCompleteResponse:
+      type: object
+      required: [completed, paymentId, txid, mode]
+      properties:
+        completed:
+          type: boolean
+        paymentId:
+          type: string
+        txid:
+          type: string
+        mode:
+          type: string
+          enum: [live_pi_api, unconfigured]
+        idempotencyScope:
+          type: string
+          enum: [d1_global, firestore_global, local_file, edge_cache_pop, in_memory]
+        payment:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+        error:
+          type: string
+        details:
+          type: object
+
+    PiWithdrawRequest:
+      type: object
+      required: [requestedPi, walletAddress, uid]
+      properties:
+        requestedPi:
+          type: number
+          minimum: 0.5
+          maximum: 100
+        walletAddress:
+          type: string
+          minLength: 6
+          maxLength: 128
+          pattern: '^G[A-Z2-7]{55}$'
+        pioneerUsername:
+          type: string
+        uid:
+          type: string
+          pattern: '^[A-Za-z0-9_.:-]{3,128}$'
+        idempotencyKey:
+          type: string
+          format: uuid
+          description: Anche in header Idempotency-Key
+
+    PiWithdrawResponse:
+      type: object
+      required: [success, mode]
+      properties:
+        success:
+          type: boolean
+        completed:
+          type: boolean
+        mode:
+          type: string
+          enum: [live_pi_api, unconfigured]
+        stage:
+          type: string
+          enum: [a2u_completed_on_chain, horizon_signing_unconfigured, pi_payment_create_failed, horizon_submit_failed, pi_payment_complete_failed, pending_incomplete_server_payment, incomplete_check_failed]
+        paymentId:
+          type: string
+        txHash:
+          type: string
+          nullable: true
+        ledger:
+          type: integer
+        netPiSent:
+          type: number
+        feeDeducted:
+          type: number
+        walletAddress:
+          type: string
+        pioneerUsername:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        idempotencyScope:
+          type: string
+          enum: [d1_global, firestore_global, local_file, edge_cache_pop, in_memory]
+        error:
+          type: string
+        message:
+          type: string
+
+    # Wallet
+    WalletPointsRequest:
+      type: object
+      required: [actionType, description, txId]
+      properties:
+        walletId:
+          type: string
+          pattern: '^[a-zA-Z0-9_-]{1,64}$'
+        pointsDelta:
+          type: number
+          description: Ignorato per earn actions (server usa SERVER_EARN_ACTION_RATES)
+        merchantPiDelta:
+          type: number
+        actionType:
+          type: string
+          enum: [WELCOME_BONUS, QUICK_SPONSOR_AD, BANNER_CLICK, COMMUNITY_SHARING, REAL_LISTING_BASIC, REAL_LISTING_VERIFIED, REAL_EXCHANGE_CONCLUDED, AD_REWARD_EARN, SPEND_LISTING_FEATURE, EARN_COMMUNITY_ENGAGE, MERCHANT_REWARD_DEPOSIT, MERCHANT_PI_ADJUST, WITHDRAW_PI, WITHDRAW_REFUND, BADGE_AWARD, COMMUNITY_DONATION, COMMUNITY_SUSPENDED_MEAL, COMMUNITY_PRO_TOOLS]
+        description:
+          type: string
+          maxLength: 180
+        txId:
+          type: string
+          description: Deve essere univoco (deduplicazione)
+        piPaymentId:
+          type: string
+          description: Obbligatorio se merchantPiDelta > 0
+        pioneerUsername:
+          type: string
+        pioneerWalletAddress:
+          type: string
+        adStreamEnabled:
+          type: boolean
+        adCompletedStreakDelta:
+          type: number
+        firebaseIdToken:
+          type: string
+        piAccessToken:
+          type: string
+
+    WalletPointsResponse:
+      type: object
+      required: [success, synced, pointsBalance, totalPointsEarned, merchantPiBalance, appliedPointsDelta]
+      properties:
+        success:
+          type: boolean
+        synced:
+          type: boolean
+        deduplicated:
+          type: boolean
+        pointsBalance:
+          type: integer
+        totalPointsEarned:
+          type: integer
+        merchantPiBalance:
+          type: number
+          format: float
+        appliedPointsDelta:
+          type: integer
+        error:
+          type: string
+
+    # Testnet
+    TestnetQueryRequest:
+      type: object
+      properties:
+        user_lat:
+          type: number
+        user_lng:
+          type: number
+        q:
+          type: string
+        category:
+          type: string
+
+    TestnetQueryResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            type: object
+
+    # Error
+    ErrorResponse:
+      type: object
+      required: [success, error]
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+        error:
+          type: string
+        mode:
+          type: string
+          enum: [live_pi_api, structured_fallback, unconfigured]
+        details:
+          type: object
+        duplicate:
+          type: boolean
+        idempotencyScope:
+          type: string

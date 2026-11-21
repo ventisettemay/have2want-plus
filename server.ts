@@ -2,6 +2,8 @@ import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import yaml from 'yamljs';
+import swaggerUi from 'swagger-ui-express';
 import { createServer as createViteServer } from 'vite';
 import {
   hasFirebaseServiceAccount,
@@ -286,6 +288,18 @@ async function startServer() {
       },
     }));
   }
+
+  // OpenAPI / Swagger UI
+  const openApiSpec = yaml.load(path.join(process.cwd(), 'openapi.yaml'));
+  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openApiSpec, {
+    customCss: '.swagger-ui .topbar { display: none }',
+    customSiteTitle: 'HAVE2WANT PLUS API Docs',
+  }));
+  // OpenAPI raw YAML
+  app.get('/api/openapi.yaml', (_req, res) => {
+    res.setHeader('Content-Type', 'application/x-yaml');
+    res.send(fs.readFileSync(path.join(process.cwd(), 'openapi.yaml'), 'utf-8'));
+  });
 
   // Health check
   app.get('/api/health', (_req, res) => {
