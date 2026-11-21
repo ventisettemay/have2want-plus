@@ -48,6 +48,7 @@ export interface ListingDetailItem {
 }
 
 interface ListingDetailModalProps {
+  onOrder?: (listing: ListingDetailItem) => void;
   isOpen: boolean;
   listing: ListingDetailItem | null;
   onClose: () => void;
@@ -61,6 +62,7 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({
   onClose,
   onProposeBarter,
   onContactSeller,
+  onOrder,
 }) => {
   const [selectedImageIndex, setSelectedImageIndex] = useState<number>(0);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -340,6 +342,19 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({
               <MessageSquare className="w-4 h-4 text-cyan-400" />
               <span>Contatta Venditore</span>
             </button>
+
+            {listing.piPrice && listing.piPrice > 0 && onOrder && (
+              <button
+                onClick={() => {
+                  onClose();
+                  onOrder(listing);
+                }}
+                className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-black text-xs flex items-center justify-center gap-2 transition-transform active:scale-95 cursor-pointer shadow-md shadow-amber-500/20"
+              >
+                <ShoppingBag className="w-4 h-4" />
+                <span>Ordina ({listing.piPrice} π)</span>
+              </button>
+            )}
 
             <button
               onClick={() => {

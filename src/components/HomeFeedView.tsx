@@ -256,6 +256,11 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
   const [contactMessage, setContactMessage] = useState("");
   const [messageSentToast, setMessageSentToast] = useState(false);
 
+  // Marketplace Modals
+  const [showMarketplaceOrder, setShowMarketplaceOrder] = useState(false);
+  const [selectedListingForOrder, setSelectedListingForOrder] = useState<HaveWantListing | null>(null);
+  const [showMarketplaceOrders, setShowMarketplaceOrders] = useState(false);
+
   // New Listing Form State
   const [newTitle, setNewTitle] = useState("");
   const [newIntent, setNewIntent] = useState<InteractionIntent>("BARATTO_SCAMBIO");
@@ -1550,6 +1555,29 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
         )}
       </AnimatePresence>
 
+      {/* MARKETPLACE ORDINE MODAL */}
+      <MarketplaceOrderModal
+        isOpen={showMarketplaceOrder}
+        onClose={() => setShowMarketplaceOrder(false)}
+        listing={selectedListingForOrder}
+        currentUser={currentUser}
+        onOrderPlaced={(order) => {
+          console.log('[HomeFeedView] Ordine piazzato:', order);
+          setShowMarketplaceOrder(false);
+        }}
+        onOpenOrders={() => {
+          setShowMarketplaceOrder(false);
+          setShowMarketplaceOrders(true);
+        }}
+      />
+
+      {/* MARKETPLACE ORDINI MODAL */}
+      <MarketplaceOrdersModal
+        isOpen={showMarketplaceOrders}
+        onClose={() => setShowMarketplaceOrders(false)}
+        currentUser={currentUser}
+      />
+
       {/* HUB DEDICATO PUNTI COMUNITARI & PRELIEVO PI NETWORK (0.50 Pi SOGLIA) */}
       <PioneerRewardsHubModal
         isOpen={showRewardsHub}
@@ -1597,6 +1625,12 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
           onContactSeller={() => {
             if (selectedListingForDetail) {
               setQuickContactListing(selectedListingForDetail);
+            }
+          }}
+          onOrder={(listing) => {
+            if (listing) {
+              setSelectedListingForOrder(listing);
+              setShowMarketplaceOrder(true);
             }
           }}
         />
