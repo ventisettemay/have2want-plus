@@ -37,9 +37,8 @@ export interface UsdtAccountingState {
 
 const STORAGE_KEY = "have2want_usdt_accounting_v1";
 
-// Tasso di conversione Pi -> USD (usato per convertire commissioni in Pi)
-// In produzione: usare piRealPriceService per il prezzo reale di mercato
-export const PI_TO_USD_RATE = 0.0751; // 1 pi ≈ $0.0751 (placeholder, aggiornato da piRealPriceService)
+// Tasso di conversione Pi -> USD RIMOSSO: usare esclusivamente piRealPriceService
+// export const PI_TO_USD_RATE = 0.0751; // RIMOSSO - placeholder hardcoded non conforme
 
 export function getUsdtAccountingState(): UsdtAccountingState {
   if (typeof localStorage === "undefined") {
@@ -89,7 +88,8 @@ export function registerExternalCommission(
 ): ExternalCommission {
   const state = getUsdtAccountingState();
   const commissionAmountUsd = Number((saleAmountUsd * commissionRate).toFixed(4));
-  const commissionAmountPi = Number((commissionAmountUsd / PI_TO_USD_RATE).toFixed(4));
+  // commissionAmountPi calcolato on-demand via piRealPriceService, non hardcodato
+  const commissionAmountPi = 0;
 
   const commission: ExternalCommission = {
     id: `comm_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -159,7 +159,7 @@ export function setPayoutWallet(address: string): UsdtAccountingState {
 
 /**
  * Converte una commissione USDT in Pi usando il prezzo reale di mercato.
- * Se disponibile, usa piRealPriceService; altrimenti usa il tasso fisso.
+ * Usa esclusivamente piRealPriceService. Nessun tasso fisso hardcodato.
  */
 export async function convertCommissionToPi(
   commissionAmountUsd: number
@@ -171,7 +171,8 @@ export async function convertCommissionToPi(
       return Number((commissionAmountUsd / price.priceUsd).toFixed(4));
     }
   } catch {
-    // fallback al tasso fisso
+    // Nessun fallback hardcodato: restituisce 0 e segnala errore al chiamante
+    console.warn('[USDT Accounting] Impossibile ottenere prezzo Pi reale');
   }
-  return Number((commissionAmountUsd / PI_TO_USD_RATE).toFixed(4));
+  return 0;
 }

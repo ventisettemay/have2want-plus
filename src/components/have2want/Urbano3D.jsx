@@ -110,62 +110,6 @@ export function buildNextTurnBanner(route, curLat, curLng) {
   };
 }
 
-// Generatore procedurale di edifici 3D volumetrici realistici ad alta definizione
-// Garantisce la presenza immediata di palazzi 3D volumetrici estrusi in qualsiasi città o quartiere
-function generateProceduralBuildingsGeoJSON(centerLat, centerLng) {
-  const features = [];
-  const rows = 11;
-  const cols = 11;
-  const stepLat = 0.00062;
-  const stepLng = 0.00092;
-  const sizeLat = 0.00045;
-  const sizeLng = 0.00068;
-
-  let id = 1;
-  for (let r = -Math.floor(rows / 2); r <= Math.floor(rows / 2); r++) {
-    for (let c = -Math.floor(cols / 2); c <= Math.floor(cols / 2); c++) {
-      // Lascia spazio per i viali principali e le piazze centrali
-      if ((r % 4 === 0 && Math.abs(c) <= 2) || (c % 4 === 0 && Math.abs(r) <= 2)) continue;
-
-      const jitterLat = Math.sin(id * 2.1) * 0.00010;
-      const jitterLng = Math.cos(id * 2.7) * 0.00014;
-      const bLat = centerLat + r * stepLat + jitterLat;
-      const bLng = centerLng + c * stepLng + jitterLng;
-
-      // Altezze volumetriche variabili realistiche: palazzi da 18m fino a grattacieli di 85m
-      const isCorner = Math.abs(r) >= 3 || Math.abs(c) >= 3;
-      const baseH = isCorner ? 22 + Math.abs(Math.sin(id * 3.1)) * 35 : 32 + Math.abs(Math.sin(id * 2.4)) * 52;
-      const height = Math.round(id % 5 === 0 ? baseH + 25 : baseH);
-      const isCommercial = id % 3 === 0;
-
-      features.push({
-        type: 'Feature',
-        id: id++,
-        properties: {
-          render_height: height,
-          render_min_height: 0,
-          name: isCommercial ? `Complesso Commerciale 3D #${id}` : `Edificio Residenziale 3D #${id}`,
-          building_type: isCommercial ? 'commercial' : 'residential',
-        },
-        geometry: {
-          type: 'Polygon',
-          coordinates: [[
-            [bLng - sizeLng / 2, bLat - sizeLat / 2],
-            [bLng + sizeLng / 2, bLat - sizeLat / 2],
-            [bLng + sizeLng / 2, bLat + sizeLat / 2],
-            [bLng - sizeLng / 2, bLat + sizeLat / 2],
-            [bLng - sizeLng / 2, bLat - sizeLat / 2],
-          ]],
-        },
-      });
-    }
-  }
-
-  return {
-    type: 'FeatureCollection',
-    features,
-  };
-}
 
 function getInitialTargetCoords(selectedCountry) {
   if (

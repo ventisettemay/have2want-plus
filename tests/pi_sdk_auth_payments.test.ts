@@ -122,7 +122,7 @@ describe('Pi Network SDK 2.0 - Autenticazione Pioneer & Pagamenti Blockchain', (
     expect(paymentResult.error).toContain('Fondi non sufficienti');
   });
 
-  it('Dovrebbe gestire la simulazione del pagamento quando window.Pi non è presente', async () => {
+  it('Dovrebbe restituire errore quando window.Pi non è presente (nessun pagamento simulato)', async () => {
     delete (window as any).Pi;
 
     const result = await executePiSdkPayment({
@@ -130,9 +130,8 @@ describe('Pi Network SDK 2.0 - Autenticazione Pioneer & Pagamenti Blockchain', (
       memo: 'Simulated Payment Test',
     });
 
-    expect(result.success).toBe(true);
-    expect(result.isSimulated).toBe(true);
-    expect(result.txId).toMatch(/^pi_tx_/);
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Pi Browser');
   });
 
   it('Dovrebbe invocare onReadyForServerApproval durante il flusso di pagamento Pi', async () => {

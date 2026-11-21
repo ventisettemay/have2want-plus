@@ -30,36 +30,9 @@ export const ListingExpiryManager: React.FC<ListingExpiryManagerProps> = ({
   onManualRenew,
   onClose,
 }) => {
-  // Generate mock lifecycle state for user listings (30-day persistence, 5-day warning)
-  const [lifecycles, setLifecycles] = useState<Record<string, ListingLifecycleRecord>>(() => {
-    const initial: Record<string, ListingLifecycleRecord> = {};
-    userListings.forEach((l, idx) => {
-      const daysRemaining = idx === 0 ? 4 : idx === 1 ? 18 : 27; // simulate one near expiration (4 days)
-      initial[l.id] = {
-        listingId: l.id,
-        publishedAt: new Date(Date.now() - (30 - daysRemaining) * 86400000).toISOString(),
-        expiresAt: new Date(Date.now() + daysRemaining * 86400000).toISOString(),
-        autoRenewEnabled: true,
-        notificationSent5DaysBefore: daysRemaining <= 5,
-        daysRemaining,
-        status: daysRemaining <= 0 ? "scaduto_disattivato" : daysRemaining <= 5 ? "in_scadenza" : "attivo",
-      };
-    });
-    return initial;
-  });
+  const [lifecycles, setLifecycles] = useState<Record<string, ListingLifecycleRecord>>({});
 
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
-
-  // Persiste lifecycle su localStorage per sopravvivere ai reload
-  useEffect(() => {
-    try {
-      localStorage.setItem('h2w_listing_lifecycles', JSON.stringify(lifecycles));
-    } catch (e) {
-      console.warn('[ListingExpiryManager] Impossibile salvare lifecycle:', e);
-    }
-  }, [lifecycles]);
-
-  // Carica lifecycle salvati all'avvio
+  // Carica lifecycle da localStorage (persistenza locale temporanea, in attesa di Firestore)
   useEffect(() => {
     try {
       const saved = localStorage.getItem('h2w_listing_lifecycles');
@@ -74,15 +47,23 @@ export const ListingExpiryManager: React.FC<ListingExpiryManagerProps> = ({
     }
   }, []);
 
+  // Persiste lifecycle su localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('h2w_listing_lifecycles', JSON.stringify(lifecycles));
+    } catch (e) {
+      console.warn('[ListingExpiryManager] Impossibile salvare lifecycle:', e);
+    }
+  }, [lifecycles]);
+
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+
   const handleToggle = (id: string) => {
     const current = lifecycles[id]?.autoRenewEnabled ?? true;
     const nextVal = !current;
     setLifecycles((prev) => ({
       ...prev,
-      [id]: {
-        ...prev[id],
-        autoRenewEnabled: nextVal,
-      },
+      [id]: { ...prev[id], autoRenewEnabled: nextVal },
     }));
     onToggleAutoRenew(id, nextVal);
     setToastMsg(nextVal ? "Rinnovo automatico ATTIVATO" : "Rinnovo automatico DISATTIVATO (l'annuncio scadrà dopo 30 giorni)");
@@ -104,6 +85,10 @@ export const ListingExpiryManager: React.FC<ListingExpiryManagerProps> = ({
     setToastMsg("Annuncio rinnovato per ulteriori 30 giorni su Google Earth 3D!");
     setTimeout(() => setToastMsg(null), 3500);
   };
+
+  // Avviso: se non ci sono lifecycle salvati, mostra avviso
+  const hasAnyLifecycle = Object.keys(lifecycles).length > 0;
+  const showDataUnavailable = userListings.length > 0 && !hasAnyLifecycle;
 
   return (
     <div className="bg-slate-950 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-5 font-sans">
@@ -127,10 +112,7 @@ export const ListingExpiryManager: React.FC<ListingExpiryManagerProps> = ({
         </div>
 
         {onClose && (
-          <button
-            onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-          >
+          <button onClick={onClose} className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
             <X className="w-5 h-5" />
           </button>
         )}
@@ -143,6 +125,16 @@ export const ListingExpiryManager: React.FC<ListingExpiryManagerProps> = ({
           <b>Regola di Igiene Geospaziale</b>: Ogni annuncio resta visibile sulla mappa 3D per <b>30 giorni</b>. Se il <i>Rinnovo Automatico</i> è <b>ON</b>, si prolunga scalando una micro-frazione di crediti Ad-Reward; se è <b>OFF</b>, scompare automaticamente per evitare annunci fantasma o obsoleti.
         </div>
       </div>
+
+      {/* Avviso: dati reali non disponibili */}
+      {showDataUnavailable && (
+        <div className="p-4 rounded-2xl bg-amber-950/30 border border-amber-500/40 flex items-start gap-3">
+          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <div className="text-xs text-amber-200 leading-relaxed">
+            <b>Dati lifecycle non disponibili</b>: L'integrazione con il database (Firestore) per persistenza annunci 30 giorni e rinnovo automatico non è ancora completa. I dati mostrati qui saranno popolati quando il backend sarà configurato con <code>FIREBASE_SERVICE_ACCOUNT_JSON</code>.
+          </div>
+        </div>
+      )}
 
       {/* Toast Notification */}
       {toastMsg && (
@@ -167,14 +159,31 @@ export const ListingExpiryManager: React.FC<ListingExpiryManagerProps> = ({
           </div>
         ) : (
           userListings.map((listing) => {
-            const cycle = lifecycles[listing.id] || {
-              daysRemaining: 25,
-              autoRenewEnabled: true,
-              status: "attivo",
-              notificationSent5DaysBefore: false,
-            };
+            const cycle = lifecycles[listing.id];
+            const isNearExpiry = cycle?.daysRemaining !== undefined && cycle.daysRemaining <= 5;
 
-            const isNearExpiry = cycle.daysRemaining <= 5;
+            if (!cycle) {
+              return (
+                <div key={listing.id} className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800/50 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded font-mono ${
+                        listing.intent === "VENDO" ? "bg-emerald-500/20 text-emerald-300"
+                        : listing.intent === "BARATTO_SCAMBIO" ? "bg-amber-500/20 text-amber-300"
+                        : "bg-purple-500/20 text-purple-300"
+                      }`}>
+                        {listing.intent}
+                      </span>
+                      <ListingOriginBadge listing={listing} size="xs" compact={true} />
+                      <h4 className="text-xs font-bold text-white line-clamp-1">{listing.title}</h4>
+                    </div>
+                    <span className="text-xs text-slate-400 flex items-center gap-1">
+                      <Clock className="w-3 h-3" /> Lifecycle: <span className="text-amber-400">Non disponibile</span>
+                    </span>
+                  </div>
+                </div>
+              );
+            }
 
             return (
               <div
@@ -189,11 +198,9 @@ export const ListingExpiryManager: React.FC<ListingExpiryManagerProps> = ({
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded font-mono ${
-                        listing.intent === "VENDO"
-                          ? "bg-emerald-500/20 text-emerald-300"
-                          : listing.intent === "BARATTO_SCAMBIO"
-                          ? "bg-amber-500/20 text-amber-300"
-                          : "bg-purple-500/20 text-purple-300"
+                        listing.intent === "VENDO" ? "bg-emerald-500/20 text-emerald-300"
+                        : listing.intent === "BARATTO_SCAMBIO" ? "bg-amber-500/20 text-amber-300"
+                        : "bg-purple-500/20 text-purple-300"
                       }`}>
                         {listing.intent}
                       </span>
@@ -208,29 +215,26 @@ export const ListingExpiryManager: React.FC<ListingExpiryManagerProps> = ({
                         isNearExpiry ? "text-amber-400 animate-pulse" : "text-emerald-400"
                       }`}>
                         <Clock className="w-3 h-3" />
-                        <span>Scadenza: {cycle.daysRemaining} giorni rimasti</span>
+                        <span>Scadenza: {cycle?.daysRemaining ?? 'N/D'} giorni rimasti</span>
                       </span>
                     </div>
                   </div>
 
-                  {/* Actions & Auto-Renew Switch */}
                   <div className="flex items-center gap-3 shrink-0">
-                    {/* Auto-renew Switch */}
                     <button
                       onClick={() => handleToggle(listing.id)}
                       className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
-                        cycle.autoRenewEnabled
+                        cycle?.autoRenewEnabled
                           ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300"
                           : "bg-slate-800 border-slate-700 text-slate-400"
                       }`}
                     >
                       <span>Rinnovo Auto:</span>
-                      <b className={cycle.autoRenewEnabled ? "text-emerald-400" : "text-slate-400"}>
-                        {cycle.autoRenewEnabled ? "ON" : "OFF"}
+                      <b className={cycle?.autoRenewEnabled ? "text-emerald-400" : "text-slate-400"}>
+                        {cycle?.autoRenewEnabled ? "ON" : "OFF"}
                       </b>
                     </button>
 
-                    {/* Manual Renew Button if near expiry */}
                     {isNearExpiry && (
                       <button
                         onClick={() => handleRenewNow(listing.id)}
@@ -247,7 +251,7 @@ export const ListingExpiryManager: React.FC<ListingExpiryManagerProps> = ({
                   <div className="p-2.5 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center gap-2 text-xs text-amber-200">
                     <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
                     <span>
-                      <b>Notifica di preavviso:</b> Questo annuncio scadrà tra {cycle.daysRemaining} giorni. Con il rinnovo automatico attivo, verrà esteso senza interruzioni su Google Earth 3D.
+                      <b>Notifica di preavviso:</b> Questo annuncio scadrà tra {cycle?.daysRemaining} giorni. Con il rinnovo automatico attivo, verrà esteso senza interruzioni su Google Earth 3D.
                     </span>
                   </div>
                 )}

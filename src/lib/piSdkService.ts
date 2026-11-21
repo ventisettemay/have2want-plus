@@ -382,42 +382,15 @@ export async function executePiSdkPayment(options: {
     } else if (options.requireLivePiBrowser) {
       return {
         success: false,
-        isSimulated: true,
         sandbox: isSandbox,
         error: 'Pagamento reale non eseguibile fuori dal Pi Browser (window.Pi assente).',
       };
     } else {
-      // Preview web senza Pi Browser: flusso strutturato con verifica su backend
-      const simulatedPaymentId = 'pi_pay_' + Math.random().toString(36).substring(2, 10);
-      const approveRes = await notifyServerApproval(simulatedPaymentId);
-      if (!approveRes.ok) {
-        return {
-          success: false,
-          paymentId: simulatedPaymentId,
-          isSimulated: true,
-          sandbox: isSandbox,
-          error: approveRes.error || 'Approvazione preview rifiutata dal server.',
-        };
-      }
-      await new Promise((r) => setTimeout(r, 600));
-      const simulatedTxId = 'pi_tx_' + Math.random().toString(36).substring(2, 12) + '_verified';
-      const completeRes = await notifyServerCompletion(simulatedPaymentId, simulatedTxId);
-      if (!completeRes.ok) {
-        return {
-          success: false,
-          paymentId: simulatedPaymentId,
-          txId: simulatedTxId,
-          isSimulated: true,
-          sandbox: isSandbox,
-          error: completeRes.error || 'Completamento preview rifiutato dal server.',
-        };
-      }
+      // Preview web senza Pi Browser: NESSUN pagamento simulato
       return {
-        success: true,
-        paymentId: simulatedPaymentId,
-        txId: simulatedTxId,
-        isSimulated: true,
+        success: false,
         sandbox: isSandbox,
+        error: 'Pagamento Pi non disponibile: manca Pi Browser o PI_API_KEY lato server. Apri l\'app in Pi Browser per pagamenti reali.',
       };
     }
   } catch (err: any) {

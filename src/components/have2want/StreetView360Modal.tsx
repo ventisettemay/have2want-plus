@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
-import * as THREE from 'three';
+import React, { useState, useEffect } from 'react';
 import {
   Compass,
   Navigation,
@@ -11,22 +10,24 @@ import {
   Car,
   Maximize2,
   Minimize2,
+  ArrowRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { isValidCoord } from '@/lib/worldAtlas';
+import { calculateRealRoute } from '@/lib/routingService';
 
 interface StreetView360ModalProps {
-  isOpen?: boolean;
+  isOpen: boolean;
   onClose: () => void;
-  lat?: number;
-  lng?: number;
+  lat: number;
+  lng: number;
   cityName?: string;
   streetName?: string;
   placeName?: string;
 }
 
-export function StreetView360Modal({
-  isOpen = true,
+export default function StreetView360Modal({
+  isOpen,
   onClose,
   lat,
   lng,
@@ -34,20 +35,17 @@ export function StreetView360Modal({
   streetName = 'Corso Principale',
   placeName,
 }: StreetView360ModalProps) {
-  const canvasRef = useRef<HTMLDivElement>(null);
   const [currentStreet, setCurrentStreet] = useState(streetName);
   const [heading, setHeading] = useState(0);
   const [stepIndex, setStepIndex] = useState(0);
   const [navMode, setNavMode] = useState<'WALK' | 'DRIVE'>('WALK');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [resolvedRoad, setResolvedRoad] = useState<string>(streetName);
-  const [viewMode, setViewMode] = useState<'PANORAMAX' | '3D_THREE'>('PANORAMAX');
-  const [routeResult, setRouteResult] = useState<any>(null);
   const [panoramaxUrl, setPanoramaxUrl] = useState<string | null>(null);
   const [panoramaxLoading, setPanoramaxLoading] = useState<boolean>(true);
   const [hasPanoramaxPhoto, setHasPanoramaxPhoto] = useState<boolean>(false);
 
-  const hasValidCoords = isValidCoord(lat, lng);
+  const hasValidCoords = typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng);
 
   useEffect(() => {
     if (!isOpen || !hasValidCoords) {
@@ -113,18 +111,19 @@ export function StreetView360Modal({
     }
     resolveRealStreet();
     return () => { isMounted = false; };
-  }, [isOpen, hasValidCoords, lat, lng, streetName]);
+  }, [isOpen, lat, lng, streetName]);
+
+  const [routeResult, setRouteResult] = useState<any>(null);
 
   useEffect(() => {
     if (!isOpen || !hasValidCoords) return;
     let isMounted = true;
     async function loadRoute() {
       try {
-        const { calculateRealRoute } = await import('@/lib/routingService');
         const profile = navMode === 'DRIVE' ? 'driving' : 'walking';
-        const startLat = (lat as number) - 0.0028;
-        const startLng = (lng as number) - 0.0028;
-        const res = await calculateRealRoute(startLat, startLng, lat as number, lng as number, profile);
+        const startLat = lat - 0.0028;
+        const startLng = lng - 0.0028;
+        const res = await calculateRealRoute(startLat, startLng, lat, lng, profile);
         if (isMounted && res) {
           setRouteResult(res);
           setStepIndex(0);
@@ -135,7 +134,7 @@ export function StreetView360Modal({
     }
     loadRoute();
     return () => { isMounted = false; };
-  }, [isOpen, hasValidCoords, lat, lng, navMode]);
+  }, [isOpen, lat, lng, navMode]);
 
   const realSteps = routeResult?.steps || [];
   const currentStep = realSteps.length > 0 ? realSteps[stepIndex % realSteps.length] : {
@@ -143,200 +142,8 @@ export function StreetView360Modal({
     instruction: `Procedi verso destinazione lungo ${resolvedRoad}`,
     distanceMeters: 150,
     durationSeconds: 120,
-    location: hasValidCoords ? [lng, lat] : [0, 0],
+    location: [lng, lat],
   };
-
-  useEffect(() => {
-    if (!isOpen || !hasValidCoords || !canvasRef.current) return;
-    const container = canvasRef.current;
-    const width = container.clientWidth;
-    const height = container.clientHeight;
-
-    // Three.js 360 Panorama Setup
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
-    camera.position.set(0, 0, 0);
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-    renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    container.appendChild(renderer.domElement);
-
-    // Procedural High Quality Street Panorama Sphere
-    const sphereGeo = new THREE.SphereGeometry(50, 60, 40);
-    sphereGeo.scale(-1, 1, 1); // Inverti per vedere dall'interno
-
-    // Generatore di texture panoramica urbana equirettangolare procedurale realistica ad alta definizione
-    const canvas = document.createElement('canvas');
-    canvas.width = 2048;
-    canvas.height = 1024;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      // Cielo realistico con gradiente
-      const skyGrad = ctx.createLinearGradient(0, 0, 0, 512);
-      skyGrad.addColorStop(0, '#0284c7');
-      skyGrad.addColorStop(0.5, '#38bdf8');
-      skyGrad.addColorStop(0.85, '#bae6fd');
-      skyGrad.addColorStop(1, '#f8fafc');
-      ctx.fillStyle = skyGrad;
-      ctx.fillRect(0, 0, 2048, 512);
-
-      // Sole brillante
-      ctx.fillStyle = '#fffbeb';
-      ctx.beginPath();
-      ctx.arc(800, 220, 45, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Nuvole soffici
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
-      ctx.beginPath();
-      ctx.ellipse(400, 260, 160, 40, 0, 0, Math.PI * 2);
-      ctx.ellipse(1300, 200, 220, 50, 0, 0, Math.PI * 2);
-      ctx.ellipse(1700, 280, 180, 45, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Skyline di palazzi urbani realistici a 360° (orizzonte)
-      const bldgCount = 36;
-      const bldgWidth = 2048 / bldgCount;
-      for (let b = 0; b < bldgCount; b++) {
-        const bHeight = 160 + Math.sin(b * 1.5) * 80 + Math.cos(b * 3.2) * 45;
-        const bX = b * bldgWidth;
-        const bY = 512 - bHeight;
-        
-        // Colori facciate urbane calde e moderne
-        const hue = (b * 19) % 360;
-        ctx.fillStyle = `hsl(${hue}, 18%, ${30 + (b % 4) * 10}%)`;
-        ctx.fillRect(bX, bY, bldgWidth + 1, bHeight + 10);
-
-        // Finestre illuminate
-        ctx.fillStyle = 'rgba(254, 240, 138, 0.45)';
-        for (let wy = bY + 15; wy < 500; wy += 22) {
-          for (let wx = bX + 6; wx < bX + bldgWidth - 6; wx += 14) {
-            if ((b + wx + wy) % 3 !== 0) {
-              ctx.fillRect(wx, wy, 8, 12);
-            }
-          }
-        }
-      }
-
-      // Marciapiedi e livello strada
-      ctx.fillStyle = '#334155';
-      ctx.fillRect(0, 512, 2048, 80);
-
-      // Asfalto stradale realistico
-      const roadGrad = ctx.createLinearGradient(0, 592, 0, 1024);
-      roadGrad.addColorStop(0, '#1e293b');
-      roadGrad.addColorStop(1, '#0f172a');
-      ctx.fillStyle = roadGrad;
-      ctx.fillRect(0, 592, 2048, 432);
-
-      // Strisce segnaletiche pedonali e mezzeria
-      ctx.fillStyle = '#ffffff';
-      for (let rx = 0; rx < 2048; rx += 90) {
-        ctx.fillRect(rx, 780, 48, 12);
-      }
-    }
-
-    const panoTexture = new THREE.CanvasTexture(canvas);
-    panoTexture.minFilter = THREE.LinearFilter;
-    const panoMat = new THREE.MeshBasicMaterial({ map: panoTexture });
-    const panoSphere = new THREE.Mesh(sphereGeo, panoMat);
-    scene.add(panoSphere);
-
-    // Controlli Panoramici 360° con Touch & Mouse
-    let isUserInteracting = false;
-    let onPointerDownX = 0;
-    let onPointerDownY = 0;
-    let onPointerDownLon = 0;
-    let onPointerDownLat = 0;
-    let lon = 0;
-    let latCoord = 0;
-
-    const onPointerDown = (event: MouseEvent | Touch) => {
-      isUserInteracting = true;
-      onPointerDownX = event.clientX;
-      onPointerDownY = event.clientY;
-      onPointerDownLon = lon;
-      onPointerDownLat = latCoord;
-    };
-
-    const onPointerMove = (event: MouseEvent | Touch) => {
-      if (!isUserInteracting) return;
-      lon = (onPointerDownX - event.clientX) * 0.18 + onPointerDownLon;
-      latCoord = (event.clientY - onPointerDownY) * 0.18 + onPointerDownLat;
-      latCoord = Math.max(-80, Math.min(80, latCoord));
-      setHeading(Math.round(((lon % 360) + 360) % 360));
-    };
-
-    const onPointerUp = () => {
-      isUserInteracting = false;
-    };
-
-    const handleMouseDown = (e: MouseEvent) => onPointerDown(e);
-    const handleMouseMove = (e: MouseEvent) => onPointerMove(e);
-    const handleMouseUp = () => onPointerUp();
-
-    const handleTouchStart = (e: TouchEvent) => {
-      if (e.touches.length === 1) onPointerDown(e.touches[0]);
-    };
-    const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length === 1) onPointerMove(e.touches[0]);
-    };
-    const handleTouchEnd = () => onPointerUp();
-
-    container.addEventListener('mousedown', handleMouseDown);
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-    container.addEventListener('touchstart', handleTouchStart, { passive: true });
-    window.addEventListener('touchmove', handleTouchMove, { passive: true });
-    window.addEventListener('touchend', handleTouchEnd, { passive: true });
-
-    let animId: number;
-    const animate = () => {
-      animId = requestAnimationFrame(animate);
-
-      // Angoli della telecamera
-      const phi = THREE.MathUtils.degToRad(90 - latCoord);
-      const theta = THREE.MathUtils.degToRad(lon);
-
-      const targetX = 500 * Math.sin(phi) * Math.cos(theta);
-      const targetY = 500 * Math.cos(phi);
-      const targetZ = 500 * Math.sin(phi) * Math.sin(theta);
-
-      camera.lookAt(targetX, targetY, targetZ);
-      renderer.render(scene, camera);
-    };
-
-    animate();
-
-    const handleResize = () => {
-      if (!canvasRef.current) return;
-      const w = canvasRef.current.clientWidth;
-      const h = canvasRef.current.clientHeight;
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-    };
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      cancelAnimationFrame(animId);
-      window.removeEventListener('resize', handleResize);
-      container.removeEventListener('mousedown', handleMouseDown);
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-      container.removeEventListener('touchstart', handleTouchStart);
-      window.removeEventListener('touchmove', handleTouchMove);
-      window.removeEventListener('touchend', handleTouchEnd);
-      sphereGeo.dispose();
-      panoMat.dispose();
-      panoTexture.dispose();
-      renderer.dispose();
-      if (container.contains(renderer.domElement)) {
-        container.removeChild(renderer.domElement);
-      }
-    };
-  }, [isOpen, hasValidCoords, stepIndex]);
 
   const stepForward = () => {
     setStepIndex((prev) => prev + 1);
@@ -371,25 +178,13 @@ export function StreetView360Modal({
                 <span className="truncate max-w-[200px] sm:max-w-xs">{currentStep.name}</span>
               </div>
               <div className="text-[10px] text-zinc-400 flex items-center gap-2 mt-0.5">
-                {hasValidCoords ? (
-                  <>
-                    <span>Lat: {(lat as number).toFixed(4)}</span>
-                    <span>Lng: {(lng as number).toFixed(4)}</span>
-                  </>
-                ) : (
-                  <span className="text-amber-400">Coordinate non disponibili</span>
-                )}
+                <span>Lat: {lat.toFixed(4)}</span>
+                <span>Lng: {lng.toFixed(4)}</span>
                 <span className="text-amber-400 font-bold">Bussola: {heading}°</span>
               </div>
               <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                <span className={`px-2 py-0.5 rounded-full text-[9px] font-mono font-bold border ${
-                  viewMode === 'PANORAMAX'
-                    ? 'bg-emerald-500/20 text-[#00ff66] border-emerald-500/40'
-                    : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                }`}>
-                  {viewMode === 'PANORAMAX'
-                    ? '📷 FOTOGRAFIA 360° REALE • Panoramax API Live'
-                    : '🌐 RICOSTRUZIONE 3D • Procedurale Fotogrammetrica Three.js'}
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold border bg-emerald-500/20 text-[#00ff66] border-emerald-500/40">
+                  📷 FOTOGRAFIA 360° REALE • Panoramax Open-Source (OpenStreetMap)
                 </span>
               </div>
             </div>
@@ -397,55 +192,28 @@ export function StreetView360Modal({
 
           {/* Controls Right */}
           <div className="flex items-center gap-2 pointer-events-auto flex-wrap justify-end">
-            {/* Mode Switcher: Panoramax vs 3D */}
             <div className="bg-black/90 backdrop-blur-md p-1 rounded-xl border border-zinc-800 flex items-center gap-1">
               <button
                 type="button"
-                onClick={() => setViewMode('PANORAMAX')}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
-                  viewMode === 'PANORAMAX' ? 'bg-[#00ff66] text-black font-black' : 'text-zinc-400 hover:text-white'
+                onClick={() => setNavMode('WALK')}
+                className={`p-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  navMode === 'WALK' ? 'bg-[#00ff66] text-black font-black' : 'text-zinc-400 hover:text-white'
                 }`}
-                title="Visualizza foto stradali reali a 360° da Panoramax"
+                title="Modalità A Piedi (5 km/h)"
               >
-                <span>📷 Panoramax 360°</span>
+                <Footprints className="w-4 h-4" />
               </button>
               <button
                 type="button"
-                onClick={() => setViewMode('3D_THREE')}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
-                  viewMode === '3D_THREE' ? 'bg-amber-500 text-black font-black' : 'text-zinc-400 hover:text-white'
+                onClick={() => setNavMode('DRIVE')}
+                className={`p-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  navMode === 'DRIVE' ? 'bg-amber-500 text-black font-black' : 'text-zinc-400 hover:text-white'
                 }`}
-                title="Passa alla navigazione 3D fotogrammetrica con indicazioni svolta per svolta"
+                title="Modalità Auto / Conducente (35 km/h)"
               >
-                <span>🌐 Vista 3D</span>
+                <Car className="w-4 h-4" />
               </button>
             </div>
-
-            {/* Walk / Drive Toggle (Only in 3D Mode) */}
-            {viewMode === '3D_THREE' && (
-              <div className="bg-black/90 backdrop-blur-md p-1 rounded-xl border border-zinc-800 flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setNavMode('WALK')}
-                  className={`p-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    navMode === 'WALK' ? 'bg-[#00ff66] text-black font-black' : 'text-zinc-400 hover:text-white'
-                  }`}
-                  title="Modalità A Piedi (5 km/h)"
-                >
-                  <Footprints className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setNavMode('DRIVE')}
-                  className={`p-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    navMode === 'DRIVE' ? 'bg-amber-500 text-black font-black' : 'text-zinc-400 hover:text-white'
-                  }`}
-                  title="Modalità Auto / Conducente (35 km/h)"
-                >
-                  <Car className="w-4 h-4" />
-                </button>
-              </div>
-            )}
 
             <button
               type="button"
@@ -459,8 +227,8 @@ export function StreetView360Modal({
             <button
               type="button"
               onClick={onClose}
-              className="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 hover:border-[#00ff66] text-white font-black text-xs flex items-center gap-1.5 cursor-pointer shadow-lg transition-colors"
-              title="Torna alla Mappa"
+              className="px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer"
+              title="Esci da Street View 360°"
             >
               <ArrowLeft className="w-4 h-4 text-[#00ff66]" />
               <span>← Torna alla Mappa</span>
@@ -491,65 +259,49 @@ export function StreetView360Modal({
         ) : (
           <>
             {/* Panoramax Real 360 Photo Iframe / Loading / Empty State */}
-            {viewMode === 'PANORAMAX' && (
+            {panoramaxLoading ? (
               <div className="w-full h-full relative flex items-center justify-center bg-black">
-                {panoramaxLoading ? (
-                  <div className="text-center px-4">
-                    <div className="inline-block w-9 h-9 border-4 border-[#00ff66] border-t-transparent rounded-full animate-spin mb-3" />
-                    <p className="text-sm font-bold text-zinc-300">Ricerca foto stradale Panoramax in corso...</p>
-                    <p className="text-xs text-zinc-500 mt-1">
-                      Coordinate: {(lat as number).toFixed(4)}, {(lng as number).toFixed(4)}
-                    </p>
-                  </div>
-                ) : hasPanoramaxPhoto && panoramaxUrl ? (
-                  <iframe
-                    src={panoramaxUrl}
-                    title="Panoramax 360 Real Street View"
-                    className="w-full h-full border-none"
-                    allow="geolocation; accelerometer; gyroscope"
-                    allowFullScreen
-                  />
-                ) : (
-                  <div className="text-center max-w-md mx-4 p-6 bg-zinc-900/80 rounded-2xl border border-zinc-800 shadow-2xl">
-                    <AlertCircle className="w-12 h-12 text-amber-400 mx-auto mb-3" />
-                    <h3 className="text-base font-black text-white mb-1.5">
-                      Nessuna foto Panoramax disponibile
-                    </h3>
-                    <p className="text-xs text-zinc-400 mb-5 leading-relaxed">
-                      Non risultano scatti panoramici geolocalizzati registrati in questo tratto stradale ({(lat as number).toFixed(4)}, {(lng as number).toFixed(4)}). Puoi tornare alla mappa o attivare la vista 3D procedurale.
-                    </p>
-                    <div className="flex items-center justify-center gap-2.5 flex-wrap">
-                      <button
-                        type="button"
-                        onClick={onClose}
-                        className="bg-[#00ff66] hover:bg-[#00e65c] text-black px-4 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer transition-colors"
-                      >
-                        <ArrowLeft className="w-3.5 h-3.5" />
-                        <span>← Torna alla Mappa</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setViewMode('3D_THREE')}
-                        className="bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-xl text-xs font-bold border border-zinc-700 cursor-pointer transition-colors"
-                      >
-                        🌐 Apri Vista 3D
-                      </button>
-                    </div>
-                  </div>
-                )}
+                <div className="text-center px-4">
+                  <div className="inline-block w-9 h-9 border-4 border-[#00ff66] border-t-transparent rounded-full animate-spin mb-3" />
+                  <p className="text-sm font-bold text-zinc-300">Ricerca foto stradale Panoramax in corso...</p>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    Coordinate: {lat.toFixed(4)}, {lng.toFixed(4)}
+                  </p>
+                </div>
+              </div>
+            ) : hasPanoramaxPhoto && panoramaxUrl ? (
+              <iframe
+                src={panoramaxUrl}
+                title="Panoramax 360 Real Street View"
+                className="w-full h-full border-none"
+                allow="geolocation; accelerometer; gyroscope"
+                allowFullScreen
+              />
+            ) : (
+              <div className="w-full h-full relative flex items-center justify-center bg-black">
+                <div className="text-center max-w-md mx-4 p-6 bg-zinc-900/80 rounded-2xl border border-zinc-800 shadow-2xl">
+                  <AlertCircle className="w-12 h-12 text-amber-400 mx-auto mb-3" />
+                  <h3 className="text-base font-black text-white mb-1.5">
+                    Nessuna foto Panoramax disponibile
+                  </h3>
+                  <p className="text-xs text-zinc-400 mb-5 leading-relaxed">
+                    Non risultano scatti panoramici geolocalizzati registrati in questo tratto stradale ({lat.toFixed(4)}, {lng.toFixed(4)}). Puoi tornare alla mappa.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="bg-[#00ff66] hover:bg-[#00e65c] text-black px-4 py-2 rounded-xl text-xs font-black inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>← Torna alla Mappa</span>
+                  </button>
+                </div>
               </div>
             )}
+          </>
+        )}
 
-            {/* 360 WebGL Canvas Viewport */}
-            <div
-              ref={canvasRef}
-              className={`w-full h-full cursor-grab active:cursor-grabbing relative select-none ${
-                viewMode === '3D_THREE' ? 'block' : 'hidden'
-              }`}
-            />
-
-            {/* Turn-by-Turn GPS Directions Overlay at Bottom (Only in 3D Navigation Mode) */}
-            {viewMode === '3D_THREE' && (
+        {/* Turn-by-Turn GPS Directions Overlay at Bottom */}
         <div className="absolute bottom-4 left-4 right-4 z-30 pointer-events-none flex flex-col sm:flex-row items-center justify-between gap-3">
           {/* Turn instruction banner */}
           <div className="bg-black/95 backdrop-blur-md px-4 py-3 rounded-2xl border border-emerald-500/40 text-white shadow-2xl pointer-events-auto flex items-center gap-3 w-full sm:w-auto">
@@ -593,19 +345,7 @@ export function StreetView360Modal({
             </button>
           </div>
         </div>
-        )}
-
-        {/* Interactive Helper Overlay: Pan instruction */}
-        <div className="absolute top-20 left-4 z-20 pointer-events-none hidden sm:block">
-          <div className="bg-black/70 backdrop-blur-sm px-3 py-1.5 rounded-xl border border-zinc-800 text-[10px] text-zinc-300">
-            🖐️ Trascina con mouse o touch per ruotare la visuale a 360°
-          </div>
-        </div>
-          </>
-        )}
       </div>
     </div>
   );
 }
-
-export default StreetView360Modal;
