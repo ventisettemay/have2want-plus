@@ -31,6 +31,7 @@ import {
   recordPiPayment,
   type WalletSyncEnv,
 } from './server/firestoreWalletSync';
+import { getGoogleDatastoreAccessToken } from './server/firebaseAuthToken';
 import {
   loadTestnetFlatDb,
   parseMultipartTestnetBody,
@@ -953,6 +954,755 @@ async function startServer() {
       }
     }
   );
+
+  // ==================== CHAT API ====================
+  // Crea o recupera chat P2P tra due utenti
+  app.post('/api/chats', async (req, res) => {
+    const piAccessToken = extractBearerToken(req) || (typeof req.body?.piAccessToken === 'string' ? req.body.piAccessToken : '');
+    const { participant2Uid, listingId } = req.body || {};
+    
+    if (!piAccessToken) {
+      return res.status(401).json({ success: false, error: 'Token Pi Pioneer obbligatorio' });
+    }
+    if (!participant2Uid || !isValidPiIdentifier(participant2Uid)) {
+      return res.status(400).json({ success: false, error: 'participant2Uid mancante o non valido' });
+    }
+
+    const env = getServerEnv();
+    const sa = resolveFirebaseServiceAccount(env);
+    if (!sa) {
+      return res.status(503).json({ success: false, error: 'FIREBASE_SERVICE_ACCOUNT non configurato' });
+    }
+
+    try {
+      // Verifica identità caller via Pi
+      const meRes = await fetch(`${PI_API_BASE}/me`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${piAccessToken}` },
+        redirect: 'error',
+      });
+      if (!meRes.ok) {
+        return res.status(401).json({ success: false, error: 'Token Pi non valido' });
+      }
+      const meData: any = await meRes.json().catch(() => ({}));
+      const callerUid = meData?.uid;
+      if (!callerUid || callerUid === participant2Uid) {
+        return res.status(400).json({ success: false, error: 'Utenti non validi' });
+      }
+
+      const accessToken = await getGoogleDatastoreAccessToken(sa);
+      const baseUrl = `https://firestore.googleapis.com/v1/projects/${sa.project_id}/databases/${encodeURIComponent(sa.database_id || 'ai-studio-have2want-09f05358-8731-443d-8237-790b65e889fa')}/documents`;
+
+      // Chat ID deterministico (ordinato lessicograficamente)
+      const chatId = [callerUid, participant2Uid].sort().join('_');
+      const chatDocUrl = `${baseUrl}/chats/${encodeURIComponent(chatId)}`;
+
+      // Controlla se chat esiste già
+      const existingRes = await fetch(chatDocUrl, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (existingRes.ok) {
+        const existing = await existingRes.json();
+        return res.status(200).json({ success: true, chatId, existing: true, chat: existing.fields });
+      }
+
+      // Crea nuova chat
+      const now = new Date().toISOString();
+      const fieldsPayload = {
+        id: { stringValue: chatId },
+        participant1Uid: { stringValue: [callerUid, participant2Uid].sort()[0] },
+        participant2Uid: { stringValue: [callerUid, participant2Uid].sort()[1] },
+        createdAt: { timestampValue: now },
+        lastMessageAt: { timestampValue: now },
+        lastMessagePreview: { stringValue: 'Nuova chat' },
+        unreadCount: { integerValue: '0' },
+        ...(listingId ? { listingId: { stringValue: listingId } } : {}),
+      };
+
+      const createRes = await fetch(`${baseUrl}/chats?documentId=${encodeURIComponent(chatId)}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields: fieldsPayload }),
+        redirect: 'error',
+      });
+
+      if (!createRes.ok) {
+        const err = await createRes.text().catch(() => '');
+        return res.status(500).json({ success: false, error: `Errore creazione chat: ${err}` });
+      }
+
+      return res.status(201).json({ success: true, chatId, existing: false });
+    } catch (err: any) {
+      return res.status(502).json({ success: false, error: err?.message || 'Errore creazione chat' });
+    }
+  });
+
+  // Lista chat dell'utente
+  app.get('/api/chats', async (req, res) => {
+    const piAccessToken = extractBearerToken(req) || (typeof req.query?.piAccessToken === 'string' ? req.query.piAccessToken : '');
+    if (!piAccessToken) {
+      return res.status(401).json({ success: false, error: 'Token Pi Pioneer obbligatorio' });
+    }
+
+    const env = getServerEnv();
+    const sa = resolveFirebaseServiceAccount(env);
+    if (!sa) {
+      return res.status(503).json({ success: false, error: 'FIREBASE_SERVICE_ACCOUNT non configurato' });
+    }
+
+    try {
+      const meRes = await fetch(`${PI_API_BASE}/me`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${piAccessToken}` },
+        redirect: 'error',
+      });
+      if (!meRes.ok) {
+        return res.status(401).json({ success: false, error: 'Token Pi non valido' });
+      }
+      const meData: any = await meRes.json().catch(() => ({}));
+      const uid = meData?.uid;
+      if (!uid) {
+        return res.status(401).json({ success: false, error: 'UID non valido' });
+      }
+
+      const accessToken = await getGoogleDatastoreAccessToken(sa);
+      const baseUrl = `https://firestore.googleapis.com/v1/projects/${sa.project_id}/databases/${encodeURIComponent(sa.database_id || 'ai-studio-have2want-09f05358-8731-443d-8237-790b65e889fa')}/documents`;
+
+      // Query chat dove l'utente è participant1Uid O participant2Uid
+      // Firestore non supporta OR nativo, facciamo due query
+      const url1 = `${baseUrl}/chats?where=participant1Uid==${encodeURIComponent(uid)}&orderBy=lastMessageAt desc`;
+      const url2 = `${baseUrl}/chats?where=participant2Uid==${encodeURIComponent(uid)}&orderBy=lastMessageAt desc`;
+
+      const [res1, res2] = await Promise.all([
+        fetch(url1, { headers: { Authorization: `Bearer ${accessToken}` } }),
+        fetch(url2, { headers: { Authorization: `Bearer ${accessToken}` } }),
+      ]);
+
+      const [data1, data2] = await Promise.all([res1.json().catch(() => ({})), res2.json().catch(() => ({}))]);
+      const chats1 = data1?.documents || [];
+      const chats2 = data2?.documents || [];
+      const allChats = [...chats1, ...chats2].map(doc => ({ id: doc.name.split('/').pop(), ...doc.fields }));
+
+      return res.status(200).json({ success: true, chats: allChats });
+    } catch (err: any) {
+      return res.status(502).json({ success: false, error: err?.message || 'Errore recupero chat' });
+    }
+  });
+
+  // Messaggi in una chat
+  app.get('/api/chats/:chatId/messages', async (req, res) => {
+    const piAccessToken = extractBearerToken(req) || (typeof req.query?.piAccessToken === 'string' ? req.query.piAccessToken : '');
+    const { chatId } = req.params;
+    
+    if (!piAccessToken || !chatId) {
+      return res.status(400).json({ success: false, error: 'Parametri mancanti' });
+    }
+
+    const env = getServerEnv();
+    const sa = resolveFirebaseServiceAccount(env);
+    if (!sa) {
+      return res.status(503).json({ success: false, error: 'FIREBASE_SERVICE_ACCOUNT non configurato' });
+    }
+
+    try {
+      const meRes = await fetch(`${PI_API_BASE}/me`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${piAccessToken}` },
+        redirect: 'error',
+      });
+      if (!meRes.ok) {
+        return res.status(401).json({ success: false, error: 'Token Pi non valido' });
+      }
+      const meData: any = await meRes.json().catch(() => ({}));
+      const uid = meData?.uid;
+      if (!uid) {
+        return res.status(401).json({ success: false, error: 'UID non valido' });
+      }
+
+      const accessToken = await getGoogleDatastoreAccessToken(sa);
+      const baseUrl = `https://firestore.googleapis.com/v1/projects/${sa.project_id}/databases/${encodeURIComponent(sa.database_id || 'ai-studio-have2want-09f05358-8731-443d-8237-790b65e889fa')}/documents`;
+
+      // Verifica che l'utente sia partecipante della chat
+      const chatRes = await fetch(`${baseUrl}/chats/${encodeURIComponent(chatId)}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!chatRes.ok) {
+        return res.status(404).json({ success: false, error: 'Chat non trovata' });
+      }
+      const chat = await chatRes.json();
+      const p1 = chat.fields?.participant1Uid?.stringValue;
+      const p2 = chat.fields?.participant2Uid?.stringValue;
+      if (p1 !== uid && p2 !== uid) {
+        return res.status(403).json({ success: false, error: 'Accesso negato' });
+      }
+
+      // Recupera messaggi
+      const msgRes = await fetch(`${baseUrl}/chats/${encodeURIComponent(chatId)}/messages?orderBy=timestamp desc`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!msgRes.ok) {
+        return res.status(200).json({ success: true, messages: [] });
+      }
+      const msgData = await msgRes.json();
+      const messages = (msgData.documents || []).map(doc => ({ id: doc.name.split('/').pop(), ...doc.fields }));
+
+      return res.status(200).json({ success: true, messages });
+    } catch (err: any) {
+      return res.status(502).json({ success: false, error: err?.message || 'Errore recupero messaggi' });
+    }
+  });
+
+  // Invia messaggio in chat
+  app.post('/api/chats/:chatId/messages', async (req, res) => {
+    const piAccessToken = extractBearerToken(req) || (typeof req.body?.piAccessToken === 'string' ? req.body.piAccessToken : '');
+    const { chatId } = req.params;
+    const { content, type = 'text', voiceNoteUrl, voiceDurationSec } = req.body || {};
+    
+    if (!piAccessToken || !chatId || !content) {
+      return res.status(400).json({ success: false, error: 'Parametri mancanti' });
+    }
+
+    const env = getServerEnv();
+    const sa = resolveFirebaseServiceAccount(env);
+    if (!sa) {
+      return res.status(503).json({ success: false, error: 'FIREBASE_SERVICE_ACCOUNT non configurato' });
+    }
+
+    try {
+      const meRes = await fetch(`${PI_API_BASE}/me`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${piAccessToken}` },
+        redirect: 'error',
+      });
+      if (!meRes.ok) {
+        return res.status(401).json({ success: false, error: 'Token Pi non valido' });
+      }
+      const meData: any = await meRes.json().catch(() => ({}));
+      const uid = meData?.uid;
+      if (!uid) {
+        return res.status(401).json({ success: false, error: 'UID non valido' });
+      }
+
+      const accessToken = await getGoogleDatastoreAccessToken(sa);
+      const baseUrl = `https://firestore.googleapis.com/v1/projects/${sa.project_id}/databases/${encodeURIComponent(sa.database_id || 'ai-studio-have2want-09f05358-8731-443d-8237-790b65e889fa')}/documents`;
+
+      // Verifica partecipante
+      const chatRes = await fetch(`${baseUrl}/chats/${encodeURIComponent(chatId)}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!chatRes.ok) {
+        return res.status(404).json({ success: false, error: 'Chat non trovata' });
+      }
+      const chat = await chatRes.json();
+      const p1 = chat.fields?.participant1Uid?.stringValue;
+      const p2 = chat.fields?.participant2Uid?.stringValue;
+      if (p1 !== uid && p2 !== uid) {
+        return res.status(403).json({ success: false, error: 'Accesso negato' });
+      }
+
+      const messageId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const now = new Date().toISOString();
+      
+      const msgFields = {
+        id: { stringValue: messageId },
+        chatId: { stringValue: chatId },
+        senderUid: { stringValue: uid },
+        content: { stringValue: content },
+        type: { stringValue: type },
+        timestamp: { timestampValue: now },
+        ...(voiceNoteUrl ? { voiceNoteUrl: { stringValue: voiceNoteUrl } } : {}),
+        ...(voiceDurationSec ? { voiceDurationSec: { integerValue: String(voiceDurationSec) } } : {}),
+      };
+
+      const msgRes = await fetch(`${baseUrl}/chats/${encodeURIComponent(chatId)}/messages?documentId=${encodeURIComponent(messageId)}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields: msgFields }),
+        redirect: 'error',
+      });
+
+      if (!msgRes.ok) {
+        return res.status(500).json({ success: false, error: 'Errore invio messaggio' });
+      }
+
+      // Aggiorna lastMessageAt e preview nella chat
+      await fetch(`${baseUrl}/chats/${encodeURIComponent(chatId)}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fields: {
+            lastMessageAt: { timestampValue: now },
+            lastMessagePreview: { stringValue: content.slice(0, 200) },
+          },
+        }),
+      });
+
+      return res.status(201).json({ success: true, messageId });
+    } catch (err: any) {
+      return res.status(502).json({ success: false, error: err?.message || 'Errore invio messaggio' });
+    }
+  });
+
+  // ==================== WEBRTC SIGNALING API ====================
+  // Crea chiamata WebRTC
+  app.post('/api/calls', async (req, res) => {
+    const piAccessToken = extractBearerToken(req) || (typeof req.body?.piAccessToken === 'string' ? req.body.piAccessToken : '');
+    const { calleeUid, listingId } = req.body || {};
+    
+    if (!piAccessToken) {
+      return res.status(401).json({ success: false, error: 'Token Pi Pioneer obbligatorio' });
+    }
+    if (!calleeUid || !isValidPiIdentifier(calleeUid)) {
+      return res.status(400).json({ success: false, error: 'calleeUid mancante o non valido' });
+    }
+
+    const env = getServerEnv();
+    const sa = resolveFirebaseServiceAccount(env);
+    if (!sa) {
+      return res.status(503).json({ success: false, error: 'FIREBASE_SERVICE_ACCOUNT non configurato' });
+    }
+
+    try {
+      const meRes = await fetch(`${PI_API_BASE}/me`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${piAccessToken}` },
+        redirect: 'error',
+      });
+      if (!meRes.ok) {
+        return res.status(401).json({ success: false, error: 'Token Pi non valido' });
+      }
+      const meData: any = await meRes.json().catch(() => ({}));
+      const callerUid = meData?.uid;
+      if (!callerUid || callerUid === calleeUid) {
+        return res.status(400).json({ success: false, error: 'Utenti non validi' });
+      }
+
+      const accessToken = await getGoogleDatastoreAccessToken(sa);
+      const baseUrl = `https://firestore.googleapis.com/v1/projects/${sa.project_id}/databases/${encodeURIComponent(sa.database_id || 'ai-studio-have2want-09f05358-8731-443d-8237-790b65e889fa')}/documents`;
+
+      const callId = `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const now = new Date().toISOString();
+      
+      const fieldsPayload = {
+        id: { stringValue: callId },
+        callerUid: { stringValue: callerUid },
+        calleeUid: { stringValue: calleeUid },
+        status: { stringValue: 'ringing' },
+        createdAt: { timestampValue: now },
+        ...(listingId ? { listingId: { stringValue: listingId } } : {}),
+      };
+
+      const createRes = await fetch(`${baseUrl}/calls?documentId=${encodeURIComponent(callId)}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields: fieldsPayload }),
+        redirect: 'error',
+      });
+
+      if (!createRes.ok) {
+        return res.status(500).json({ success: false, error: 'Errore creazione chiamata' });
+      }
+
+      return res.status(201).json({ success: true, callId });
+    } catch (err: any) {
+      return res.status(502).json({ success: false, error: err?.message || 'Errore creazione chiamata' });
+    }
+  });
+
+  // Signaling (offer, answer, ice-candidate)
+  app.post('/api/calls/:callId/signal', async (req, res) => {
+    const piAccessToken = extractBearerToken(req) || (typeof req.body?.piAccessToken === 'string' ? req.body.piAccessToken : '');
+    const { callId } = req.params;
+    const { type, payload } = req.body || {};
+    
+    if (!piAccessToken || !callId || !type || !payload) {
+      return res.status(400).json({ success: false, error: 'Parametri mancanti' });
+    }
+    if (!['offer', 'answer', 'ice-candidate'].includes(type)) {
+      return res.status(400).json({ success: false, error: 'Type non valido' });
+    }
+
+    const env = getServerEnv();
+    const sa = resolveFirebaseServiceAccount(env);
+    if (!sa) {
+      return res.status(503).json({ success: false, error: 'FIREBASE_SERVICE_ACCOUNT non configurato' });
+    }
+
+    try {
+      const meRes = await fetch(`${PI_API_BASE}/me`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${piAccessToken}` },
+        redirect: 'error',
+      });
+      if (!meRes.ok) {
+        return res.status(401).json({ success: false, error: 'Token Pi non valido' });
+      }
+      const meData: any = await meRes.json().catch(() => ({}));
+      const uid = meData?.uid;
+      if (!uid) {
+        return res.status(401).json({ success: false, error: 'UID non valido' });
+      }
+
+      const accessToken = await getGoogleDatastoreAccessToken(sa);
+      const baseUrl = `https://firestore.googleapis.com/v1/projects/${sa.project_id}/databases/${encodeURIComponent(sa.database_id || 'ai-studio-have2want-09f05358-8731-443d-8237-790b65e889fa')}/documents`;
+
+      // Verifica partecipante
+      const callRes = await fetch(`${baseUrl}/calls/${encodeURIComponent(callId)}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!callRes.ok) {
+        return res.status(404).json({ success: false, error: 'Chiamata non trovata' });
+      }
+      const call = await callRes.json();
+      const caller = call.fields?.callerUid?.stringValue;
+      const callee = call.fields?.calleeUid?.stringValue;
+      if (caller !== uid && callee !== uid) {
+        return res.status(403).json({ success: false, error: 'Accesso negato' });
+      }
+
+      const signalId = `sig_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const now = new Date().toISOString();
+      
+      const signalFields = {
+        id: { stringValue: signalId },
+        callId: { stringValue: callId },
+        senderUid: { stringValue: uid },
+        type: { stringValue: type },
+        payload: { mapValue: { fields: Object.fromEntries(Object.entries(payload).map(([k, v]) => [k, { stringValue: String(v) }])) } },
+        timestamp: { timestampValue: now },
+      };
+
+      const signalRes = await fetch(`${baseUrl}/calls/${encodeURIComponent(callId)}/signaling?documentId=${encodeURIComponent(signalId)}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields: signalFields }),
+        redirect: 'error',
+      });
+
+      if (!signalRes.ok) {
+        return res.status(500).json({ success: false, error: 'Errore invio signaling' });
+      }
+
+      return res.status(201).json({ success: true, signalId });
+    } catch (err: any) {
+      return res.status(502).json({ success: false, error: err?.message || 'Errore signaling' });
+    }
+  });
+
+  // Recupera signaling messages per una chiamata
+  app.get('/api/calls/:callId/signaling', async (req, res) => {
+    const piAccessToken = extractBearerToken(req) || (typeof req.query?.piAccessToken === 'string' ? req.query.piAccessToken : '');
+    const { callId } = req.params;
+    
+    if (!piAccessToken || !callId) {
+      return res.status(400).json({ success: false, error: 'Parametri mancanti' });
+    }
+
+    const env = getServerEnv();
+    const sa = resolveFirebaseServiceAccount(env);
+    if (!sa) {
+      return res.status(503).json({ success: false, error: 'FIREBASE_SERVICE_ACCOUNT non configurato' });
+    }
+
+    try {
+      const meRes = await fetch(`${PI_API_BASE}/me`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${piAccessToken}` },
+        redirect: 'error',
+      });
+      if (!meRes.ok) {
+        return res.status(401).json({ success: false, error: 'Token Pi non valido' });
+      }
+      const meData: any = await meRes.json().catch(() => ({}));
+      const uid = meData?.uid;
+      if (!uid) {
+        return res.status(401).json({ success: false, error: 'UID non valido' });
+      }
+
+      const accessToken = await getGoogleDatastoreAccessToken(sa);
+      const baseUrl = `https://firestore.googleapis.com/v1/projects/${sa.project_id}/databases/${encodeURIComponent(sa.database_id || 'ai-studio-have2want-09f05358-8731-443d-8237-790b65e889fa')}/documents`;
+
+      // Verifica partecipante
+      const callRes = await fetch(`${baseUrl}/calls/${encodeURIComponent(callId)}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!callRes.ok) {
+        return res.status(404).json({ success: false, error: 'Chiamata non trovata' });
+      }
+      const call = await callRes.json();
+      const caller = call.fields?.callerUid?.stringValue;
+      const callee = call.fields?.calleeUid?.stringValue;
+      if (caller !== uid && callee !== uid) {
+        return res.status(403).json({ success: false, error: 'Accesso negato' });
+      }
+
+      const sigRes = await fetch(`${baseUrl}/calls/${encodeURIComponent(callId)}/signaling?orderBy=timestamp`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!sigRes.ok) {
+        return res.status(200).json({ success: true, signals: [] });
+      }
+      const sigData = await sigRes.json();
+      const signals = (sigData.documents || []).map(doc => ({ id: doc.name.split('/').pop(), ...doc.fields }));
+
+      return res.status(200).json({ success: true, signals });
+    } catch (err: any) {
+      return res.status(502).json({ success: false, error: err?.message || 'Errore recupero signaling' });
+    }
+  });
+
+  // Aggiorna stato chiamata
+  app.patch('/api/calls/:callId', async (req, res) => {
+    const piAccessToken = extractBearerToken(req) || (typeof req.body?.piAccessToken === 'string' ? req.body.piAccessToken : '');
+    const { callId } = req.params;
+    const { status, durationSec } = req.body || {};
+    
+    if (!piAccessToken || !callId || !status) {
+      return res.status(400).json({ success: false, error: 'Parametri mancanti' });
+    }
+    if (!['ringing', 'connected', 'ended', 'rejected', 'missed'].includes(status)) {
+      return res.status(400).json({ success: false, error: 'Status non valido' });
+    }
+
+    const env = getServerEnv();
+    const sa = resolveFirebaseServiceAccount(env);
+    if (!sa) {
+      return res.status(503).json({ success: false, error: 'FIREBASE_SERVICE_ACCOUNT non configurato' });
+    }
+
+    try {
+      const meRes = await fetch(`${PI_API_BASE}/me`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${piAccessToken}` },
+        redirect: 'error',
+      });
+      if (!meRes.ok) {
+        return res.status(401).json({ success: false, error: 'Token Pi non valido' });
+      }
+      const meData: any = await meRes.json().catch(() => ({}));
+      const uid = meData?.uid;
+      if (!uid) {
+        return res.status(401).json({ success: false, error: 'UID non valido' });
+      }
+
+      const accessToken = await getGoogleDatastoreAccessToken(sa);
+      const baseUrl = `https://firestore.googleapis.com/v1/projects/${sa.project_id}/databases/${encodeURIComponent(sa.database_id || 'ai-studio-have2want-09f05358-8731-443d-8237-790b65e889fa')}/documents`;
+
+      // Verifica partecipante
+      const callRes = await fetch(`${baseUrl}/calls/${encodeURIComponent(callId)}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!callRes.ok) {
+        return res.status(404).json({ success: false, error: 'Chiamata non trovata' });
+      }
+      const call = await callRes.json();
+      const caller = call.fields?.callerUid?.stringValue;
+      const callee = call.fields?.calleeUid?.stringValue;
+      if (caller !== uid && callee !== uid) {
+        return res.status(403).json({ success: false, error: 'Accesso negato' });
+      }
+
+      const now = new Date().toISOString();
+      const updateFields: any = { status: { stringValue: status } };
+      if (status === 'ended' || status === 'rejected') {
+        updateFields.endedAt = { timestampValue: now };
+        if (durationSec) updateFields.durationSec = { integerValue: String(durationSec) };
+      }
+
+      const updateRes = await fetch(`${baseUrl}/calls/${encodeURIComponent(callId)}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields: updateFields }),
+      });
+
+      if (!updateRes.ok) {
+        return res.status(500).json({ success: false, error: 'Errore aggiornamento chiamata' });
+      }
+
+      return res.status(200).json({ success: true });
+    } catch (err: any) {
+      return res.status(502).json({ success: false, error: err?.message || 'Errore aggiornamento chiamata' });
+    }
+  });
+
+  // ==================== SALVAVATUTTO GUIDES API ====================
+  // Crea guida
+  app.post('/api/guides', async (req, res) => {
+    const piAccessToken = extractBearerToken(req) || (typeof req.body?.piAccessToken === 'string' ? req.body.piAccessToken : '');
+    const { title, category, content, steps, tags, author, readTimeMin } = req.body || {};
+    
+    if (!piAccessToken) {
+      return res.status(401).json({ success: false, error: 'Token Pi Pioneer obbligatorio' });
+    }
+    if (!title || !content || !steps || !Array.isArray(steps) || steps.length === 0) {
+      return res.status(400).json({ success: false, error: 'Campi obbligatori mancanti' });
+    }
+
+    const env = getServerEnv();
+    const sa = resolveFirebaseServiceAccount(env);
+    if (!sa) {
+      return res.status(503).json({ success: false, error: 'FIREBASE_SERVICE_ACCOUNT non configurato' });
+    }
+
+    try {
+      const meRes = await fetch(`${PI_API_BASE}/me`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${piAccessToken}` },
+        redirect: 'error',
+      });
+      if (!meRes.ok) {
+        return res.status(401).json({ success: false, error: 'Token Pi non valido' });
+      }
+      const meData: any = await meRes.json().catch(() => ({}));
+      const uid = meData?.uid;
+      if (!uid) {
+        return res.status(401).json({ success: false, error: 'UID non valido' });
+      }
+
+      const accessToken = await getGoogleDatastoreAccessToken(sa);
+      const baseUrl = `https://firestore.googleapis.com/v1/projects/${sa.project_id}/databases/${encodeURIComponent(sa.database_id || 'ai-studio-have2want-09f05358-8731-443d-8237-790b65e889fa')}/documents`;
+
+      const guideId = `salv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const now = new Date().toISOString();
+      
+      const fieldsPayload = {
+        id: { stringValue: guideId },
+        authorUid: { stringValue: uid },
+        title: { stringValue: title },
+        category: { stringValue: category || 'Generale' },
+        content: { stringValue: content },
+        steps: { arrayValue: { values: steps.map(s => ({ stringValue: s })) } },
+        tags: { arrayValue: { values: (tags || []).map(t => ({ stringValue: t })) } },
+        author: { stringValue: author || meData?.username || 'Autore Locale' },
+        upvotes: { integerValue: '1' },
+        readTimeMin: { integerValue: String(readTimeMin || Math.max(2, Math.round(content.length / 100))) },
+        lastUpdated: { stringValue: now },
+      };
+
+      const createRes = await fetch(`${baseUrl}/guides?documentId=${encodeURIComponent(guideId)}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields: fieldsPayload }),
+        redirect: 'error',
+      });
+
+      if (!createRes.ok) {
+        return res.status(500).json({ success: false, error: 'Errore creazione guida' });
+      }
+
+      return res.status(201).json({ success: true, guideId });
+    } catch (err: any) {
+      return res.status(502).json({ success: false, error: err?.message || 'Errore creazione guida' });
+    }
+  });
+
+  // Lista guide (pubblica)
+  app.get('/api/guides', async (req, res) => {
+    const env = getServerEnv();
+    const sa = resolveFirebaseServiceAccount(env);
+    if (!sa) {
+      return res.status(503).json({ success: false, error: 'FIREBASE_SERVICE_ACCOUNT non configurato' });
+    }
+
+    try {
+      const accessToken = await getGoogleDatastoreAccessToken(sa);
+      const baseUrl = `https://firestore.googleapis.com/v1/projects/${sa.project_id}/databases/${encodeURIComponent(sa.database_id || 'ai-studio-have2want-09f05358-8731-443d-8237-790b65e889fa')}/documents`;
+
+      const res1 = await fetch(`${baseUrl}/guides?orderBy=lastUpdated desc&limit=50`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!res1.ok) {
+        return res.status(500).json({ success: false, error: 'Errore recupero guide' });
+      }
+      const data = await res1.json();
+      const guides = (data.documents || []).map(doc => ({ id: doc.name.split('/').pop(), ...doc.fields }));
+
+      return res.status(200).json({ success: true, guides });
+    } catch (err: any) {
+      return res.status(502).json({ success: false, error: err?.message || 'Errore recupero guide' });
+    }
+  });
+
+  // Upvote guida
+  app.post('/api/guides/:guideId/upvote', async (req, res) => {
+    const piAccessToken = extractBearerToken(req) || (typeof req.body?.piAccessToken === 'string' ? req.body.piAccessToken : '');
+    const { guideId } = req.params;
+    
+    if (!piAccessToken || !guideId) {
+      return res.status(400).json({ success: false, error: 'Parametri mancanti' });
+    }
+
+    const env = getServerEnv();
+    const sa = resolveFirebaseServiceAccount(env);
+    if (!sa) {
+      return res.status(503).json({ success: false, error: 'FIREBASE_SERVICE_ACCOUNT non configurato' });
+    }
+
+    try {
+      const meRes = await fetch(`${PI_API_BASE}/me`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${piAccessToken}` },
+        redirect: 'error',
+      });
+      if (!meRes.ok) {
+        return res.status(401).json({ success: false, error: 'Token Pi non valido' });
+      }
+      const meData: any = await meRes.json().catch(() => ({}));
+      const uid = meData?.uid;
+      if (!uid) {
+        return res.status(401).json({ success: false, error: 'UID non valido' });
+      }
+
+      const accessToken = await getGoogleDatastoreAccessToken(sa);
+      const baseUrl = `https://firestore.googleapis.com/v1/projects/${sa.project_id}/databases/${encodeURIComponent(sa.database_id || 'ai-studio-have2want-09f05358-8731-443d-8237-790b65e889fa')}/documents`;
+
+      // Controlla se l'utente è l'autore (non può votare la propria)
+      const guideRes = await fetch(`${baseUrl}/guides/${encodeURIComponent(guideId)}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!guideRes.ok) {
+        return res.status(404).json({ success: false, error: 'Guida non trovata' });
+      }
+      const guide = await guideRes.json();
+      if (guide.fields?.authorUid?.stringValue === uid) {
+        return res.status(403).json({ success: false, error: 'Non puoi votare la tua guida' });
+      }
+
+      // Atomic increment via FieldValue.increment non supportato in REST, usiamo transazione logica
+      // Per semplicità: leggi, incrementa, scrivi (con retry su conflitto)
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const getRes = await fetch(`${baseUrl}/guides/${encodeURIComponent(guideId)}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (!getRes.ok) return res.status(500).json({ success: false, error: 'Errore lettura guida' });
+        
+        const existing = await getRes.json();
+        const currentUpvotes = Number(existing.fields?.upvotes?.integerValue || '1');
+        const updateTime = existing.updateTime;
+        
+        const patchRes = await fetch(`${baseUrl}/guides/${encodeURIComponent(guideId)}?currentDocument.updateTime=${encodeURIComponent(updateTime)}`, {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fields: { upvotes: { integerValue: String(currentUpvotes + 1) } }
+          }),
+        });
+        
+        if (patchRes.ok) {
+          return res.status(200).json({ success: true, upvotes: currentUpvotes + 1 });
+        }
+        if (patchRes.status !== 409 && patchRes.status !== 412) {
+          return res.status(500).json({ success: false, error: 'Errore upvote' });
+        }
+      }
+
+      return res.status(409).json({ success: false, error: 'Conflitto upvote, riprova' });
+    } catch (err: any) {
+      return res.status(502).json({ success: false, error: err?.message || 'Errore upvote' });
+    }
+  });
 
   // 4. Integrazione Vite (dev) o Dist (produzione)
   const isRunningCompiledServer = Boolean(process.argv[1] && process.argv[1].endsWith('server.cjs'));

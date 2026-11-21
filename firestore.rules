@@ -22,6 +22,22 @@ service cloud.firestore {
       return resource.data;
     }
 
+    // Verifica che l'utente sia partecipante di una chat
+    function isChatParticipant(chatId) {
+      return isSignedIn() && (
+        request.auth.uid == get(/databases/$(database)/documents/chats/$(chatId)).data.participant1Uid
+        || request.auth.uid == get(/databases/$(database)/documents/chats/$(chatId)).data.participant2Uid
+      );
+    }
+
+    // Verifica che l'utente sia partecipante di una chiamata WebRTC
+    function isCallParticipant(callId) {
+      return isSignedIn() && (
+        request.auth.uid == get(/databases/$(database)/documents/calls/$(callId)).data.callerUid
+        || request.auth.uid == get(/databases/$(database)/documents/calls/$(callId)).data.calleeUid
+      );
+    }
+
     function isValidListing(data) {
       return data.keys().hasAll(['id', 'ownerUid', 'title'])
         && data.id is string && data.id.size() >= 1 && data.id.size() <= 128
@@ -270,6 +286,142 @@ service cloud.firestore {
         && existing().authorUid == request.auth.uid
         && incoming().authorUid == existing().authorUid
         && incoming().id == existing().id;
+
+      allow delete: if isSignedIn()
+        && isValidId(guideId)
+        && existing().authorUid == request.auth.uid;
+    }
+
+    // Segnalazioni di abuso (creazione da parte di utenti autenticati, lettura solo propria)
+    match /abuse_reports/{reportId} {
+      allow get: if isSignedIn() && existing().reporterUid == request.auth.uid;
+      allow list: if false;
+
+      allow create: if isSignedIn()
+        && isValidId(reportId)
+        && incoming().id == reportId
+        && incoming().reporterUid == request.auth.uid
+        && incoming().listingId is string && incoming().listingId.size() >= 1 && incoming().listingId.size() <= 128
+        && incoming().reason is string && incoming().reason.size() >= 3 && incoming().reason.size() <= 1000;
+
+      allow update, delete: if false;
+    }
+
+    // Chat P2P: una chat per coppia di utenti, messaggi in sotto-collezione
+    match /chats/{chatId} {
+      // Solo i due partecipanti possono leggere la chat
+      allow get, list: if isChatParticipant(chatId);
+
+      allow create: if isSignedIn()
+        && isValidId(chatId)
+        && incoming().id == chatId
+        && incoming().participant1Uid == request.auth.uid
+        && incoming().participant2Uid is string && incoming().participant2Uid.size() >= 1 && incoming().participant2Uid.size() <= 128
+        && incoming().participant1Uid != incoming().participant2Uid
+        && incoming().createdAt is timestamp
+        && incoming().lastMessageAt is timestamp
+        && incoming().lastMessagePreview is string && incoming().lastMessagePreview.size() <= 200
+        && (!incoming().keys().hasAny(['listingId']) || incoming().listingId is string && incoming().listingId.size() >= 1 && incoming().listingId.size() <= 128);
+
+      allow update: if isChatParticipant(chatId)
+        && incoming().participant1Uid == existing().participant1Uid
+        && incoming().participant2Uid == existing().participant2Uid
+        && incoming().diff(existing()).affectedKeys().hasOnly(['lastMessageAt', 'lastMessagePreview', 'unreadCount']);
+
+      allow delete: if false;
+
+      // Messaggi nella chat: solo partecipanti possono leggere/scrivere
+      match /messages/{messageId} {
+        allow get, list: if isChatParticipant(chatId);
+
+        allow create: if isChatParticipant(chatId)
+          && isValidId(messageId)
+          && incoming().id == messageId
+          && incoming().chatId == chatId
+          && incoming().senderUid == request.auth.uid
+          && incoming().content is string && incoming().content.size() >= 1 && incoming().content.size() <= 4000
+          && incoming().type in ['text', 'voice', 'system']
+          && incoming().timestamp is timestamp
+          && (!incoming().keys().hasAny(['voiceNoteUrl', 'voiceDurationSec']) ||
+              (incoming().voiceNoteUrl is string && incoming().voiceNoteUrl.size() <= 512
+               && incoming().voiceDurationSec is number && incoming().voiceDurationSec >= 1 && incoming().voiceDurationSec <= 300));
+
+        allow update, delete: if false;
+      }
+    }
+
+    // WebRTC Signaling per videochiamate
+    match /calls/{callId} {
+      // Solo i due partecipanti possono leggere la chiamata
+      allow get: if isCallParticipant(callId);
+
+      allow create: if isSignedIn()
+        && isValidId(callId)
+        && incoming().id == callId
+        && incoming().callerUid == request.auth.uid
+        && incoming().calleeUid is string && incoming().calleeUid.size() >= 1 && incoming().calleeUid.size() <= 128
+        && incoming().callerUid != incoming().calleeUid
+        && incoming().status in ['ringing', 'connected', 'ended', 'rejected', 'missed']
+        && incoming().createdAt is timestamp
+        && (!incoming().keys().hasAny(['listingId']) || incoming().listingId is string && incoming().listingId.size() >= 1 && incoming().listingId.size() <= 128);
+
+      allow update: if isCallParticipant(callId)
+        && incoming().callerUid == existing().callerUid
+        && incoming().calleeUid == existing().calleeUid
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'endedAt', 'durationSec']);
+
+      allow delete: if false;
+
+      // Signaling messages (SDP offer/answer, ICE candidates)
+      match /signaling/{signalId} {
+        allow get, list: if isCallParticipant(callId);
+
+        allow create: if isCallParticipant(callId)
+          && isValidId(signalId)
+          && incoming().id == signalId
+          && incoming().callId == callId
+          && incoming().senderUid == request.auth.uid
+          && incoming().type in ['offer', 'answer', 'ice-candidate']
+          && incoming().payload is map
+          && incoming().timestamp is timestamp;
+
+        allow update, delete: if false;
+      }
+    }
+
+    // Salvavatutto Guides - upvote atomico
+    match /guides/{guideId} {
+      allow get, list: if true;
+
+      allow create: if isSignedIn()
+        && isValidId(guideId)
+        && incoming().id == guideId
+        && incoming().authorUid == request.auth.uid
+        && incoming().title is string && incoming().title.size() >= 1 && incoming().title.size() <= 200
+        && incoming().content is string && incoming().content.size() >= 1 && incoming().content.size() <= 12000
+        && incoming().category is string && incoming().category.size() <= 100
+        && incoming().steps is list && incoming().steps.size() >= 1 && incoming().steps.size() <= 50
+        && incoming().tags is list && incoming().tags.size() <= 20
+        && incoming().author is string && incoming().author.size() >= 1 && incoming().author.size() <= 120
+        && incoming().upvotes is number && incoming().upvotes == 1
+        && incoming().readTimeMin is number && incoming().readTimeMin >= 1 && incoming().readTimeMin <= 60
+        && incoming().lastUpdated is string
+        && incoming().tags is list;
+
+      allow update: if isSignedIn()
+        && isValidId(guideId)
+        && (
+          // Autore può aggiornare contenuto (ma non upvotes direttamente)
+          (existing().authorUid == request.auth.uid
+           && incoming().authorUid == existing().authorUid
+           && incoming().id == existing().id
+           && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'content', 'category', 'steps', 'tags', 'author', 'readTimeMin', 'lastUpdated', 'tags']))
+          ||
+          // Chiunque autenticato può fare upvote (solo +1 atomico)
+          (existing().authorUid != request.auth.uid
+           && incoming().diff(existing()).affectedKeys().hasOnly(['upvotes'])
+           && incoming().upvotes == existing().upvotes + 1)
+        );
 
       allow delete: if isSignedIn()
         && isValidId(guideId)

@@ -966,7 +966,7 @@ export async function recordPiPayment(
 export const ECONOMIC_CONSTANTS = {
   POINTS_PER_PI: 1000,
   PI_PER_USDT: 1.0, // 1 π = 1 USDT (peg teorico, aggiornabile via oracle)
-  QUOTA_X_PERCENT: 0.10, // 10% Quota X su transazioni commerciali
+  QUOTA_X_PERCENT: 0.25, // 25% = 0.25 π (250 punti) - Valore ufficiale Quota X
   ECOQUOTA_PERCENT: 0.02, // 2% Ecoquota su transazioni
   MERCHANT_FEE_PERCENT: 0.025, // 2.5% fee esercenti
   MIN_WITHDRAWAL_PI: 0.5,

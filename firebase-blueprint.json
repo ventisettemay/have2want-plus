@@ -118,6 +118,68 @@
         "completedAt": { "type": "string", "maxLength": 64 }
       },
       "required": ["paymentId", "amountPi", "status", "uid"]
+    },
+    "Chat": {
+      "title": "Chat",
+      "description": "Chat P2P tra due utenti (acquirente-venditore, carpool, ecc.). Accesso riservato ai due partecipanti.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "participant1Uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "participant2Uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "lastMessageAt": { "type": "string", "format": "date-time" },
+        "lastMessagePreview": { "type": "string", "maxLength": 200 },
+        "unreadCount": { "type": "integer", "minimum": 0 },
+        "listingId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" }
+      },
+      "required": ["id", "participant1Uid", "participant2Uid", "createdAt", "lastMessageAt"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Messaggio in chat P2P (testo, nota vocale, sistema). Accesso solo ai partecipanti della chat.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "chatId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "senderUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "content": { "type": "string", "minLength": 1, "maxLength": 4000 },
+        "type": { "type": "string", "enum": ["text", "voice", "system"] },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "voiceNoteUrl": { "type": "string", "maxLength": 512 },
+        "voiceDurationSec": { "type": "integer", "minimum": 1, "maximum": 300 }
+      },
+      "required": ["id", "chatId", "senderUid", "content", "type", "timestamp"]
+    },
+    "Call": {
+      "title": "Call",
+      "description": "Videochiamata WebRTC tra due utenti. Accesso riservato ai due partecipanti.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "callerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "calleeUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "status": { "type": "string", "enum": ["ringing", "connected", "ended", "rejected", "missed"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "endedAt": { "type": "string", "format": "date-time" },
+        "durationSec": { "type": "integer", "minimum": 0 },
+        "listingId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" }
+      },
+      "required": ["id", "callerUid", "calleeUid", "status", "createdAt"]
+    },
+    "SignalingMessage": {
+      "title": "SignalingMessage",
+      "description": "Messaggio di signaling WebRTC (offer, answer, ice-candidate). Accesso solo ai partecipanti della chiamata.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "callId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "senderUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "type": { "type": "string", "enum": ["offer", "answer", "ice-candidate"] },
+        "payload": { "type": "object" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "callId", "senderUid", "type", "payload", "timestamp"]
     }
   },
   "firestore": {
@@ -152,6 +214,22 @@
     "/pi_payments/{paymentId}": {
       "schema": { "$ref": "#/entities/PiPaymentRecord" },
       "description": "Record pagamenti Pi Network (server-only). Traccia approvazione, completamento e metadati on-chain."
+    },
+    "/chats/{chatId}": {
+      "schema": { "$ref": "#/entities/Chat" },
+      "description": "Chat P2P tra due utenti. Accesso riservato ai due partecipanti."
+    },
+    "/chats/{chatId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessage" },
+      "description": "Messaggi in chat P2P. Accesso solo ai partecipanti."
+    },
+    "/calls/{callId}": {
+      "schema": { "$ref": "#/entities/Call" },
+      "description": "Videochiamata WebRTC. Accesso riservato ai due partecipanti."
+    },
+    "/calls/{callId}/signaling/{signalId}": {
+      "schema": { "$ref": "#/entities/SignalingMessage" },
+      "description": "Messaggi signaling WebRTC (offer, answer, ice-candidate). Accesso solo ai partecipanti."
     }
   }
 }
