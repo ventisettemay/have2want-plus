@@ -17,6 +17,8 @@ const SATELLITE_TO_CHANNEL: Record<SatelliteId, string> = {
   EXTERNAL_MARKET_SAT: 'EXTERNAL',
   COMMUNITY_RESCUE_SAT: 'COMUNITA',
   BUSINESS_ADS_SAT: 'BUSINESS_ADS',
+  WEBCAM: 'WEBCAM',
+  METEO_ROUTE: 'METEO_ROUTE',
 };
 
 interface OrbitalSatellitesHubProps {

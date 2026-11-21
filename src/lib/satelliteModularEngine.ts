@@ -11,7 +11,9 @@ export type SatelliteId =
   | 'GLOBAL_MARKET_SAT'
   | 'EXTERNAL_MARKET_SAT'
   | 'COMMUNITY_RESCUE_SAT'
-  | 'BUSINESS_ADS_SAT';
+  | 'BUSINESS_ADS_SAT'
+  | 'WEBCAM'
+  | 'METEO_ROUTE';
 
 export type PresetType =
   | 'ACCENDI_TUTTI'
@@ -179,6 +181,40 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
     targetComponent: 'BusinessSponsorModal',
     isActive: true,
   },
+  {
+    id: 'WEBCAM',
+    name: 'Webcam Pubbliche Live',
+    codeName: 'CAMSAT-OBS',
+    category: 'TERRITORIO',
+    icon: '📹',
+    color: '#06b6d4',
+    foilColor: 0x18181b,
+    altitudeKm: 800,
+    orbitMultiplier: 1.28,
+    speed: 0.00085,
+    inclination: 0.45,
+    startAngle: 6.1,
+    h2wRole: 'Webcam pubbliche, turistiche e di traffico in tempo reale',
+    targetComponent: 'LiveWebcamModal',
+    isActive: true,
+  },
+  {
+    id: 'METEO_ROUTE',
+    name: 'Meteo Navigazione',
+    codeName: 'WX-NAV-SAT',
+    category: 'METEO',
+    icon: '🧭',
+    color: '#38bdf8',
+    foilColor: 0xe2e8f0,
+    altitudeKm: 35786,
+    orbitMultiplier: 1.7,
+    speed: 0.0006,
+    inclination: 0.1,
+    startAngle: 0.3,
+    h2wRole: 'Meteo lungo i percorsi di navigazione (auto/bici/piedi)',
+    targetComponent: 'MeteoNavigazioneModal',
+    isActive: true,
+  },
 ];
 
 const STORAGE_KEY = 'h2w_satellites_modular_state_v2';
@@ -322,7 +358,9 @@ class SatelliteModularEngine {
           newState[sat.id] =
             sat.id === 'KM0_SAT' ||
             sat.id === 'STREET_360_SAT' ||
-            sat.id === 'BUSINESS_ADS_SAT';
+            sat.id === 'BUSINESS_ADS_SAT' ||
+            sat.id === 'WEBCAM' ||
+            sat.id === 'METEO_ROUTE';
         });
         break;
 

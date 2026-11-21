@@ -14,6 +14,8 @@ import { GlobalMarketplaceView } from './GlobalMarketplaceView';
 import BachecaLavoroP2P from './BachecaLavoroP2P';
 import LiveWeatherModal from './LiveWeatherModal';
 import StreetView360Modal from './StreetView360Modal';
+import LiveWebcamModal from './LiveWebcamModal';
+import MeteoNavigazioneModal from './MeteoNavigazioneModal';
 import SpacecraftInspectorModal from './SpacecraftInspectorModal';
 import { COUNTRIES } from '@/data/countries';
 import { SPONSORED_BUSINESSES, ITALIAN_REGIONS } from '@/data/regions';
@@ -1179,6 +1181,8 @@ export default function MapView3DContainer({
             STRADARIO: 'STRADARIO',
             CHAT: 'CHAT',
             BUSINESS_ADS: 'BUSINESS_ADS',
+            WEBCAM: 'WEBCAM',
+            METEO_ROUTE: 'METEO_ROUTE',
           };
           const targetChannel = CHANNEL_MAP[satId] || satId;
           setActiveSatellite(targetChannel);
@@ -1258,6 +1262,27 @@ export default function MapView3DContainer({
           lat={targetCoords.lat}
           lng={targetCoords.lng}
           cityName={selectedCountry?.name || 'Mondo'}
+        />
+      )}
+      {activeSatellite === 'WEBCAM' && (
+        <LiveWebcamModal
+          isOpen={true}
+          onClose={handleCloseSatelliteModal}
+          lat={targetCoords.lat}
+          lng={targetCoords.lng}
+          radiusKm={50}
+          countryCode={selectedCountry?.code || 'IT'}
+        />
+      )}
+      {activeSatellite === 'METEO_ROUTE' && (
+        <MeteoNavigazioneModal
+          isOpen={true}
+          onClose={handleCloseSatelliteModal}
+          startLat={targetCoords.lat}
+          startLng={targetCoords.lng}
+          endLat={targetCoords.lat + 0.5}
+          endLng={targetCoords.lng + 0.5}
+          profile="driving"
         />
       )}
       {activeSatellite === 'COMUNITA' && (
