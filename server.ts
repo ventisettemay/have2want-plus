@@ -42,6 +42,25 @@ const PI_API_BASE = 'https://api.minepi.com/v2';
 const MAX_LOCAL_ENTRIES = 10000;
 const LOCAL_IDEMPOTENCY_FILE = path.join(process.cwd(), '.runtime-idempotency.json');
 
+// Rate limiting store (in-memory per server instance)
+const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 30; // 30 requests per minute per IP
+const rateLimitStore = new Map<string, { count: number; windowStart: number }>();
+
+function checkRateLimit(ip: string): { allowed: boolean; remaining: number; resetAt: number } {
+  const now = Date.now();
+  const record = rateLimitStore.get(ip);
+  if (!record || now - record.windowStart >= RATE_LIMIT_WINDOW_MS) {
+    rateLimitStore.set(ip, { count: 1, windowStart: now });
+    return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - 1, resetAt: now + RATE_LIMIT_WINDOW_MS };
+  }
+  if (record.count >= RATE_LIMIT_MAX_REQUESTS) {
+    return { allowed: false, remaining: 0, resetAt: record.windowStart + RATE_LIMIT_WINDOW_MS };
+  }
+  record.count++;
+  return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - record.count, resetAt: record.windowStart + RATE_LIMIT_WINDOW_MS };
+}
+
 function createLocalFileHooks(): LocalFilePersistenceHooks {
   const store = new Map<string, string>();
   try {
@@ -196,6 +215,37 @@ async function startServer() {
 
     if (req.method === 'OPTIONS') {
       return res.status(204).end();
+    }
+    next();
+  });
+
+  // Rate limiting middleware per endpoint Pi sensibili
+  app.use('/api/pi/', (req, res, next) => {
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    const { allowed, remaining, resetAt } = checkRateLimit(ip);
+    
+    res.setHeader('X-RateLimit-Limit', RATE_LIMIT_MAX_REQUESTS.toString());
+    res.setHeader('X-RateLimit-Remaining', remaining.toString());
+    res.setHeader('X-RateLimit-Reset', Math.ceil(resetAt / 1000).toString());
+    
+    if (!allowed) {
+      console.warn(`[RATE_LIMIT] /api/pi/* blocked for IP ${ip}`);
+      return res.status(429).json({
+        error: 'Rate limit superato: troppe richieste. Riprovare tra 60 secondi.',
+        retryAfter: Math.ceil((resetAt - Date.now()) / 1000),
+      });
+    }
+    next();
+  });
+
+  // Validazione richieste Pi endpoints
+  app.use('/api/pi/', (req, res, next) => {
+    // Solo per metodi che modificano stato
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+      const contentType = req.headers['content-type'] || '';
+      if (!contentType.includes('application/json')) {
+        return res.status(400).json({ error: 'Content-Type application/json obbligatorio' });
+      }
     }
     next();
   });
@@ -392,7 +442,11 @@ async function startServer() {
     const paymentId = rawPaymentId.trim();
     const env = getServerEnv();
 
+    // Audit log: approvazione richiesta
+    console.info(`[AUDIT] /api/pi/approve requested`, { paymentId, ip: req.ip, ua: req.get('user-agent') });
+
     if (await hasIdempotencyLock(`complete_pay:${paymentId}`, env, localFileHooks)) {
+      console.warn(`[AUDIT] /api/pi/approve duplicate blocked`, { paymentId });
       return res.status(409).json({
         approved: false,
         duplicate: true,
@@ -403,12 +457,12 @@ async function startServer() {
 
     const apiKey = getConfiguredPiApiKey();
     if (!apiKey) {
-      return res.status(200).json({
-        approved: true,
+      console.error(`[AUDIT] /api/pi/approve FAIL-CLOSED: PI_API_KEY not configured`);
+      return res.status(503).json({
+        approved: false,
         paymentId,
-        mode: 'structured_fallback',
-        message: 'PI_API_KEY non configurata: approvazione strutturata Testnet/Preview completata.',
-        timestamp: new Date().toISOString(),
+        mode: 'unconfigured',
+        error: 'PI_API_KEY non configurata: approvazione server-side non disponibile. Configurare PI_API_KEY per operazioni reali.',
       });
     }
 
@@ -423,6 +477,7 @@ async function startServer() {
       });
       const data = await upstream.json().catch(() => ({}));
       if (!upstream.ok) {
+        console.error(`[AUDIT] /api/pi/approve upstream error`, { paymentId, status: upstream.status, data });
         return res.status(upstream.status).json({
           approved: false,
           paymentId,
@@ -432,6 +487,7 @@ async function startServer() {
         });
       }
       if (data?.status?.cancelled || data?.status?.user_cancelled) {
+        console.warn(`[AUDIT] /api/pi/approve payment cancelled on Pi`, { paymentId });
         return res.status(409).json({
           approved: false,
           paymentId,
@@ -439,6 +495,7 @@ async function startServer() {
           error: 'Pagamento annullato su Pi Network.',
         });
       }
+      console.info(`[AUDIT] /api/pi/approve SUCCESS`, { paymentId, data });
       return res.status(200).json({
         approved: true,
         paymentId,
@@ -447,6 +504,7 @@ async function startServer() {
         timestamp: new Date().toISOString(),
       });
     } catch (err: any) {
+      console.error(`[AUDIT] /api/pi/approve exception`, { paymentId, error: err?.message });
       return res.status(502).json({
         approved: false,
         paymentId,
@@ -467,11 +525,15 @@ async function startServer() {
     const txid = rawTxid.trim();
     const env = getServerEnv();
 
+    // Audit log: completamento richiesto
+    console.info(`[AUDIT] /api/pi/complete requested`, { paymentId, txid, ip: req.ip, ua: req.get('user-agent') });
+
     const payLockKey = `complete_pay:${paymentId}`;
     const txLockKey = `complete_txid:${txid}`;
 
     const payClaim = await acquireIdempotencyLock(payLockKey, txid, env, localFileHooks);
     if (!payClaim.acquired) {
+      console.warn(`[AUDIT] /api/pi/complete duplicate payment blocked`, { paymentId, txid });
       return res.status(409).json({
         completed: false,
         duplicate: true,
@@ -485,6 +547,7 @@ async function startServer() {
     const txClaim = await acquireIdempotencyLock(txLockKey, paymentId, env, localFileHooks);
     if (!txClaim.acquired) {
       await releaseIdempotencyLock(payLockKey, env, localFileHooks);
+      console.warn(`[AUDIT] /api/pi/complete duplicate txid blocked`, { paymentId, txid });
       return res.status(409).json({
         completed: false,
         duplicate: true,
@@ -497,14 +560,15 @@ async function startServer() {
 
     const apiKey = getConfiguredPiApiKey();
     if (!apiKey) {
-      return res.status(200).json({
-        completed: true,
+      await releaseIdempotencyLock(payLockKey, env, localFileHooks);
+      await releaseIdempotencyLock(txLockKey, env, localFileHooks);
+      console.error(`[AUDIT] /api/pi/complete FAIL-CLOSED: PI_API_KEY not configured`);
+      return res.status(503).json({
+        completed: false,
         paymentId,
         txid,
-        mode: 'structured_fallback',
-        idempotencyScope: payClaim.scope,
-        message: 'PI_API_KEY non configurata: completamento strutturato Testnet/Preview registrato.',
-        timestamp: new Date().toISOString(),
+        mode: 'unconfigured',
+        error: 'PI_API_KEY non configurata: completamento server-side non disponibile. Configurare PI_API_KEY per operazioni reali.',
       });
     }
 
@@ -522,6 +586,7 @@ async function startServer() {
       if (!upstream.ok) {
         await releaseIdempotencyLock(payLockKey, env, localFileHooks);
         await releaseIdempotencyLock(txLockKey, env, localFileHooks);
+        console.error(`[AUDIT] /api/pi/complete upstream error`, { paymentId, txid, status: upstream.status, data });
         return res.status(upstream.status).json({
           completed: false,
           paymentId,
@@ -534,6 +599,7 @@ async function startServer() {
       if (data?.status?.cancelled || data?.status?.user_cancelled) {
         await releaseIdempotencyLock(payLockKey, env, localFileHooks);
         await releaseIdempotencyLock(txLockKey, env, localFileHooks);
+        console.warn(`[AUDIT] /api/pi/complete payment cancelled on Pi`, { paymentId, txid });
         return res.status(409).json({
           completed: false,
           paymentId,
@@ -542,6 +608,7 @@ async function startServer() {
           error: 'Pagamento annullato su Pi Network.',
         });
       }
+      console.info(`[AUDIT] /api/pi/complete SUCCESS`, { paymentId, txid, data });
       return res.status(200).json({
         completed: true,
         paymentId,
@@ -554,6 +621,7 @@ async function startServer() {
     } catch (err: any) {
       await releaseIdempotencyLock(payLockKey, env, localFileHooks);
       await releaseIdempotencyLock(txLockKey, env, localFileHooks);
+      console.error(`[AUDIT] /api/pi/complete exception`, { paymentId, txid, error: err?.message });
       return res.status(502).json({
         completed: false,
         paymentId,
@@ -721,6 +789,7 @@ async function startServer() {
     }
 
     if (process.env.NODE_ENV === 'production') {
+      console.error(`[AUDIT] /api/pi/withdraw FAIL-CLOSED production: PI_API_KEY not configured`);
       return res.status(503).json({
         success: false,
         mode: 'unconfigured',
@@ -728,37 +797,12 @@ async function startServer() {
       });
     }
 
-    if (!idempotencyKey) {
-      return res.status(400).json({
-        success: false,
-        mode: 'structured_fallback',
-        error: 'Header Idempotency-Key obbligatorio anche in modalità preview.',
-      });
-    }
-    const lockKey = `withdraw:${idempotencyKey}`;
-    const claim = await acquireIdempotencyLock(lockKey, walletAddress.trim(), env, localFileHooks);
-    if (!claim.acquired) {
-      return res.status(409).json({
-        success: false,
-        duplicate: true,
-        idempotencyScope: claim.scope,
-        error: 'Richiesta di prelievo duplicata (Idempotency-Key già processata).',
-      });
-    }
-
-    // Modalità preview/sviluppo offline senza PI_API_KEY
-    const txHash = `pi_testnet_preview_${Math.random().toString(36).substring(2, 12)}_a2u`;
-    return res.status(200).json({
-      success: true,
-      mode: 'structured_fallback',
-      idempotencyScope: claim.scope,
-      txHash,
-      netPiSent,
-      feeDeducted,
-      walletAddress: walletAddress.trim(),
-      pioneerUsername: pioneerUsername || '@pioneer_user',
-      message: 'PI_API_KEY assente in .env: prelievo A2U registrato in modalità fallback strutturato.',
-      timestamp: new Date().toISOString(),
+    // In sviluppo/senza PI_API_KEY: rifiuta esplicitamente invece di simulare successo
+    console.warn(`[AUDIT] /api/pi/withdraw REJECTED: PI_API_KEY not configured (dev mode)`);
+    return res.status(501).json({
+      success: false,
+      mode: 'unconfigured',
+      error: 'PI_API_KEY non configurata: prelievi A2U reali non disponibili. Configurare PI_API_KEY, PI_WALLET_SEED e PI_WALLET_PUBLIC_KEY per operazioni reali.',
     });
   });
 

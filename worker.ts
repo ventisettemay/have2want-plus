@@ -37,6 +37,52 @@ export interface WorkerEnv extends FirebaseTokenEnv, IdempotencyEnv, PiA2uEnv, W
   DB?: D1DatabaseLike;
 }
 
+// Rate limiting per Cloudflare Worker (usando Durable Objects o cache edge)
+const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 30; // 30 requests per minute per IP
+
+async function checkWorkerRateLimit(request: Request, env: WorkerEnv): Promise<{ allowed: boolean; remaining: number; resetAt: number }> {
+  const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+  const cache = getDefaultCache();
+  const cacheKey = `ratelimit:${ip}`;
+  
+  if (cache) {
+    try {
+      const cached = await cache.match(new Request(`https://ratelimit.internal/${cacheKey}`));
+      if (cached) {
+        const data = await cached.json();
+        const now = Date.now();
+        if (now - data.windowStart < RATE_LIMIT_WINDOW_MS) {
+          if (data.count >= RATE_LIMIT_MAX_REQUESTS) {
+            return { allowed: false, remaining: 0, resetAt: data.windowStart + RATE_LIMIT_WINDOW_MS };
+          }
+          data.count++;
+          const response = new Response(JSON.stringify(data), {
+            headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' }
+          });
+          await cache.put(new Request(`https://ratelimit.internal/${cacheKey}`), response);
+          return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - data.count, resetAt: data.windowStart + RATE_LIMIT_WINDOW_MS };
+        }
+      }
+    } catch {
+      // Ignora errori cache
+    }
+  }
+  
+  // Fallback in-memory (per isolate corrente)
+  const now = Date.now();
+  const data = { count: 1, windowStart: now };
+  if (cache) {
+    try {
+      await cache.put(
+        new Request(`https://ratelimit.internal/${cacheKey}`),
+        new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' } })
+      );
+    } catch {}
+  }
+  return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - 1, resetAt: now + RATE_LIMIT_WINDOW_MS };
+}
+
 export interface WorkerExecutionContext {
   waitUntil?: (promise: Promise<unknown>) => void;
 }
@@ -211,6 +257,38 @@ export async function handleWorkerRequest(
       {},
       piCors.headers
     );
+  }
+
+  // Rate limiting per endpoint /api/pi/*
+  if (pathname.startsWith('/api/pi/')) {
+    const { allowed, remaining, resetAt } = await checkWorkerRateLimit(request, env);
+    const rateLimitHeaders = {
+      'X-RateLimit-Limit': RATE_LIMIT_MAX_REQUESTS.toString(),
+      'X-RateLimit-Remaining': remaining.toString(),
+      'X-RateLimit-Reset': Math.ceil(resetAt / 1000).toString(),
+    };
+    
+    if (!allowed) {
+      console.warn(`[RATE_LIMIT] Worker /api/pi/* blocked for IP ${request.headers.get('CF-Connecting-IP') || 'unknown'}`);
+      return jsonResponse(
+        { error: 'Rate limit superato: troppe richieste. Riprovare tra 60 secondi.', retryAfter: Math.ceil((resetAt - Date.now()) / 1000) },
+        429,
+        rateLimitHeaders,
+        piCors.headers
+      );
+    }
+    // Aggiungi header rate limit a tutte le risposte
+    Object.entries(rateLimitHeaders).forEach(([k, v]) => {
+      piCors.headers[k] = v;
+    });
+  }
+
+  // Validazione richieste Pi endpoints (solo mutanti)
+  if (pathname.startsWith('/api/pi/') && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    const contentType = request.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      return jsonResponse({ error: 'Content-Type application/json obbligatorio' }, 400, {}, piCors.headers);
+    }
   }
 
   // Verifica dominio Pi Network (/.well-known/validation-key.txt & /validation-key.txt)
@@ -443,7 +521,11 @@ export async function handleWorkerRequest(
     }
     const paymentId = rawPaymentId.trim();
 
+    // Audit log
+    console.info(`[AUDIT] Worker /api/pi/approve requested`, { paymentId, ip: request.headers.get('CF-Connecting-IP') });
+
     if (await hasIdempotencyLock(`complete_pay:${paymentId}`, env)) {
+      console.warn(`[AUDIT] Worker /api/pi/approve duplicate blocked`, { paymentId });
       return jsonResponse(
         {
           approved: false,
@@ -459,15 +541,15 @@ export async function handleWorkerRequest(
 
     const apiKey = getConfiguredPiApiKey(env);
     if (!apiKey) {
+      console.error(`[AUDIT] Worker /api/pi/approve FAIL-CLOSED: PI_API_KEY not configured`);
       return jsonResponse(
         {
-          approved: true,
+          approved: false,
           paymentId,
-          mode: 'structured_fallback',
-          message: 'PI_API_KEY non configurata: approvazione strutturata Testnet/Preview completata.',
-          timestamp: new Date().toISOString(),
+          mode: 'unconfigured',
+          error: 'PI_API_KEY non configurata: approvazione server-side non disponibile. Configurare PI_API_KEY per operazioni reali.',
         },
-        200,
+        503,
         {},
         piCors.headers
       );
@@ -487,6 +569,7 @@ export async function handleWorkerRequest(
       );
       const data = await upstream.json().catch(() => ({}));
       if (!upstream.ok) {
+        console.error(`[AUDIT] Worker /api/pi/approve upstream error`, { paymentId, status: upstream.status, data });
         return jsonResponse(
           {
             approved: false,
@@ -501,6 +584,7 @@ export async function handleWorkerRequest(
         );
       }
       if ((data as any)?.status?.cancelled || (data as any)?.status?.user_cancelled) {
+        console.warn(`[AUDIT] Worker /api/pi/approve payment cancelled on Pi`, { paymentId });
         return jsonResponse(
           {
             approved: false,
@@ -513,6 +597,7 @@ export async function handleWorkerRequest(
           piCors.headers
         );
       }
+      console.info(`[AUDIT] Worker /api/pi/approve SUCCESS`, { paymentId, data });
       return jsonResponse(
         {
           approved: true,
@@ -526,6 +611,7 @@ export async function handleWorkerRequest(
         piCors.headers
       );
     } catch (err: any) {
+      console.error(`[AUDIT] Worker /api/pi/approve exception`, { paymentId, error: err?.message });
       return jsonResponse(
         {
           approved: false,
@@ -559,11 +645,15 @@ export async function handleWorkerRequest(
     const paymentId = rawPaymentId.trim();
     const txid = rawTxid.trim();
 
+    // Audit log
+    console.info(`[AUDIT] Worker /api/pi/complete requested`, { paymentId, txid, ip: request.headers.get('CF-Connecting-IP') });
+
     const payLockKey = `complete_pay:${paymentId}`;
     const txLockKey = `complete_txid:${txid}`;
 
     const payClaim = await acquireIdempotencyLock(payLockKey, txid, env);
     if (!payClaim.acquired) {
+      console.warn(`[AUDIT] Worker /api/pi/complete duplicate payment blocked`, { paymentId, txid });
       return jsonResponse(
         {
           completed: false,
@@ -582,6 +672,7 @@ export async function handleWorkerRequest(
     const txClaim = await acquireIdempotencyLock(txLockKey, paymentId, env);
     if (!txClaim.acquired) {
       await releaseIdempotencyLock(payLockKey, env);
+      console.warn(`[AUDIT] Worker /api/pi/complete duplicate txid blocked`, { paymentId, txid });
       return jsonResponse(
         {
           completed: false,
@@ -599,17 +690,18 @@ export async function handleWorkerRequest(
 
     const apiKey = getConfiguredPiApiKey(env);
     if (!apiKey) {
+      await releaseIdempotencyLock(payLockKey, env);
+      await releaseIdempotencyLock(txLockKey, env);
+      console.error(`[AUDIT] Worker /api/pi/complete FAIL-CLOSED: PI_API_KEY not configured`);
       return jsonResponse(
         {
-          completed: true,
+          completed: false,
           paymentId,
           txid,
-          mode: 'structured_fallback',
-          idempotencyScope: payClaim.scope,
-          message: 'PI_API_KEY non configurata: completamento strutturato Testnet/Preview registrato.',
-          timestamp: new Date().toISOString(),
+          mode: 'unconfigured',
+          error: 'PI_API_KEY non configurata: completamento server-side non disponibile. Configurare PI_API_KEY per operazioni reali.',
         },
-        200,
+        503,
         {},
         piCors.headers
       );
@@ -632,6 +724,7 @@ export async function handleWorkerRequest(
       if (!upstream.ok) {
         await releaseIdempotencyLock(payLockKey, env);
         await releaseIdempotencyLock(txLockKey, env);
+        console.error(`[AUDIT] Worker /api/pi/complete upstream error`, { paymentId, txid, status: upstream.status, data });
         return jsonResponse(
           {
             completed: false,
@@ -649,6 +742,7 @@ export async function handleWorkerRequest(
       if ((data as any)?.status?.cancelled || (data as any)?.status?.user_cancelled) {
         await releaseIdempotencyLock(payLockKey, env);
         await releaseIdempotencyLock(txLockKey, env);
+        console.warn(`[AUDIT] Worker /api/pi/complete payment cancelled on Pi`, { paymentId, txid });
         return jsonResponse(
           {
             completed: false,
@@ -662,6 +756,7 @@ export async function handleWorkerRequest(
           piCors.headers
         );
       }
+      console.info(`[AUDIT] Worker /api/pi/complete SUCCESS`, { paymentId, txid, data });
       return jsonResponse(
         {
           completed: true,
@@ -679,6 +774,7 @@ export async function handleWorkerRequest(
     } catch (err: any) {
       await releaseIdempotencyLock(payLockKey, env);
       await releaseIdempotencyLock(txLockKey, env);
+      console.error(`[AUDIT] Worker /api/pi/complete exception`, { paymentId, txid, error: err?.message });
       return jsonResponse(
         {
           completed: false,
@@ -918,8 +1014,8 @@ export async function handleWorkerRequest(
       return jsonResponse(
         {
           success: false,
-          mode: 'structured_fallback',
-          error: 'Header Idempotency-Key obbligatorio anche in modalità preview.',
+          mode: 'unconfigured',
+          error: 'Header Idempotency-Key obbligatorio. Configurare PI_API_KEY per prelievi reali.',
         },
         400,
         {},
@@ -927,37 +1023,15 @@ export async function handleWorkerRequest(
       );
     }
 
-    const lockKey = `withdraw:${idempotencyKey}`;
-    const claim = await acquireIdempotencyLock(lockKey, walletAddress.trim(), env);
-    if (!claim.acquired) {
-      return jsonResponse(
-        {
-          success: false,
-          duplicate: true,
-          idempotencyScope: claim.scope,
-          error: 'Richiesta di prelievo duplicata (Idempotency-Key già processata).',
-        },
-        409,
-        {},
-        piCors.headers
-      );
-    }
-
-    const txHash = `pi_testnet_preview_${Math.random().toString(36).substring(2, 12)}_a2u`;
+    // In assenza di PI_API_KEY: rifiuta esplicitamente invece di simulare successo
+    console.warn(`[AUDIT] Worker /api/pi/withdraw REJECTED: PI_API_KEY not configured`);
     return jsonResponse(
       {
-        success: true,
-        mode: 'structured_fallback',
-        idempotencyScope: claim.scope,
-        txHash,
-        netPiSent,
-        feeDeducted,
-        walletAddress: walletAddress.trim(),
-        pioneerUsername: pioneerUsername || '@pioneer_user',
-        message: 'PI_API_KEY assente: prelievo A2U registrato in modalità fallback strutturato.',
-        timestamp: new Date().toISOString(),
+        success: false,
+        mode: 'unconfigured',
+        error: 'PI_API_KEY non configurata: prelievi A2U reali non disponibili. Configurare PI_API_KEY, PI_WALLET_SEED e PI_WALLET_PUBLIC_KEY per operazioni reali.',
       },
-      200,
+      501,
       {},
       piCors.headers
     );

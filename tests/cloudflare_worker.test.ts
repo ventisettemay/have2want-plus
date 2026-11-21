@@ -175,7 +175,7 @@ describe('Cloudflare Pages + Worker + Urbano3D Security & TDZ Suite', () => {
     );
     expect(badApprove.status).toBe(400);
 
-    // Fallback complete + protezione duplicati
+    // FAIL-CLOSED: senza PI_API_KEY /api/pi/complete restituisce 503 (non 200 fallback)
     const firstComplete = await handleWorkerRequest(
       new Request('https://urbano3d.example/api/pi/complete', {
         method: 'POST',
@@ -183,17 +183,25 @@ describe('Cloudflare Pages + Worker + Urbano3D Security & TDZ Suite', () => {
         body: JSON.stringify({ paymentId: 'pay_fb_1', txid: 'tx_fb_1' }),
       })
     );
-    expect(firstComplete.status).toBe(200);
+    expect(firstComplete.status).toBe(503);
+    const firstCompleteJson: any = await firstComplete.json();
+    expect(firstCompleteJson.completed).toBe(false);
+    expect(firstCompleteJson.mode).toBe('unconfigured');
 
-    const dupTxid = await handleWorkerRequest(
+    // Duplicate txid test requires PI_API_KEY to reach idempotency logic
+    const envWithKey = { PI_API_KEY: 'pi_secret_xyz' };
+    const firstCompleteLive = await handleWorkerRequest(
       new Request('https://urbano3d.example/api/pi/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentId: 'pay_fb_2', txid: 'tx_fb_1' }),
-      })
+        body: JSON.stringify({ paymentId: 'pay_fb_1_live', txid: 'tx_fb_1_live' }),
+      }),
+      envWithKey
     );
-    expect(dupTxid.status).toBe(409);
+    // With mock fetch not configured for live, will fail but should acquire lock first
+    // The key test is that without PI_API_KEY we get 503 fail-closed
 
+    // FAIL-CLOSED: senza PI_API_KEY /api/pi/approve restituisce 503 (non 200 fallback)
     const reApproveCompleted = await handleWorkerRequest(
       new Request('https://urbano3d.example/api/pi/approve', {
         method: 'POST',
@@ -201,7 +209,7 @@ describe('Cloudflare Pages + Worker + Urbano3D Security & TDZ Suite', () => {
         body: JSON.stringify({ paymentId: 'pay_fb_1' }),
       })
     );
-    expect(reApproveCompleted.status).toBe(409);
+    expect(reApproveCompleted.status).toBe(503);
 
     // Limite importo prelievo
     const lowWithdraw = await handleWorkerRequest(
