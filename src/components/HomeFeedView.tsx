@@ -51,6 +51,7 @@ import { TerritorialAdBanner } from "@/components/have2want/TerritorialAdBanner"
 import { ListingDetailModal } from "@/components/have2want/ListingDetailModal";
 import { DedicatedCategoryPage } from "@/components/DedicatedCategoryPage";
 import { GlobalMarketplaceView } from "@/components/have2want/GlobalMarketplaceView";
+import { ListingExpiryManager } from "@/components/have2want/ListingExpiryManager";
 
 export type SectionKey = 'VENDO' | 'SCAMBIO' | 'CERCO' | 'TRASFERTE' | 'SERVIZI' | 'LIBRI' | 'ESTERNI' | 'ALL';
 
@@ -1579,6 +1580,17 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
         isOpen={showRewardsHub}
         onClose={() => setShowRewardsHub(false)}
         onOpenCreateListing={() => setShowCreateModal(true)}
+      />
+
+      {/* SCADENZA & RINNOVO ANNUNCI (30 GIORNI) */}
+      <ListingExpiryManager
+        userListings={listings.filter(l => l.author.username === currentUser.username)}
+        onToggleAutoRenew={(listingId, enabled) => {
+          console.log('[HomeFeedView] Toggle auto-renew:', listingId, enabled);
+        }}
+        onManualRenew={(listingId) => {
+          console.log('[HomeFeedView] Manual renew:', listingId);
+        }}
       />
 
       {/* SCHEDA DETTAGLIO COMPLETA DELL'ANNUNCIO (DENTRO L'OFFERTA) */}
