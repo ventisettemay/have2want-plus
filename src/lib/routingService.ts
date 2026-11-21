@@ -1,5 +1,6 @@
 // Servizio di Routing Stradale Reale con OSRM (Open Source Routing Machine) & OpenStreetMap
 // Calcolo percorsi reali A-B per Auto, Pedoni e Biciclette con indicazioni svolta per svolta e tracciato GeoJSON
+// Include: ricalcolo percorso, traffico simulato (OSRM non ha traffico live gratuito), profili multipli
 
 export type RoutingProfile = 'driving' | 'walking' | 'cycling';
 
@@ -25,6 +26,22 @@ export interface RealRouteResult {
   destinationName?: string;
   source: string;
   calculatedAt: string;
+  // Traffic & Recalculation fields
+  trafficLevel?: 'free' | 'moderate' | 'heavy' | 'blocked';
+  trafficDelayMinutes?: number;
+  alternativeRoutes?: RealRouteResult[];
+  recalculatedAt?: string;
+  recalculationReason?: 'traffic' | 'deviation' | 'user_request' | 'road_closure';
+}
+
+export interface TrafficIncident {
+  type: 'congestion' | 'accident' | 'roadwork' | 'closure' | 'weather';
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  location: [number, number]; // [lng, lat]
+  description: string;
+  delayMinutes: number;
+  startTime: string;
+  endTime?: string;
 }
 
 // Mappatura tradotta delle manovre OSRM in italiano naturale
@@ -189,6 +206,153 @@ export async function calculateRealRoute(
       ],
       source: 'Stima Geodetica Fallback',
       calculatedAt: new Date().toISOString(),
+      trafficLevel: 'free',
+      trafficDelayMinutes: 0,
     };
+  }
+}
+
+/**
+ * Simula dati traffico per un percorso (OSRM non fornisce traffico live gratuito)
+ * In produzione: integrare TomTom Traffic API, Mapbox Traffic, o HERE Traffic (tutti con tier gratuiti limitati)
+ */
+export async function getTrafficForRoute(
+  coordinates: [number, number][],
+  profile: RoutingProfile = 'driving'
+): Promise<{ trafficLevel: RealRouteResult['trafficLevel']; incidents: TrafficIncident[]; delayMinutes: number }> {
+  // NOTE: OSRM non ha endpoint traffico. Questa funzione simula traffico basato su orario/percorso.
+  // Per traffico reale gratuito: TomTom Traffic API (2.500 req/giorno free), Mapbox Traffic (100.000 req/mese free), HERE Traffic (250.000 req/mese free)
+  
+  const hour = new Date().getHours();
+  let trafficLevel: RealRouteResult['trafficLevel'] = 'free';
+  let delayMinutes = 0;
+  const incidents: TrafficIncident[] = [];
+  
+  // Simulazione oraria: ora di punta = traffico moderato/forte
+  const isMorningRush = hour >= 7 && hour <= 9;
+  const isEveningRush = hour >= 17 && hour <= 19;
+  const isNight = hour >= 22 || hour <= 5;
+  
+  if (isNight) {
+    trafficLevel = 'free';
+    delayMinutes = 0;
+  } else if (isMorningRush || isEveningRush) {
+    trafficLevel = Math.random() > 0.5 ? 'moderate' : 'heavy';
+    delayMinutes = trafficLevel === 'heavy' ? Math.floor(Math.random() * 15) + 10 : Math.floor(Math.random() * 8) + 3;
+    
+    // Aggiunge incidenti simulati in ora di punta
+    if (trafficLevel === 'heavy' && coordinates.length > 2) {
+      const midIdx = Math.floor(coordinates.length / 2);
+      incidents.push({
+        type: 'congestion',
+        severity: 'high',
+        location: coordinates[midIdx],
+        description: 'Rallentamento per traffico intenso',
+        delayMinutes: delayMinutes,
+        startTime: new Date().toISOString(),
+      });
+    }
+  } else {
+    trafficLevel = 'free';
+    delayMinutes = 0;
+  }
+  
+  return { trafficLevel, incidents, delayMinutes };
+}
+
+/**
+ * Ricalcola percorso considerando traffico e deviazioni
+ */
+export async function recalculateRoute(
+  startLat: number,
+  startLng: number,
+  endLat: number,
+  endLng: number,
+  profile: RoutingProfile = 'driving',
+  previousRoute?: RealRouteResult,
+  reason: RealRouteResult['recalculationReason'] = 'traffic'
+): Promise<RealRouteResult | null> {
+  const newRoute = await calculateRealRoute(startLat, startLng, endLat, endLng, profile);
+  if (!newRoute) return null;
+  
+  // Se c'era un percorso precedente, confronta per rilevare cambiamenti significativi
+  if (previousRoute) {
+    const distanceDiff = Math.abs(newRoute.totalDistanceMeters - previousRoute.totalDistanceMeters);
+    const durationDiff = Math.abs(newRoute.totalDurationSeconds - previousRoute.totalDurationSeconds);
+    
+    // Se la differenza è significativa (>10% distanza o >15% durata), marca come ricalcolato
+    if (distanceDiff > previousRoute.totalDistanceMeters * 0.1 || durationDiff > previousRoute.totalDurationSeconds * 0.15) {
+      newRoute.recalculatedAt = new Date().toISOString();
+      newRoute.recalculationReason = reason;
+    }
+  }
+  
+  // Aggiunge info traffico
+  const { trafficLevel, incidents, delayMinutes } = await getTrafficForRoute(newRoute.coordinates, profile);
+  newRoute.trafficLevel = trafficLevel;
+  newRoute.trafficDelayMinutes = delayMinutes;
+  newRoute.alternativeRoutes = undefined; // OSRM non restituisce alternative nativamente senza parametri extra
+  
+  return newRoute;
+}
+
+/**
+ * Ottiene percorsi alternativi (usa parametro alternatives=true di OSRM)
+ */
+export async function getAlternativeRoutes(
+  startLat: number,
+  startLng: number,
+  endLat: number,
+  endLng: number,
+  profile: RoutingProfile = 'driving',
+  maxAlternatives = 2
+): Promise<RealRouteResult[]> {
+  if (
+    typeof startLat !== 'number' || typeof startLng !== 'number' ||
+    typeof endLat !== 'number' || typeof endLng !== 'number' ||
+    isNaN(startLat) || isNaN(startLng) || isNaN(endLat) || isNaN(endLng)
+  ) {
+    return [];
+  }
+  
+  try {
+    const url = `https://router.project-osrm.org/route/v1/${profile}/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson&steps=true&alternatives=true&number_of_alternatives=${maxAlternatives}`;
+    const res = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!res.ok) throw new Error(`OSRM HTTP ${res.status}`);
+    
+    const json = await res.json();
+    if (json.code !== 'Ok' || !json.routes || json.routes.length === 0) {
+      return [];
+    }
+    
+    return json.routes.slice(0, maxAlternatives + 1).map((route: any) => {
+      const rawSteps = route.legs?.[0]?.steps || [];
+      const steps: RouteStep[] = rawSteps.map((st: any) => ({
+        name: st.name || 'Strada locale',
+        instruction: formatInstruction(st),
+        distanceMeters: Math.round(st.distance || 0),
+        durationSeconds: Math.round(st.duration || 0),
+        maneuverType: st.maneuver?.type || 'turn',
+        maneuverModifier: st.maneuver?.modifier,
+        location: st.maneuver?.location || [startLng, startLat],
+      }));
+      
+      return {
+        profile,
+        totalDistanceMeters: Math.round(route.distance),
+        totalDistanceKm: Math.round((route.distance / 1000) * 10) / 10,
+        totalDurationSeconds: Math.round(route.duration),
+        totalDurationMinutes: Math.max(1, Math.round(route.duration / 60)),
+        coordinates: route.geometry?.coordinates || [[startLng, startLat], [endLng, endLat]],
+        steps,
+        source: 'OSRM Open Source Routing Machine (OpenStreetMap)',
+        calculatedAt: new Date().toISOString(),
+        trafficLevel: 'free',
+        trafficDelayMinutes: 0,
+      };
+    });
+  } catch (err) {
+    console.warn('[RoutingService] Errore percorsi alternativi:', err);
+    return [];
   }
 }
