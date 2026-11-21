@@ -21,6 +21,7 @@ import { WORLD_COUNTRIES, formatLocalPrice } from '@/lib/worldAtlas';
 import { getDisplayCoordinates, filterVisibleListings, applyGeoPrivacy } from '@/lib/geoPrivacy';
 import { PI_REAL_PRICE_EUR } from '@/lib/piRealPriceService';
 import { publishShopToCloud, subscribeToCloudShops } from '@/lib/firestoreService';
+import { satelliteEngine, INITIAL_SATELLITES_CATALOG } from '@/lib/satelliteModularEngine';
 import MerchantDetailModal from './MerchantDetailModal';
 import StrettaDiMano from './StrettaDiMano';
 import { toast } from 'sonner';
@@ -1093,8 +1094,14 @@ export default function MapView3DContainer({
       />
 
       <VoiceNoteChat
-        isOpen={isVoiceChatOpen}
-        onClose={() => setIsVoiceChatOpen(false)}
+        isOpen={isVoiceChatOpen || activeSatellite === 'CHAT'}
+        onClose={() => {
+          setIsVoiceChatOpen(false);
+          if (activeSatellite === 'CHAT') {
+            setActiveSatellite(null);
+            if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
+          }
+        }}
         recipientName={voiceChatRecipient.name}
         recipientRole={voiceChatRecipient.role}
         initialVoiceIntro={voiceChatRecipient.intro}
@@ -1137,6 +1144,10 @@ export default function MapView3DContainer({
         onClose={() => setScientificSatellite(null)}
         onLaunchChannel={(satId) => {
           setScientificSatellite(null);
+          if (INITIAL_SATELLITES_CATALOG.some((s) => s.id === satId)) {
+            // L'apertura di un canale attiva anche il relativo satellite
+            satelliteEngine.setSatelliteActive(satId, true);
+          }
           const CHANNEL_MAP = {
             METEO_SAT: 'WEATHER',
             KM0_SAT: 'KMZERO',

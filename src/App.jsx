@@ -1258,6 +1258,7 @@ function Have2WantPlusMain() {
           {/* GLI 8 SATELLITI OPERATIVI ORBITANTI HAVE2WANT */}
           <OrbitalSatellitesHub
             currentUser={pioneerUser}
+            country={selectedCountry}
             onOpenChat={(mId) => {
               toast.success(`💬 Handshake chat avviato per: ${mId}`);
             }}

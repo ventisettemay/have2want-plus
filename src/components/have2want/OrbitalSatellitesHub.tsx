@@ -21,6 +21,7 @@ const SATELLITE_TO_CHANNEL: Record<SatelliteId, string> = {
 
 interface OrbitalSatellitesHubProps {
   currentUser?: any;
+  country?: any;
   onOpenChat?: (merchantId: string) => void;
   onTogglePolitical?: () => void;
   isPoliticalActive?: boolean;
@@ -31,6 +32,7 @@ interface OrbitalSatellitesHubProps {
 
 export default function OrbitalSatellitesHub({
   currentUser,
+  country,
   onOpenChat,
   onTogglePolitical,
   isPoliticalActive = false,
@@ -255,7 +257,7 @@ export default function OrbitalSatellitesHub({
           onClose={() => setActiveChannel(null)}
           weather={null}
           place={null}
-          country={null}
+          country={country || null}
           weatherEffectsEnabled={isWeatherActive}
           onToggleWeatherEffects={() => {
             satelliteEngine.setSatelliteActive('METEO_SAT', !isWeatherActive);
@@ -355,15 +357,17 @@ export default function OrbitalSatellitesHub({
         onClose={() => setIsFleetModalOpen(false)}
         onLaunchChannel={(satId) => {
           setIsFleetModalOpen(false);
-          const channel = SATELLITE_TO_CHANNEL[satId];
-          if (channel && onOpenSatelliteChannel) {
-            onOpenSatelliteChannel(channel);
+          // L'apertura di un canale attiva anche il relativo satellite
+          satelliteEngine.setSatelliteActive(satId, true);
+          if (onOpenSatelliteChannel) {
+            // Delega al contenitore territoriale: un solo livello di modali e servizio corretto
+            onOpenSatelliteChannel(SATELLITE_TO_CHANNEL[satId]);
+            return;
           }
+          // Fallback locale solo se l'hub è usato senza il contenitore della mappa
           if (satId === 'METEO_SAT') setActiveChannel('METEO');
           else if (satId === 'KM0_SAT') setActiveChannel('KMZERO');
-          else if (satId === 'GLOBAL_MARKET_SAT' || satId === 'EXTERNAL_MARKET_SAT') setActiveChannel('SUPERMARKET');
-          else if (satId === 'PI_CHAT_SAT') setActiveChannel('LAVORO');
-          else if (satId === 'COMMUNITY_RESCUE_SAT' || satId === 'BUSINESS_ADS_SAT') setActiveChannel('KMZERO');
+          else if (satId === 'GLOBAL_MARKET_SAT') setActiveChannel('SUPERMARKET');
         }}
         onSelectSatellite={(satId) => setSelectedSatForFleet(satId)}
       />
