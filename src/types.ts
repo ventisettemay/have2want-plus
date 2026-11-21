@@ -1,6 +1,18 @@
 // The 3 Rigid Real Action Switches for P2P Board (No Abstract / Deprecated Modes)
 export type InteractionIntent = "VENDO" | "BARATTO_SCAMBIO" | "ACQUISTO_CERCO";
 
+// Le 9 Forme di Interazione Libera approvate per la comunità HAVE2WANT PLUS
+export type InteractionForm9 =
+  | "baratto_puro"
+  | "cessione_pi"
+  | "ricerca_bisogno"
+  | "prestito_temporaneo"
+  | "passaggio_carpool"
+  | "competenza_servizio"
+  | "km0_filiera_corta"
+  | "scambio_libri_scuola"
+  | "orientamento_gratuito_specialista";
+
 // Rigid Category and Subcategory Matrix (Real Commercial & Solidarity Taxonomy)
 export type RealCategoryKey =
   | "attrezzi_lavoro"
@@ -86,7 +98,7 @@ export interface UserTrustRating {
     2: number;
     1: number;
   };
-  financialLockValidated: boolean; // True solo se quota X di interazione (0.10-0.25 Pi) è stata convalidata
+  financialLockValidated: boolean; // True solo se Quota X ufficiale di interazione (0.25 Pi = 250 punti) è stata convalidata
   antiSelfSponsorshipShieldActive: boolean; // Blocco IP/Fingerprint hardware per impedire recensioni duplicate
 }
 
@@ -98,7 +110,7 @@ export interface DiscreetAIReviewFeedback {
   targetId: string;
   targetName: string;
   stars: number; // 1 to 5
-  interactionQuotaPiPaid: number; // e.g. 0.15 Pi
+  interactionQuotaPiPaid: number; // Quota X ufficiale: 0.25 Pi (250 punti)
   isAIGeneratedCivilText: boolean; // True per valutazioni 1-3 stelle
   selectedIssues: string[]; // Micro-questionario deterministico
   civilReviewText: string; // Testo oggettivo, formale e civile generato dall'IA Discreta
@@ -154,6 +166,7 @@ export interface ConcreteExchangeSpec {
 export interface HaveWantListing {
   id: string;
   intent: InteractionIntent; // VENDO, BARATTO_SCAMBIO, ACQUISTO_CERCO
+  interactionForm?: InteractionForm9; // Le 9 Forme di Interazione Libera
   title: string;
   description: string;
   category: RealCategoryKey;
@@ -181,8 +194,6 @@ export interface HaveWantListing {
   imageUrl?: string;
   tags: string[];
   status: "active" | "matched" | "completed";
-  planetId?: string;
-  satelliteId?: string;
   channelId?: string; // Canale territoriale reale
   // Indicatori di provenienza: portale esterno (es. Subito, Facebook, eBay) o demo/illustrativo
   isExternal?: boolean;
@@ -197,7 +208,7 @@ export interface AdRewardTokenomicsState {
   adStreamEnabled?: boolean;
   userAdCreditBalancePi: number; // Accumulated Pi Coin credits from ad rewards or community sponsorships
   appCreditsPi?: number;
-  fixedInteractionFeePi: number; // Quota X (e.g. 0.15 Pi) per chat / P2P connection (0.10 Pi - 0.25 Pi)
+  fixedInteractionFeePi: number; // Quota X ufficiale: 0.25 Pi (250 punti) per chat / P2P connection
   totalInteractionsExecuted: number;
   savedPiViaAds: number;
   totalAdsWatched?: number;
@@ -243,8 +254,7 @@ export type CityBuildingId =
   | "officina"
   | "memoria"
   | "commercio"
-  | "studio_medico"
-  | "albero";
+  | "studio_medico";
 
 export type CitizenAvailability = "disponibile" | "occupato" | "offline";
 

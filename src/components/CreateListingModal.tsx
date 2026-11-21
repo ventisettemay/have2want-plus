@@ -23,6 +23,7 @@ import {
 import {
   HaveWantListing,
   InteractionIntent,
+  InteractionForm9,
   RealCategoryKey,
   RealSubcategoryKey,
   PioneerUser
@@ -64,6 +65,18 @@ interface CreateListingModalProps {
   defaultCategory?: RealCategoryKey;
 }
 
+const INTERACTION_FORMS_9_OPTIONS: { value: InteractionForm9; label: string }[] = [
+  { value: "baratto_puro", label: "1. Baratto Puro (Oggetto ↔ Oggetto)" },
+  { value: "cessione_pi", label: "2. Cessione in Pi Coin (π)" },
+  { value: "ricerca_bisogno", label: "3. Ricerca & Bisogno (Cerco)" },
+  { value: "prestito_temporaneo", label: "4. Prestito Temporaneo Utensili/Beni" },
+  { value: "passaggio_carpool", label: "5. Passaggio & Trasferta Condivisa" },
+  { value: "competenza_servizio", label: "6. Competenza & Manodopera Locale" },
+  { value: "km0_filiera_corta", label: "7. Filiera Corta & Prodotti Km Zero" },
+  { value: "scambio_libri_scuola", label: "8. Scambio Testi & Libri Scolastici" },
+  { value: "orientamento_gratuito_specialista", label: "9. Orientamento Gratuito Specialisti" },
+];
+
 export const CreateListingModal: React.FC<CreateListingModalProps> = ({
   isOpen,
   onClose,
@@ -74,6 +87,7 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({
 }) => {
   const [newTitle, setNewTitle] = useState("");
   const [newIntent, setNewIntent] = useState<InteractionIntent>(defaultIntent);
+  const [newInteractionForm, setNewInteractionForm] = useState<InteractionForm9>("baratto_puro");
   const [newCategory, setNewCategory] = useState<RealCategoryKey>(defaultCategory);
   const [newSubcategory, setNewSubcategory] = useState<RealSubcategoryKey>("arredamento_mobili");
   const [newDescription, setNewDescription] = useState("");
@@ -214,7 +228,7 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim() || !newDescription.trim()) {
       toast.error("Compila titolo e descrizione per pubblicare");
@@ -255,6 +269,33 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({
       }
     }
 
+    // Geocodifica reale OpenStreetMap Nominatim se il comune non è nel dizionario rapido
+    if (!cityCoord && newCity.trim().length >= 2 && typeof fetch === "function") {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 2200);
+        const nomRes = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(
+            [newCity.trim(), newProvince.trim()].filter(Boolean).join(", ")
+          )}`,
+          { signal: controller.signal }
+        );
+        clearTimeout(timer);
+        if (nomRes.ok) {
+          const nomData = await nomRes.json();
+          if (Array.isArray(nomData) && nomData[0]) {
+            const pLat = parseFloat(nomData[0].lat);
+            const pLng = parseFloat(nomData[0].lon);
+            if (isValidCoord(pLat, pLng)) {
+              cityCoord = { lat: pLat, lng: pLng };
+            }
+          }
+        }
+      } catch {
+        // Offline o timeout: nessuna coordinata inventata
+      }
+    }
+
     if (!cityCoord && isValidCoord((currentUser as any)?.lat, (currentUser as any)?.lng)) {
       cityCoord = { lat: (currentUser as any).lat, lng: (currentUser as any).lng };
     }
@@ -262,9 +303,14 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({
     const fuzzyOffsetLat = (Math.random() - 0.5) * 0.012;
     const fuzzyOffsetLng = (Math.random() - 0.5) * 0.012;
 
+    const hasValidCoord = Boolean(cityCoord && isValidCoord(cityCoord.lat, cityCoord.lng));
+    const fuzzyLat = hasValidCoord ? cityCoord!.lat + fuzzyOffsetLat : undefined;
+    const fuzzyLng = hasValidCoord ? cityCoord!.lng + fuzzyOffsetLng : undefined;
+
     const newListing: HaveWantListing = {
       id: `list-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       intent: newIntent,
+      interactionForm: newInteractionForm,
       title: newTitle.trim(),
       description: newDescription.trim(),
       category: newCategory,
@@ -296,11 +342,13 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({
         city: newCity.trim(),
         province: newProvince.trim().toUpperCase()
       },
-      ...(cityCoord && isValidCoord(cityCoord.lat, cityCoord.lng)
-        ? { lat: cityCoord.lat + fuzzyOffsetLat, lng: cityCoord.lng + fuzzyOffsetLng }
+      ...(hasValidCoord && isValidCoord(fuzzyLat, fuzzyLng)
+        ? { lat: fuzzyLat, lng: fuzzyLng }
         : {}),
       ...(resolvedCountryCode ? { countryCode: resolvedCountryCode } : {}),
-      locationArea: `${newCity.trim()} (${newProvince.trim().toUpperCase()})`,
+      locationArea: newProvince.trim()
+        ? `${newCity.trim()} (${newProvince.trim().toUpperCase()})`
+        : newCity.trim(),
       isFuzzyLocation: true,
       imageUrl: newImageUrl.trim() || (
         newCategory === "libri_scuola_cultura"
@@ -312,27 +360,27 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({
           : "https://images.unsplash.com/photo-1581783342308-f792dbdd27c5?w=600&auto=format&fit=crop&q=80"
       ),
       createdAt: new Date().toISOString(),
-      tags: [newCategory, newIntent, newSubcategory],
+      tags: [newCategory, newIntent, newSubcategory, newInteractionForm],
       status: "active",
-      planetId: "planet-possibilita",
-      satelliteId: "sat-scambi",
       isDemo: isDemoListing
     };
 
     onAddListing(newListing);
 
-    // Sincronizzazione con il Flat DB / Backend API REST Testnet
-    publishProductApi({
-      product_name: newTitle.trim(),
-      specs_anno: "2024",
-      user_lat: cityCoord.lat + fuzzyOffsetLat,
-      user_lng: cityCoord.lng + fuzzyOffsetLng,
-      is_18_plus: false,
-      imageFile: selectedFile,
-      imageUrl: newImageUrl.trim() || undefined
-    }).catch((err) => {
-      console.warn("Testnet sync notification:", err);
-    });
+    // Sincronizzazione con il Flat DB / Backend API REST Testnet solo con coordinate valide (zero Null Island / crash null)
+    if (isValidCoord(fuzzyLat, fuzzyLng)) {
+      publishProductApi({
+        product_name: newTitle.trim(),
+        specs_anno: "2024",
+        user_lat: fuzzyLat!,
+        user_lng: fuzzyLng!,
+        is_18_plus: false,
+        imageFile: selectedFile,
+        imageUrl: newImageUrl.trim() || undefined
+      }).catch((err) => {
+        console.warn("Testnet sync notification:", err);
+      });
+    }
 
     toast.success("🎉 Annuncio Pubblicato!", {
       description: `Spesi ${cost} punti. Saldo rimasto: ${spend.newBalance} punti.`,
@@ -455,21 +503,63 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({
             />
           </div>
 
-          {/* Quick preset for Libri Scolastici */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setNewCategory("libri_scuola_cultura");
-                setNewSubcategory("libri_scolastici");
-                if (!newTitle) setNewTitle("Libri Scolastici Usati");
-                toast.info("Impostata categoria: Libri Scolastici e Cultura");
-              }}
-              className="text-[11px] px-2.5 py-1 rounded-xl bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 border border-orange-500/30 font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
-            >
-              <GraduationCap className="w-3.5 h-3.5" />
-              <span>Imposta per Libri Scolastici</span>
-            </button>
+          {/* Quick preset for Libri Scolastici & 9 Forme di Interazione */}
+          <div className="space-y-2.5">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setNewCategory("libri_scuola_cultura");
+                  setNewSubcategory("scambio_libri_scolastici");
+                  setNewInteractionForm("scambio_libri_scuola");
+                  if (!newTitle) setNewTitle("Libri Scolastici Usati");
+                  toast.info("Impostata categoria: Libri Scolastici e Cultura");
+                }}
+                className="text-[11px] px-2.5 py-1 rounded-xl bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 border border-orange-500/30 font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+              >
+                <GraduationCap className="w-3.5 h-3.5" />
+                <span>Imposta per Libri Scolastici</span>
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1">
+                Forma di Interazione Libera (9 Modalità Comunità)
+              </label>
+              <select
+                value={newInteractionForm}
+                onChange={(e) => {
+                  const form = e.target.value as InteractionForm9;
+                  setNewInteractionForm(form);
+                  if (form === "cessione_pi") setNewIntent("VENDO");
+                  else if (form === "ricerca_bisogno") setNewIntent("ACQUISTO_CERCO");
+                  else if (form === "baratto_puro" || form === "prestito_temporaneo") setNewIntent("BARATTO_SCAMBIO");
+                  else if (form === "passaggio_carpool") {
+                    setNewCategory("servizi_lavoro_buoni");
+                    setNewSubcategory("trasferte_passaggi_carpool");
+                  } else if (form === "scambio_libri_scuola") {
+                    setNewCategory("libri_scuola_cultura");
+                    setNewSubcategory("scambio_libri_scolastici");
+                  } else if (form === "competenza_servizio") {
+                    setNewCategory("servizi_lavoro_buoni");
+                    setNewSubcategory("manodopera_mestieri_riparazioni");
+                  } else if (form === "km0_filiera_corta") {
+                    setNewCategory("cibo_prodotti_locali");
+                    setNewSubcategory("ortofrutta_km_zero");
+                  } else if (form === "orientamento_gratuito_specialista") {
+                    setNewCategory("rete_specialisti_supporto");
+                    setNewSubcategory("orientamento_clinico_gratuito");
+                  }
+                }}
+                className="w-full px-3 py-2 rounded-2xl bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-amber-400 cursor-pointer"
+              >
+                {INTERACTION_FORMS_9_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Category & Subcategory */}
@@ -491,6 +581,21 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({
                 {REAL_CATEGORIES_MATRIX.map((c) => (
                   <option key={c.key} value={c.key}>
                     {c.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1">Sottocategoria</label>
+              <select
+                value={newSubcategory}
+                onChange={(e) => setNewSubcategory(e.target.value as RealSubcategoryKey)}
+                className="w-full px-3 py-2 rounded-2xl bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-amber-400 cursor-pointer"
+              >
+                {(REAL_CATEGORIES_MATRIX.find((c) => c.key === newCategory)?.subcategories || []).map((sub) => (
+                  <option key={sub.key} value={sub.key}>
+                    {sub.label}
                   </option>
                 ))}
               </select>

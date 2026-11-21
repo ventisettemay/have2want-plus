@@ -341,6 +341,8 @@ export async function getGlobalHubWeatherSnapshots() {
     const snapshots = GLOBAL_WEATHER_HUBS.map((hub, idx) => {
       const entry = list[idx] || {};
       const cur = entry.current || {};
+      const hasValidTemp = typeof cur.temperature_2m === 'number' && !Number.isNaN(cur.temperature_2m);
+      if (!hasValidTemp) return null;
       const code = cur.weather_code ?? 0;
       const isDay = cur.is_day ?? 1;
       const cond = interpretWmoCode(code, isDay);
@@ -374,7 +376,7 @@ export async function getGlobalHubWeatherSnapshots() {
 
       return {
         ...hub,
-        temp: Math.round(cur.temperature_2m ?? 18),
+        temp: Math.round(cur.temperature_2m),
         icon: cond.icon,
         badgeType,
         shortLabel,
@@ -382,7 +384,7 @@ export async function getGlobalHubWeatherSnapshots() {
         isSnow,
         isStorm,
       };
-    });
+    }).filter(Boolean);
 
     globalHubsWeatherCache = snapshots;
     globalHubsWeatherCacheTime = now;
@@ -395,6 +397,7 @@ export async function getGlobalHubWeatherSnapshots() {
 
 /**
  * Recupera i dati meteo in tempo reale e previsioni fino a 14 giorni per qualsiasi coordinata (Lat, Lng).
+ * Ritorna null se Open-Meteo non è raggiungibile o non restituisce dati validi (zero dati finti).
  */
 export async function getRealtimeWeather(lat, lng) {
   if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) {
@@ -420,53 +423,64 @@ export async function getRealtimeWeather(lat, lng) {
     }
 
     const json = await res.json();
-    const current = json.current || {};
+    const current = json.current;
+    if (!current || typeof current.temperature_2m !== 'number' || Number.isNaN(current.temperature_2m)) {
+      return null;
+    }
+
     const units = json.current_units || {};
     const timezone = json.timezone || 'UTC';
     const isDay = current.is_day === 1;
     const weatherCode = current.weather_code ?? 0;
     const condition = interpretWmoCode(weatherCode, current.is_day);
-    const windDirectionDeg = current.wind_direction_10m ?? 0;
+    const windDirectionDeg = typeof current.wind_direction_10m === 'number' ? current.wind_direction_10m : null;
 
     // Decodifica previsioni orarie (prossime 24 ore)
     const hourlyTimes = json.hourly?.time || [];
-    const hourlyForecast = hourlyTimes.slice(0, 24).map((timeStr, idx) => ({
-      time: timeStr.split('T')[1]?.slice(0, 5) || timeStr,
-      fullTime: timeStr,
-      temp: Math.round(json.hourly?.temperature_2m?.[idx] ?? 20),
-      prob: json.hourly?.precipitation_probability?.[idx] ?? 0,
-      windSpeed: Math.round(json.hourly?.wind_speed_10m?.[idx] ?? 0),
-      cloudCover: json.hourly?.cloud_cover?.[idx] ?? 0,
-      condition: interpretWmoCode(json.hourly?.weather_code?.[idx] ?? 0, 1),
-    }));
+    const hourlyForecast = hourlyTimes.slice(0, 24).map((timeStr, idx) => {
+      const tVal = json.hourly?.temperature_2m?.[idx];
+      return {
+        time: timeStr.split('T')[1]?.slice(0, 5) || timeStr,
+        fullTime: timeStr,
+        temp: typeof tVal === 'number' ? Math.round(tVal) : null,
+        prob: json.hourly?.precipitation_probability?.[idx] ?? 0,
+        windSpeed: typeof json.hourly?.wind_speed_10m?.[idx] === 'number' ? Math.round(json.hourly.wind_speed_10m[idx]) : 0,
+        cloudCover: json.hourly?.cloud_cover?.[idx] ?? 0,
+        condition: interpretWmoCode(json.hourly?.weather_code?.[idx] ?? 0, 1),
+      };
+    });
 
     // Decodifica previsioni giornaliere (fino a 14 giorni)
     const dailyTimes = json.daily?.time || [];
     const dailyForecast = dailyTimes.map((dateStr, idx) => {
       const dateObj = new Date(dateStr);
       const dayName = dateObj.toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' });
+      const maxVal = json.daily?.temperature_2m_max?.[idx];
+      const minVal = json.daily?.temperature_2m_min?.[idx];
       return {
         date: dateStr,
         dayName,
-        maxTemp: Math.round(json.daily?.temperature_2m_max?.[idx] ?? 20),
-        minTemp: Math.round(json.daily?.temperature_2m_min?.[idx] ?? 12),
+        maxTemp: typeof maxVal === 'number' ? Math.round(maxVal) : null,
+        minTemp: typeof minVal === 'number' ? Math.round(minVal) : null,
         precipSum: json.daily?.precipitation_sum?.[idx] ?? 0,
         precipProb: json.daily?.precipitation_probability_max?.[idx] ?? 0,
-        maxWind: Math.round(json.daily?.wind_speed_10m_max?.[idx] ?? 0),
+        maxWind: typeof json.daily?.wind_speed_10m_max?.[idx] === 'number' ? Math.round(json.daily.wind_speed_10m_max[idx]) : 0,
         condition: interpretWmoCode(json.daily?.weather_code?.[idx] ?? 0, 1),
       };
     });
 
     const weatherData = {
-      temperature: Math.round(current.temperature_2m ?? 20),
-      temperatureExact: current.temperature_2m ?? 20,
-      apparentTemperature: Math.round(current.apparent_temperature ?? current.temperature_2m ?? 20),
-      humidity: current.relative_humidity_2m ?? 50,
-      pressure: Math.round(current.surface_pressure ?? 1013),
-      windSpeed: Math.round(current.wind_speed_10m ?? 0),
+      temperature: Math.round(current.temperature_2m),
+      temperatureExact: current.temperature_2m,
+      apparentTemperature: typeof current.apparent_temperature === 'number'
+        ? Math.round(current.apparent_temperature)
+        : Math.round(current.temperature_2m),
+      humidity: current.relative_humidity_2m ?? null,
+      pressure: typeof current.surface_pressure === 'number' ? Math.round(current.surface_pressure) : null,
+      windSpeed: typeof current.wind_speed_10m === 'number' ? Math.round(current.wind_speed_10m) : 0,
       windDirectionDeg,
-      windDirection: getWindDirectionLabel(windDirectionDeg),
-      cloudCover: current.cloud_cover ?? 10,
+      windDirection: windDirectionDeg !== null ? getWindDirectionLabel(windDirectionDeg) : 'N/D',
+      cloudCover: current.cloud_cover ?? null,
       precipitation: current.precipitation ?? 0,
       rain: current.rain ?? 0,
       snowfall: current.snowfall ?? 0,
@@ -483,8 +497,8 @@ export async function getRealtimeWeather(lat, lng) {
       },
       hourlyForecast,
       dailyForecast,
-      dataSource: 'Modelli Ufficiali ECMWF (Europa) & NOAA GFS (Globale)',
-      radarSource: 'Doppler Radar Terrestre RainViewer Network',
+      dataSource: 'Open-Meteo (ECMWF Europa & NOAA GFS)',
+      radarSource: 'RainViewer International Doppler Radar Network',
       lastUpdated: new Date().toISOString(),
       isRealData: true,
     };
@@ -492,31 +506,68 @@ export async function getRealtimeWeather(lat, lng) {
     weatherCache.set(cacheKey, { timestamp: now, data: weatherData });
     return weatherData;
   } catch (err) {
-    console.warn('[WeatherService] Impossibile recuperare dati meteo online, uso fallback controllato:', err);
+    console.warn('[WeatherService] Dati meteo Open-Meteo non disponibili:', err);
+    return null;
+  }
+}
+
+/**
+ * Recupera le condizioni meteo reali lungo il percorso OSRM (Partenza, Tappa intermedia, Arrivo)
+ * tramite chiamata batch a Open-Meteo.
+ */
+export async function getRouteWeatherForecast(coordinates) {
+  if (!Array.isArray(coordinates) || coordinates.length < 2) {
+    return { points: [], source: 'Open-Meteo', lastUpdated: null };
+  }
+
+  const startCoord = coordinates[0];
+  const midCoord = coordinates[Math.floor(coordinates.length / 2)];
+  const endCoord = coordinates[coordinates.length - 1];
+
+  const sampled = [
+    { label: 'Partenza', lng: startCoord[0], lat: startCoord[1] },
+    ...(coordinates.length > 2 ? [{ label: 'Metà percorso', lng: midCoord[0], lat: midCoord[1] }] : []),
+    { label: 'Arrivo', lng: endCoord[0], lat: endCoord[1] },
+  ].filter((p) => typeof p.lat === 'number' && typeof p.lng === 'number' && !Number.isNaN(p.lat) && !Number.isNaN(p.lng));
+
+  if (sampled.length === 0) {
+    return { points: [], source: 'Open-Meteo', lastUpdated: null };
+  }
+
+  try {
+    const lats = sampled.map((s) => s.lat.toFixed(4)).join(',');
+    const lngs = sampled.map((s) => s.lng.toFixed(4)).join(',');
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&current=temperature_2m,precipitation,weather_code,wind_speed_10m,is_day`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Open-Meteo Route HTTP ${res.status}`);
+    const json = await res.json();
+    const list = Array.isArray(json) ? json : [json];
+
+    const points = sampled
+      .map((s, idx) => {
+        const cur = list[idx]?.current;
+        if (!cur || typeof cur.temperature_2m !== 'number') return null;
+        const cond = interpretWmoCode(cur.weather_code ?? 0, cur.is_day ?? 1);
+        return {
+          label: s.label,
+          lat: s.lat,
+          lng: s.lng,
+          temp: Math.round(cur.temperature_2m),
+          precipitation: cur.precipitation ?? 0,
+          windSpeed: typeof cur.wind_speed_10m === 'number' ? Math.round(cur.wind_speed_10m) : 0,
+          icon: cond.icon,
+          conditionLabel: cond.label,
+        };
+      })
+      .filter(Boolean);
+
     return {
-      temperature: 21,
-      temperatureExact: 21.0,
-      apparentTemperature: 21,
-      humidity: 55,
-      pressure: 1015,
-      windSpeed: 8,
-      windDirectionDeg: 90,
-      windDirection: 'Est (E)',
-      cloudCover: 15,
-      precipitation: 0,
-      rain: 0,
-      snowfall: 0,
-      isDay: true,
-      weatherCode: 0,
-      timezone: 'Europe/Rome',
-      condition: interpretWmoCode(0, 1),
-      units: { temperature: '°C', windSpeed: 'km/h', humidity: '%', precipitation: 'mm', pressure: 'hPa' },
-      hourlyForecast: [],
-      dailyForecast: [],
-      dataSource: 'Stazione di Riferimento Locale (Offline)',
-      radarSource: 'RainViewer',
+      points,
+      source: 'Open-Meteo (ECMWF & NOAA GFS)',
       lastUpdated: new Date().toISOString(),
-      isRealData: false,
     };
+  } catch (err) {
+    console.warn('[WeatherService] Meteo lungo il percorso non disponibile:', err);
+    return { points: [], source: 'Open-Meteo (non disponibile)', lastUpdated: null };
   }
 }

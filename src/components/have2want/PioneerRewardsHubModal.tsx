@@ -29,6 +29,7 @@ import {
   PioneerRewardsState
 } from '@/lib/communityRewardsService';
 import { useAuth } from '@/lib/AuthContext';
+import { checkIsPiBrowser } from '@/lib/piSdkService';
 
 interface PioneerRewardsHubModalProps {
   isOpen: boolean;
@@ -47,8 +48,13 @@ export const PioneerRewardsHubModal: React.FC<PioneerRewardsHubModalProps> = ({
   const [targetWalletAddress, setTargetWalletAddress] = useState<string>('');
   const [isProcessingWithdrawal, setIsProcessingWithdrawal] = useState(false);
   const [isWatchingAd, setIsWatchingAd] = useState(false);
-  const [adCountdown, setAdCountdown] = useState(5);
+  const [adCountdown, setAdCountdown] = useState(0);
   const [activeTab, setActiveTab] = useState<'convert' | 'earn' | 'history'>('convert');
+
+  const hasRealPiAdsSdk =
+    typeof window !== 'undefined' &&
+    checkIsPiBrowser() &&
+    Boolean((window as any).Pi?.Ads?.showAd);
 
   useEffect(() => {
     if (isOpen) {
@@ -73,28 +79,43 @@ export const PioneerRewardsHubModal: React.FC<PioneerRewardsHubModalProps> = ({
     breakdown.isValidAmount &&
     targetWalletAddress.trim().length >= 4;
 
-  // Gestione visione sponsor rapido (Pi Ads / Video Sponsor)
-  const handleWatchQuickAd = () => {
-    setIsWatchingAd(true);
-    setAdCountdown(4);
-
-    const interval = setInterval(() => {
-      setAdCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          setIsWatchingAd(false);
-          const result = awardPoints('QUICK_SPONSOR_AD');
-          if (result.success) {
-            setRewardsState(getPioneerRewardsState());
-            toast.success('🎉 Sponsor completato!', {
-              description: `Hai guadagnato +${result.pointsEarned} Punti Comunitari (~${pointsToPi(result.pointsEarned)} π).`,
-            });
-          }
-          return 0;
-        }
-        return prev - 1;
+  // Gestione visione sponsor reale tramite Pi Network Ads SDK (nessun accredito simulato)
+  const handleWatchQuickAd = async () => {
+    if (!hasRealPiAdsSdk) {
+      toast.error('Pi Ads Rewarded disponibile solo dentro Pi Browser ufficiale', {
+        description: 'Nessun accredito simulato consentito fuori da Pi.Ads.showAd("rewarded").',
       });
-    }, 1000);
+      return;
+    }
+
+    setIsWatchingAd(true);
+    setAdCountdown(0);
+    try {
+      const piAds = (window as any).Pi.Ads;
+      if (typeof piAds.isAdReady === 'function' && typeof piAds.requestAd === 'function') {
+        const readyRes = await piAds.isAdReady('rewarded');
+        if (!readyRes?.ready) {
+          await piAds.requestAd('rewarded');
+        }
+      }
+      const showRes = await piAds.showAd('rewarded');
+      if (showRes?.result === 'AD_REWARDED') {
+        const result = awardPoints('QUICK_SPONSOR_AD', 'Visione certificata Pi Ads Rewarded');
+        if (result.success) {
+          setRewardsState(getPioneerRewardsState());
+          toast.success('🎉 Sponsor Pi Ads completato!', {
+            description: `Hai guadagnato +${result.pointsEarned} Punti Comunitari (~${pointsToPi(result.pointsEarned)} π).`,
+          });
+        }
+      } else {
+        toast.info('Inserzione Pi Ads non completata: nessun punto accreditato.');
+      }
+    } catch (err) {
+      console.error('Errore Pi Ads:', err);
+      toast.error('Pi Ads non disponibile o interrotto durante la visione.');
+    } finally {
+      setIsWatchingAd(false);
+    }
   };
 
   // Esecuzione del prelievo con detrazione fee 0.01 Pi
@@ -430,18 +451,25 @@ export const PioneerRewardsHubModal: React.FC<PioneerRewardsHubModalProps> = ({
                 {isWatchingAd ? (
                   <div className="p-4 rounded-xl bg-zinc-950 border border-amber-500/50 text-center space-y-2">
                     <div className="text-xs text-amber-300 font-bold animate-pulse">
-                      📺 Visualizzazione Sponsor in corso...
+                      📺 Verifica annuncio ufficiale Pi Ads in corso...
                     </div>
-                    <div className="text-2xl font-black text-white font-mono">{adCountdown}s</div>
-                    <p className="text-[10px] text-zinc-500">I punti verranno accreditati automaticamente</p>
+                    <p className="text-[10px] text-zinc-400">
+                      {adCountdown > 0 ? `${adCountdown}s` : 'In attesa di conferma AD_REWARDED da Pi SDK'}
+                    </p>
                   </div>
                 ) : (
                   <button
+                    type="button"
                     onClick={handleWatchQuickAd}
-                    className="w-full py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+                    disabled={!hasRealPiAdsSdk}
+                    className="w-full py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 disabled:bg-zinc-900 disabled:text-zinc-500 disabled:border-zinc-800 border border-amber-500/40 text-amber-300 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all"
                   >
                     <PlayCircle className="w-3.5 h-3.5" />
-                    <span>Guarda Sponsor Rapido (+{REWARDS_CONFIG.EARN_RATES.QUICK_SPONSOR_AD} Punti)</span>
+                    <span>
+                      {hasRealPiAdsSdk
+                        ? `Guarda Pi Ads Rewarded (+${REWARDS_CONFIG.EARN_RATES.QUICK_SPONSOR_AD} Punti)`
+                        : 'Pi Ads Reale disponibile solo in Pi Browser'}
+                    </span>
                   </button>
                 )}
               </div>

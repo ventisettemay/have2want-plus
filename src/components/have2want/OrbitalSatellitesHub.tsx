@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { CloudSun, Store, ShoppingBag, Briefcase, X, ChevronRight, Sparkles, ShieldCheck, MapPin, Truck, Satellite } from 'lucide-react';
+import { CloudSun, Store, ShoppingBag, Briefcase, X, ChevronRight, Satellite } from 'lucide-react';
 import VetrinaKmZero from './VetrinaKmZero';
 import { GlobalMarketplaceView } from './GlobalMarketplaceView';
 import BachecaLavoroP2P from './BachecaLavoroP2P';
-import LiveWeatherModal from './LiveWeatherModal';
 import SpacecraftInspectorModal from './SpacecraftInspectorModal';
+import { StreetView360Modal } from './StreetView360Modal';
+import { ExternalListings } from './ExternalListings';
+import WorldEmergencyModal from './WorldEmergencyModal';
 import { SatelliteId } from '@/lib/satelliteModularEngine';
 
 interface OrbitalSatellitesHubProps {
@@ -14,7 +16,20 @@ interface OrbitalSatellitesHubProps {
   isPoliticalActive?: boolean;
   onToggleWeather?: () => void;
   isWeatherActive?: boolean;
+  onLaunchSatellite?: (satId: SatelliteId) => void;
+  onFocusSatelliteOnGlobe?: (satId: SatelliteId) => void;
+  onAddWantListing?: (listing: any) => void;
 }
+
+type HubChannel =
+  | 'METEO'
+  | 'KMZERO'
+  | 'SUPERMARKET'
+  | 'LAVORO'
+  | 'STRADARIO'
+  | 'EXTERNAL'
+  | 'COMUNITA'
+  | null;
 
 export default function OrbitalSatellitesHub({
   currentUser,
@@ -23,8 +38,11 @@ export default function OrbitalSatellitesHub({
   isPoliticalActive = false,
   onToggleWeather,
   isWeatherActive = true,
+  onLaunchSatellite,
+  onFocusSatelliteOnGlobe,
+  onAddWantListing,
 }: OrbitalSatellitesHubProps) {
-  const [activeChannel, setActiveChannel] = useState<'METEO' | 'KMZERO' | 'SUPERMARKET' | 'LAVORO' | null>(null);
+  const [activeChannel, setActiveChannel] = useState<HubChannel>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isFleetModalOpen, setIsFleetModalOpen] = useState(false);
   const [selectedSatForFleet, setSelectedSatForFleet] = useState<SatelliteId | null>(null);
@@ -99,7 +117,7 @@ export default function OrbitalSatellitesHub({
                 <span className="text-base">🌐</span>
                 <div>
                   <h4 className="text-xs font-black text-white uppercase tracking-wider">Canali & Servizi Territoriali</h4>
-                  <p className="text-[10px] text-zinc-400">Le 4 funzioni operative chiave dell'ecosistema Have2Want</p>
+                  <p className="text-[10px] text-zinc-400">I canali operativi chiave e gli 8 satelliti Have2Want</p>
                 </div>
               </div>
               <button
@@ -111,7 +129,7 @@ export default function OrbitalSatellitesHub({
               </button>
             </div>
 
-            {/* 🛰️ Centro Controllo Flotta 14 Satelliti H2W */}
+            {/* 🛰️ Centro Controllo Flotta 8 Satelliti H2W */}
             <div className="mb-2.5">
               <button
                 type="button"
@@ -128,7 +146,7 @@ export default function OrbitalSatellitesHub({
                   </div>
                   <div>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-black text-white">CONTROLLO FLOTTA 14 SATELLITI</span>
+                      <span className="text-xs font-black text-white">CONTROLLO FLOTTA 8 SATELLITI</span>
                       <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-emerald-400 text-black">7 PRESET</span>
                     </div>
                     <p className="text-[10px] text-zinc-300">Interruttori ON/OFF, Ispezione 3D, orbite ed azionamenti</p>
@@ -246,7 +264,6 @@ export default function OrbitalSatellitesHub({
               </div>
             </div>
 
-            {/* Embedded Live Weather Modal Component view */}
             <div className="border border-zinc-800/80 rounded-xl overflow-hidden bg-black/40 p-4">
               <h4 className="text-xs font-black text-sky-400 uppercase tracking-wider mb-2">Radar Live Territoriale</h4>
               <p className="text-xs text-zinc-300 mb-4">
@@ -268,27 +285,12 @@ export default function OrbitalSatellitesHub({
 
       {/* CANALE 2: VETRINA KM ZERO */}
       {activeChannel === 'KMZERO' && (
-        <div className="fixed inset-0 z-50 bg-slate-950 overflow-y-auto animate-in fade-in duration-200">
-          <div className="sticky top-0 z-40 bg-slate-900/95 border-b border-slate-800 px-4 py-3 flex items-center justify-between backdrop-blur-md">
-            <div className="flex items-center gap-2">
-              <span className="text-lg">🥦</span>
-              <span className="text-xs font-black text-amber-400 uppercase tracking-wider">
-                VETRINA A KM ZERO (PRODOTTI FRESCHI & TERRITORIO)
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setActiveChannel(null)}
-              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-              <span>Chiudi</span>
-            </button>
-          </div>
-          <div className="max-w-7xl mx-auto">
-            <VetrinaKmZero currentUser={currentUser} onOpenChat={onOpenChat} />
-          </div>
-        </div>
+        <VetrinaKmZero
+          isOpen={true}
+          onClose={() => setActiveChannel(null)}
+          currentUser={currentUser}
+          onOpenChat={onOpenChat}
+        />
       )}
 
       {/* CANALE 3: MARKETPLACE INTERNAZIONALE & PRODOTTI FISICI */}
@@ -297,33 +299,56 @@ export default function OrbitalSatellitesHub({
           <GlobalMarketplaceView
             onBack={() => setActiveChannel(null)}
             currentUser={currentUser}
+            onAddWantListing={(listing) => {
+              if (onAddWantListing) onAddWantListing(listing);
+              setActiveChannel(null);
+            }}
           />
         </div>
       )}
 
       {/* CANALE 4: BACHECA LAVORO & SCAMBI P2P */}
       {activeChannel === 'LAVORO' && (
-        <div className="fixed inset-0 z-50 bg-slate-950 overflow-y-auto animate-in fade-in duration-200">
-          <div className="sticky top-0 z-40 bg-slate-900/95 border-b border-slate-800 px-4 py-3 flex items-center justify-between backdrop-blur-md">
-            <div className="flex items-center gap-2">
-              <span className="text-lg">💼</span>
-              <span className="text-xs font-black text-amber-400 uppercase tracking-wider">
-                BACHECA LAVORO P2P & COMPETENZE (NO AGENZIE INTERINALI)
-              </span>
+        <BachecaLavoroP2P
+          isOpen={true}
+          onClose={() => setActiveChannel(null)}
+          currentUser={currentUser}
+        />
+      )}
+
+      {/* FALLBACK STANDALONE PER SATELLITI AGGIUNTIVI */}
+      {activeChannel === 'STRADARIO' && (
+        <StreetView360Modal
+          isOpen={true}
+          onClose={() => setActiveChannel(null)}
+          cityName={currentUser?.city || 'Mondo'}
+        />
+      )}
+
+      {activeChannel === 'EXTERNAL' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+          <div className="w-full max-w-2xl bg-zinc-950 border border-orange-500/40 rounded-3xl p-5 shadow-2xl max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3 mb-3">
+              <h3 className="text-base font-black text-white">🛒 Marketplace Esterni</h3>
+              <button
+                type="button"
+                onClick={() => setActiveChannel(null)}
+                className="p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setActiveChannel(null)}
-              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-              <span>Chiudi</span>
-            </button>
-          </div>
-          <div className="max-w-7xl mx-auto">
-            <BachecaLavoroP2P currentUser={currentUser} />
+            <ExternalListings country="GLOBAL" query="offerte" />
           </div>
         </div>
+      )}
+
+      {activeChannel === 'COMUNITA' && (
+        <WorldEmergencyModal
+          isOpen={true}
+          onClose={() => setActiveChannel(null)}
+          defaultCountryCode="GLOBAL"
+        />
       )}
 
       {/* 🛰️ MODALE CONTROLLO FLOTTA 8 SATELLITI & ISPEZIONE 3D */}
@@ -334,11 +359,21 @@ export default function OrbitalSatellitesHub({
         onClose={() => setIsFleetModalOpen(false)}
         onLaunchChannel={(satId) => {
           setIsFleetModalOpen(false);
+          if (onLaunchSatellite) {
+            onLaunchSatellite(satId);
+            return;
+          }
           if (satId === 'METEO_SAT') setActiveChannel('METEO');
           else if (satId === 'KM0_SAT') setActiveChannel('KMZERO');
+          else if (satId === 'STREET_360_SAT') setActiveChannel('STRADARIO');
+          else if (satId === 'PI_CHAT_SAT') {
+            if (onOpenChat) onOpenChat('pi-chat-satellite');
+          } else if (satId === 'EXTERNAL_MARKET_SAT') setActiveChannel('EXTERNAL');
+          else if (satId === 'COMMUNITY_RESCUE_SAT') setActiveChannel('COMUNITA');
           else setActiveChannel('SUPERMARKET');
         }}
         onSelectSatellite={(satId) => setSelectedSatForFleet(satId)}
+        onFocusSatelliteOnGlobe={onFocusSatelliteOnGlobe}
       />
     </>
   );

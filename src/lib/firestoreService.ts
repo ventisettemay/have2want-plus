@@ -523,3 +523,152 @@ export async function submitAbuseReportToCloud(report: {
     return false;
   }
 }
+
+export async function upvoteGuideInCloud(guideId: string, nextUpvotes: number): Promise<boolean> {
+  const authenticatedUid = auth.currentUser?.uid;
+  const safeId = String(guideId || '').trim();
+  if (!authenticatedUid || !safeId || !Number.isFinite(nextUpvotes)) return false;
+  const path = `${GUIDES_COLLECTION}/${safeId}`;
+  try {
+    await updateDoc(doc(db, GUIDES_COLLECTION, safeId), {
+      upvotes: Math.max(1, Math.round(nextUpvotes)),
+      updatedAt: new Date().toISOString(),
+      serverTimestamp: serverTimestamp(),
+    });
+    return true;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path, { silentReturn: true });
+    return false;
+  }
+}
+
+export async function sendChatMessageToCloud(
+  chatRoomId: string,
+  message: {
+    id: string;
+    senderName: string;
+    type: 'text' | 'voice';
+    text: string;
+    durationText?: string | null;
+  }
+): Promise<{ ok: boolean; reason?: string }> {
+  const authenticatedUid = auth.currentUser?.uid;
+  const safeRoomId = String(chatRoomId || '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 96);
+  const safeMsgId = String(message.id || '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 96);
+  if (!authenticatedUid || !safeRoomId || !safeMsgId) {
+    return { ok: false, reason: 'auth_required' };
+  }
+  const path = `chats/${safeRoomId}/messages/${safeMsgId}`;
+  try {
+    await setDoc(
+      doc(db, 'chats', safeRoomId, 'messages', safeMsgId),
+      cleanData({
+        id: safeMsgId,
+        chatRoomId: safeRoomId,
+        senderUid: authenticatedUid,
+        senderName: String(message.senderName || 'Pioneer').slice(0, 80),
+        type: message.type,
+        text: String(message.text || '').slice(0, 2000),
+        durationText: message.durationText || null,
+        createdAt: new Date().toISOString(),
+        serverTimestamp: serverTimestamp(),
+      })
+    );
+    return { ok: true };
+  } catch (error: any) {
+    handleFirestoreError(error, OperationType.WRITE, path, { silentReturn: true });
+    return { ok: false, reason: error?.code || 'rules_or_network_blocked' };
+  }
+}
+
+export function subscribeToChatMessages(
+  chatRoomId: string,
+  onUpdate: (messages: any[]) => void,
+  onBlocked?: () => void
+): () => void {
+  const authenticatedUid = auth.currentUser?.uid;
+  const safeRoomId = String(chatRoomId || '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 96);
+  if (!authenticatedUid || !safeRoomId) return () => {};
+  try {
+    const q = query(
+      collection(db, 'chats', safeRoomId, 'messages'),
+      orderBy('createdAt', 'asc'),
+      limit(100)
+    );
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const rows: any[] = [];
+        snapshot.forEach((d) => {
+          const data = d.data();
+          if (data) rows.push({ id: d.id, ...data });
+        });
+        onUpdate(rows);
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.LIST, `chats/${safeRoomId}/messages`, {
+          silentReturn: true,
+        });
+        if (onBlocked) onBlocked();
+      }
+    );
+  } catch {
+    return () => {};
+  }
+}
+
+export async function publishRtcSignalToCloud(
+  callId: string,
+  payload: Record<string, any>
+): Promise<{ ok: boolean; reason?: string }> {
+  const authenticatedUid = auth.currentUser?.uid;
+  const safeCallId = String(callId || '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 96);
+  if (!authenticatedUid || !safeCallId) {
+    return { ok: false, reason: 'auth_required' };
+  }
+  const path = `calls/${safeCallId}`;
+  try {
+    await setDoc(
+      doc(db, 'calls', safeCallId),
+      cleanData({
+        ...payload,
+        callId: safeCallId,
+        senderUid: authenticatedUid,
+        updatedAt: new Date().toISOString(),
+        serverTimestamp: serverTimestamp(),
+      }),
+      { merge: true }
+    );
+    return { ok: true };
+  } catch (error: any) {
+    handleFirestoreError(error, OperationType.WRITE, path, { silentReturn: true });
+    return { ok: false, reason: error?.code || 'rules_or_network_blocked' };
+  }
+}
+
+export function subscribeRtcSignals(
+  callId: string,
+  onSignal: (data: any) => void,
+  onBlocked?: () => void
+): () => void {
+  const authenticatedUid = auth.currentUser?.uid;
+  const safeCallId = String(callId || '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 96);
+  if (!authenticatedUid || !safeCallId) return () => {};
+  const path = `calls/${safeCallId}`;
+  try {
+    return onSnapshot(
+      doc(db, 'calls', safeCallId),
+      (snap) => {
+        if (snap.exists()) {
+          onSignal(snap.data());
+        }
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.GET, path, { silentReturn: true });
+        if (onBlocked) onBlocked();
+      }
+    );
+  } catch {
+    return () => {};
+  }
+}

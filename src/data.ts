@@ -210,7 +210,7 @@ export const INITIAL_SHOPS: CommerceShop[] = [
     barterConditions: "Scambio con pasta artigianale, legumi secchi o letame maturo",
     isKYCVerified: true,
     isLocalSponsor: true,
-    sponsorInitiative: "Fornisce semi gratuiti all'Orto Civico e all'Albero della Vita",
+    sponsorInitiative: "Fornisce semi gratuiti all'Orto Civico della Comunità",
     itemsCount: 22,
     rating: 4.98,
     featuredOffer: "1 kg Pomodori Cuore di Bue ⇄ 2 kg Pasta di grano antico o 1.2 Pi (Locale)",
@@ -396,8 +396,6 @@ export const INITIAL_LISTINGS: HaveWantListing[] = [
     createdAt: "10 minuti fa",
     tags: ["Medico", "Salute", "Solidale", "Vetrina Gratis", "Asti"],
     status: "active",
-    planetId: "planet-possibilita",
-    satelliteId: "sat-servizi",
   },
   {
     id: "listing-spec-2",
@@ -423,8 +421,6 @@ export const INITIAL_LISTINGS: HaveWantListing[] = [
     createdAt: "2 ore fa",
     tags: ["Psicologia", "Ascolto", "Benessere", "Vetrina Gratis", "Torino"],
     status: "active",
-    planetId: "planet-possibilita",
-    satelliteId: "sat-servizi",
   },
   {
     id: "listing-spec-3",
@@ -450,8 +446,6 @@ export const INITIAL_LISTINGS: HaveWantListing[] = [
     createdAt: "4 ore fa",
     tags: ["Legale", "Consulenza Etica", "Contratti", "Vetrina Gratis", "Firenze"],
     status: "active",
-    planetId: "planet-possibilita",
-    satelliteId: "sat-servizi",
   },
   // 1. LIBRI, SCUOLA & CULTURA - Sotto-categoria prioritaria: scambio_libri_scolastici (Priorità Studenti)
   {
@@ -493,8 +487,6 @@ export const INITIAL_LISTINGS: HaveWantListing[] = [
     createdAt: "10 minuti fa",
     tags: ["Libri Scolastici", "Scuola Media", "Studenti", "Baratto", "Asti"],
     status: "active",
-    planetId: "planet-possibilita",
-    satelliteId: "sat-oggetti",
   },
   {
     id: "listing-school-seek",
@@ -535,8 +527,6 @@ export const INITIAL_LISTINGS: HaveWantListing[] = [
     createdAt: "35 minuti fa",
     tags: ["Cerco", "Libri Scolastici", "Fisica", "Studenti", "Asti"],
     status: "active",
-    planetId: "planet-possibilita",
-    satelliteId: "sat-oggetti",
   },
   {
     id: "listing-books-saggi",
@@ -576,8 +566,6 @@ export const INITIAL_LISTINGS: HaveWantListing[] = [
     createdAt: "1 ora fa",
     tags: ["Libri", "Saggistica", "Agronomia", "Permacultura"],
     status: "active",
-    planetId: "planet-possibilita",
-    satelliteId: "sat-oggetti",
   },
 
   // 2. AUTO, MOTO & VEICOLI
@@ -619,8 +607,6 @@ export const INITIAL_LISTINGS: HaveWantListing[] = [
     createdAt: "2 ore fa",
     tags: ["Cerco", "Pneumatici", "Gomme Invernali", "Auto"],
     status: "active",
-    planetId: "planet-possibilita",
-    satelliteId: "sat-oggetti",
   },
   {
     id: "listing-tires-sell",
@@ -646,8 +632,6 @@ export const INITIAL_LISTINGS: HaveWantListing[] = [
     createdAt: "3 ore fa",
     tags: ["Vendo", "Pneumatici", "Michelin", "Auto"],
     status: "active",
-    planetId: "planet-possibilita",
-    satelliteId: "sat-oggetti",
     isExternal: true,
     externalPortal: "Subito.it",
     externalUrl: "https://www.subito.it",
@@ -690,8 +674,6 @@ export const INITIAL_LISTINGS: HaveWantListing[] = [
     createdAt: "4 ore fa",
     tags: ["Ricambi", "Meccanica", "Alternatore", "Auto"],
     status: "active",
-    planetId: "planet-possibilita",
-    satelliteId: "sat-oggetti",
   },
   {
     id: "listing-veicoli-bici",
@@ -717,8 +699,6 @@ export const INITIAL_LISTINGS: HaveWantListing[] = [
     createdAt: "5 ore fa",
     tags: ["Bici", "Cargo", "Mobilità", "Veicoli"],
     status: "active",
-    planetId: "planet-possibilita",
-    satelliteId: "sat-oggetti",
   },
 
   // 3. ABBIGLIAMENTO & ACCESSORI
@@ -760,8 +740,6 @@ export const INITIAL_LISTINGS: HaveWantListing[] = [
     createdAt: "Stamattina all'alba",
     tags: ["Abbigliamento", "Giaccone", "Lana", "Baratto"],
     status: "active",
-    planetId: "planet-possibilita",
-    satelliteId: "sat-oggetti",
   },
   {
     id: "listing-scarpe-1",
@@ -787,8 +765,6 @@ export const INITIAL_LISTINGS: HaveWantListing[] = [
     createdAt: "2 ore fa",
     tags: ["Scarpe", "Scarponi", "Lavoro", "Calzature"],
     status: "active",
-    planetId: "planet-possibilita",
-    satelliteId: "sat-oggetti",
   },
   {
     id: "listing-zaino-scuola",
@@ -828,8 +804,6 @@ export const INITIAL_LISTINGS: HaveWantListing[] = [
     createdAt: "3 ore fa",
     tags: ["Zaino", "Accessori", "Scuola", "Studenti"],
     status: "active",
-    planetId: "planet-possibilita",
-    satelliteId: "sat-oggetti",
   },
 
   // 4. ELETTRONICA & INFORMATICA
@@ -857,8 +831,6 @@ export const INITIAL_LISTINGS: HaveWantListing[] = [
     createdAt: "1 ora fa",
     tags: ["Smartphone", "Telefonia", "Ricondizionato", "PiNetwork"],
     status: "active",
-    planetId: "planet-possibilita",
-    satelliteId: "sat-oggetti",
     isExternal: true,
     externalPortal: "eBay Annunci",
     externalUrl: "https://www.ebay.it",
@@ -901,8 +873,6 @@ export const INITIAL_LISTINGS: HaveWantListing[] = [
     createdAt: "2 ore fa",
     tags: ["Laptop", "Computer", "Informatica", "PiNetwork"],
     status: "active",
-    planetId: "planet-possibilita",
-    satelliteId: "sat-oggetti",
   },
   {
     id: "listing-elettrodomestici-1",
@@ -942,8 +912,6 @@ export const INITIAL_LISTINGS: HaveWantListing[] = [
     createdAt: "4 ore fa",
     tags: ["Elettrodomestici", "Cucina", "Robot", "Baratto"],
     status: "active",
-    planetId: "planet-possibilita",
-    satelliteId: "sat-oggetti",
   },
 
   // 5. CASA & FAI-DA-TE
@@ -1234,8 +1202,6 @@ export const INITIAL_LISTINGS: HaveWantListing[] = [
     createdAt: "3 ore fa",
     tags: ["Buoni", "Carburante", "Voucher", "PiNetwork"],
     status: "active",
-    planetId: "planet-possibilita",
-    satelliteId: "sat-oggetti",
   },
   {
     id: "listing-idraulica-servizio",
@@ -1275,8 +1241,6 @@ export const INITIAL_LISTINGS: HaveWantListing[] = [
     createdAt: "5 ore fa",
     tags: ["Idraulica", "Riparazioni", "Mestieri", "Servizi"],
     status: "active",
-    planetId: "planet-possibilita",
-    satelliteId: "sat-oggetti",
   },
   {
     id: "listing-ripetizioni-seek",
@@ -1316,8 +1280,6 @@ export const INITIAL_LISTINGS: HaveWantListing[] = [
     createdAt: "6 ore fa",
     tags: ["Cerco", "Ripetizioni", "Matematica", "Studenti", "Asti"],
     status: "active",
-    planetId: "planet-possibilita",
-    satelliteId: "sat-oggetti",
   },
   {
     id: "listing-spain-madrid-1",
@@ -1343,8 +1305,6 @@ export const INITIAL_LISTINGS: HaveWantListing[] = [
     createdAt: "1 ora fa",
     tags: ["Chitarra", "Spagna", "Madrid", "Musica", "Artigianato"],
     status: "active",
-    planetId: "planet-possibilita",
-    satelliteId: "sat-oggetti",
     isExternal: true,
     externalPortal: "Wallapop",
     externalUrl: "https://es.wallapop.com",
@@ -1373,8 +1333,6 @@ export const INITIAL_LISTINGS: HaveWantListing[] = [
     createdAt: "3 ore fa",
     tags: ["Cina", "Pechino", "Tè", "Ceramica", "Cultura"],
     status: "active",
-    planetId: "planet-possibilita",
-    satelliteId: "sat-oggetti",
     isExternal: true,
     externalPortal: "Idle Fish (Xianyu)",
     externalUrl: "https://www.2.taobao.com",
@@ -1403,8 +1361,6 @@ export const INITIAL_LISTINGS: HaveWantListing[] = [
     createdAt: "2 ore fa",
     tags: ["Trasferta", "Passaggio", "Milano", "Roma", "Carpooling", "Viaggio"],
     status: "active",
-    planetId: "planet-possibilita",
-    satelliteId: "sat-servizi",
   },
   {
     id: "listing-carpool-torino-genova-1",
@@ -1430,8 +1386,6 @@ export const INITIAL_LISTINGS: HaveWantListing[] = [
     createdAt: "4 ore fa",
     tags: ["Trasferta", "Passaggio", "Torino", "Genova", "Asti", "Carpooling"],
     status: "active",
-    planetId: "planet-possibilita",
-    satelliteId: "sat-servizi",
   },
   {
     id: "listing-carpool-bologna-firenze-cerco",
@@ -1457,8 +1411,6 @@ export const INITIAL_LISTINGS: HaveWantListing[] = [
     createdAt: "5 ore fa",
     tags: ["Cerco", "Trasferta", "Passaggio", "Bologna", "Firenze", "Lavoro"],
     status: "active",
-    planetId: "planet-possibilita",
-    satelliteId: "sat-servizi",
   },
   {
     id: "listing-carpool-parigi-lione-1",
@@ -1484,8 +1436,6 @@ export const INITIAL_LISTINGS: HaveWantListing[] = [
     createdAt: "1 giorno fa",
     tags: ["Trasferta", "Passaggio", "Parigi", "Lione", "Internazionale", "Minivan"],
     status: "active",
-    planetId: "planet-possibilita",
-    satelliteId: "sat-servizi",
     isExternal: true,
     externalPortal: "BlaBlaCar FR",
     externalUrl: "https://www.blablacar.fr",
@@ -1668,7 +1618,7 @@ export const INITIAL_SPECIALISTS: CommunitySpecialist[] = [
         targetId: "spec-1",
         targetName: "Dott. Marco Valenti",
         stars: 5,
-        interactionQuotaPiPaid: 0.15,
+        interactionQuotaPiPaid: 0.25,
         isAIGeneratedCivilText: false,
         selectedIssues: [],
         civilReviewText: "Orientamento chiaro, empatico e tempestivo su un dubbio di primo soccorso. Professionista esemplare.",

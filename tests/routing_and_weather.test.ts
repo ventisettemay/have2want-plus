@@ -1,6 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { calculateRealRoute, type RealRouteResult } from '../src/lib/routingService';
-import { getRealtimeWeather, getRainViewerRadarData, getWindDirectionLabel } from '../src/lib/weatherService';
+import {
+  calculateRealRoute,
+  calculateRealRoutes,
+  distanceToRouteMeters,
+  type RealRouteResult,
+} from '../src/lib/routingService';
+import {
+  getRealtimeWeather,
+  getRainViewerRadarData,
+  getWindDirectionLabel,
+  getRouteWeatherForecast,
+} from '../src/lib/weatherService';
 
 describe('Servizio Routing Reale OSRM & Meteorologia Avanzata', () => {
   beforeEach(() => {
@@ -68,17 +78,61 @@ describe('Servizio Routing Reale OSRM & Meteorologia Avanzata', () => {
       expect(route.steps[1].instruction).toContain('destra');
     });
 
-    it('restituisce linea geodetica diretta di fallback in caso di mancata risposta del server OSRM', async () => {
+    it('restituisce null se OSRM non risponde (nessuna linea retta spacciata per percorso)', async () => {
       vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new Error('Network offline'));
 
       const fallbackRoute = await calculateRealRoute(41.8902, 12.4922, 45.4642, 9.1900, 'driving');
-      expect(fallbackRoute).not.toBeNull();
-      if (!fallbackRoute) return;
+      expect(fallbackRoute).toBeNull();
+    });
 
-      expect(fallbackRoute.coordinates).toHaveLength(2);
-      expect(fallbackRoute.totalDistanceKm).toBeGreaterThan(400); // Roma-Milano ~470km
-      expect(fallbackRoute.steps).toHaveLength(2);
-      expect(fallbackRoute.steps[0].instruction).toContain('Procedi verso destinazione');
+    it('supporta rotte alternative OSRM e profilo bici (cycling)', async () => {
+      const mockAlternativesResponse = {
+        code: 'Ok',
+        routes: [
+          {
+            geometry: {
+              coordinates: [
+                [7.6869, 45.0703],
+                [7.6900, 45.0750],
+              ],
+            },
+            distance: 900,
+            duration: 210,
+            legs: [{ steps: [{ maneuver: { type: 'depart' }, name: 'Corso Vittorio', distance: 900, duration: 210 }] }],
+          },
+          {
+            geometry: {
+              coordinates: [
+                [7.6869, 45.0703],
+                [7.6920, 45.0750],
+              ],
+            },
+            distance: 1150,
+            duration: 250,
+            legs: [{ steps: [{ maneuver: { type: 'depart' }, name: 'Via Po', distance: 1150, duration: 250 }] }],
+          },
+        ],
+      };
+
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockAlternativesResponse,
+      } as unknown as Response);
+
+      const routes = await calculateRealRoutes(45.0703, 7.6869, 45.0750, 7.6900, 'cycling', true);
+      expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining('/route/v1/cycling/'), expect.anything());
+      expect(routes).toHaveLength(2);
+      expect(routes[0].totalDistanceMeters).toBe(900);
+      expect(routes[1].totalDistanceMeters).toBe(1150);
+    });
+
+    it('calcola correttamente la distanza dalla rotta per il ricalcolo GPS off-route', () => {
+      const polyline: [number, number][] = [
+        [12.4922, 41.8902],
+        [12.4940, 41.8902],
+      ];
+      expect(distanceToRouteMeters(41.8902, 12.4931, polyline)).toBeLessThan(10);
+      expect(distanceToRouteMeters(41.8915, 12.4931, polyline)).toBeGreaterThan(55);
     });
 
     it('gestisce punti coincidenti con arrivo immediato a 0 metri', async () => {
@@ -124,15 +178,69 @@ describe('Servizio Routing Reale OSRM & Meteorologia Avanzata', () => {
       expect(radar?.host).toBe('https://tilecache.rainviewer.com');
     });
 
-    it('getRealtimeWeather genera dati meteo e fallback coerente', async () => {
+    it('getRealtimeWeather restituisce null se Open-Meteo non risponde (zero dati meteo inventati)', async () => {
       vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new Error('Open-Meteo unreachable'));
 
       const weather = await getRealtimeWeather(41.9028, 12.4964);
-      expect(weather).toBeDefined();
-      expect(weather.temperature).toBeDefined();
-      expect(weather.pressure).toBeGreaterThan(950);
-      expect(weather.windDirection).toBeDefined();
-      expect(weather.units.temperature).toBe('°C');
+      expect(weather).toBeNull();
+    });
+
+    it('getRouteWeatherForecast interroga Open-Meteo lungo partenza, punto intermedio e arrivo', async () => {
+      const mockWeatherPayload = (temp: number) => ({
+        timezone: 'Europe/Rome',
+        current: {
+          temperature_2m: temp,
+          relative_humidity_2m: 60,
+          apparent_temperature: temp,
+          is_day: 1,
+          precipitation: 0,
+          weather_code: 1,
+          cloud_cover: 20,
+          surface_pressure: 1015,
+          wind_speed_10m: 8,
+          wind_direction_10m: 180,
+          wind_gusts_10m: 12,
+        },
+        hourly: {
+          time: ['2026-01-01T10:00'],
+          temperature_2m: [temp],
+          precipitation_probability: [10],
+          precipitation: [0],
+          weather_code: [1],
+          wind_speed_10m: [8],
+          visibility: [10000],
+        },
+        daily: {
+          time: ['2026-01-01'],
+          weather_code: [1],
+          temperature_2m_max: [temp + 2],
+          temperature_2m_min: [temp - 4],
+          precipitation_sum: [0],
+        },
+      });
+
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        json: async () => [
+          mockWeatherPayload(14),
+          mockWeatherPayload(16),
+          mockWeatherPayload(18),
+        ],
+      } as unknown as Response);
+
+      const routeForecast = await getRouteWeatherForecast([
+        [7.68, 45.07],
+        [9.19, 45.46],
+        [12.49, 41.89],
+      ]);
+
+      expect(routeForecast.points).toHaveLength(3);
+      expect(routeForecast.points[0].label).toBe('Partenza');
+      expect(routeForecast.points[0].temp).toBe(14);
+      expect(routeForecast.points[1].label).toBe('Metà percorso');
+      expect(routeForecast.points[1].temp).toBe(16);
+      expect(routeForecast.points[2].label).toBe('Arrivo');
+      expect(routeForecast.points[2].temp).toBe(18);
     });
   });
 });

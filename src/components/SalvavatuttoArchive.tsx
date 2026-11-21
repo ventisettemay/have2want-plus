@@ -12,15 +12,27 @@ import {
   X
 } from "lucide-react";
 
-interface SalvavatuttoPlanetProps {
+interface SalvavatuttoArchiveProps {
   guides: SalvavatuttoGuide[];
   onAddGuide: (guide: SalvavatuttoGuide) => void;
+  onUpvoteGuide?: (guideId: string) => void;
 }
 
-export const SalvavatuttoPlanet: React.FC<SalvavatuttoPlanetProps> = ({
+const SALVAVATUTTO_SYNONYMS: Record<string, string[]> = {
+  bici: ["bicicletta", "ciclo", "gomma", "ruota", "catena", "freni"],
+  cibo: ["alimenti", "conservare", "barattoli", "orto", "frutta", "ortaggi"],
+  acqua: ["potabilizzare", "filtro", "risparmio", "idraulica", "perdita"],
+  luce: ["energia", "solare", "batteria", "risparmio", "elettrico"],
+  soccorso: ["salute", "ferita", "emergenza", "sicurezza", "primo"],
+  riparare: ["aggiustare", "manutenzione", "fai", "restauro", "utensili"],
+};
+
+export const SalvavatuttoArchive: React.FC<SalvavatuttoArchiveProps> = ({
   guides,
   onAddGuide,
+  onUpvoteGuide,
 }) => {
+  const [upvotedIds, setUpvotedIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("ALL");
   const [expandedGuideId, setExpandedGuideId] = useState<string | null>("salv-1");
@@ -81,17 +93,52 @@ export const SalvavatuttoPlanet: React.FC<SalvavatuttoPlanetProps> = ({
   const [newAuthor, setNewAuthor] = useState("Autore Locale");
   const [newTags, setNewTags] = useState("");
 
-  const filteredGuides = guides.filter((g) => {
-    if (selectedCategory !== "ALL" && g.category !== selectedCategory) return false;
-    if (searchQuery.trim() !== "") {
-      const q = searchQuery.toLowerCase();
-      const matchTitle = g.title.toLowerCase().includes(q);
-      const matchSummary = g.summary.toLowerCase().includes(q);
-      const matchTags = g.tags.some((t) => t.toLowerCase().includes(q));
-      if (!matchTitle && !matchSummary && !matchTags) return false;
-    }
-    return true;
-  });
+  const filteredGuides = React.useMemo(() => {
+    const base = guides.filter((g) => selectedCategory === "ALL" || g.category === selectedCategory);
+    const trimmed = searchQuery.trim().toLowerCase();
+    if (!trimmed) return base;
+
+    const rawTokens = trimmed.split(/\s+/).filter((t) => t.length >= 2);
+    const expandedTokens = new Set<string>(rawTokens);
+    rawTokens.forEach((tok) => {
+      Object.entries(SALVAVATUTTO_SYNONYMS).forEach(([root, syns]) => {
+        if (tok.includes(root) || syns.some((s) => s.includes(tok) || tok.includes(s))) {
+          expandedTokens.add(root);
+          syns.forEach((s) => expandedTokens.add(s));
+        }
+      });
+    });
+
+    const scored = base
+      .map((g) => {
+        const titleL = (g.title || "").toLowerCase();
+        const summaryL = (g.summary || "").toLowerCase();
+        const catL = (g.category || "").toLowerCase();
+        const tagsL = (g.tags || []).join(" ").toLowerCase();
+        const stepsL = (g.steps || []).join(" ").toLowerCase();
+
+        let score = 0;
+        if (titleL.includes(trimmed)) score += 12;
+        if (summaryL.includes(trimmed)) score += 6;
+        if (tagsL.includes(trimmed)) score += 8;
+
+        expandedTokens.forEach((tok) => {
+          const isDirect = rawTokens.includes(tok);
+          const mult = isDirect ? 1 : 0.45;
+          if (titleL.includes(tok)) score += 5 * mult;
+          if (tagsL.includes(tok)) score += 4 * mult;
+          if (catL.includes(tok)) score += 3 * mult;
+          if (summaryL.includes(tok)) score += 2 * mult;
+          if (stepsL.includes(tok)) score += 1.5 * mult;
+        });
+
+        return { guide: g, score };
+      })
+      .filter((entry) => entry.score > 0)
+      .sort((a, b) => b.score - a.score || b.guide.upvotes - a.guide.upvotes);
+
+    return scored.map((s) => s.guide);
+  }, [guides, selectedCategory, searchQuery]);
 
   const handleCreateGuide = (e: React.FormEvent) => {
     e.preventDefault();
@@ -137,7 +184,7 @@ export const SalvavatuttoPlanet: React.FC<SalvavatuttoPlanetProps> = ({
           <div>
             <div className="flex items-center gap-2 text-sky-300 text-xs sm:text-sm font-bold uppercase tracking-wider mb-1.5">
               <Archive className="w-4 h-4" />
-              GUIDE PRATICHE & RISPARMIO
+              GUIDE PRATICHE &amp; RISPARMIO
             </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">Riparazioni, Fai-da-Te e Consigli Utili</h2>
             <p className="text-sm sm:text-base text-slate-300 mt-2 max-w-2xl leading-relaxed">
@@ -273,9 +320,25 @@ export const SalvavatuttoPlanet: React.FC<SalvavatuttoPlanetProps> = ({
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <span className="flex items-center gap-1.5 text-sky-300 font-bold text-sm">
-                        <ThumbsUp className="w-4 h-4" /> {guide.upvotes} apprezzamenti
-                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (upvotedIds.has(guide.id)) return;
+                          setUpvotedIds((prev) => new Set([...prev, guide.id]));
+                          if (onUpvoteGuide) onUpvoteGuide(guide.id);
+                        }}
+                        disabled={upvotedIds.has(guide.id)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-colors cursor-pointer ${
+                          upvotedIds.has(guide.id)
+                            ? "bg-sky-500/25 border-sky-400/50 text-sky-200 cursor-default"
+                            : "bg-slate-950 hover:bg-sky-500/15 border-slate-700 hover:border-sky-400/40 text-sky-300"
+                        }`}
+                        title="Segna questa guida come utile per la comunità"
+                      >
+                        <ThumbsUp className="w-3.5 h-3.5" />
+                        <span>{upvotedIds.has(guide.id) ? "Utile ✓" : "Utile"} ({guide.upvotes})</span>
+                      </button>
                     </div>
                   </div>
                 </div>

@@ -7,13 +7,20 @@ import { WORLD_COUNTRIES, findNearestCountry, findCountryByNameOrCode, isValidCo
 import { createPoliticalGlobeTexture } from '@/lib/politicalGlobeTexture';
 import { classifyMerchantPin } from '@/lib/merchantPinClassifier';
 import { ACTIVE_CHAT_USERS } from '@/data/chatUsers';
-import { Globe, RefreshCw, Compass, ZoomIn, ZoomOut, Eye, Sparkles, MapPin, ArrowRight, Layers, Plus, Minus, Disc, X, Maximize2, Minimize2, CloudRain, CloudSun } from 'lucide-react';
+import { Globe, RefreshCw, Compass, ZoomIn, ZoomOut, Eye, Sparkles, MapPin, ArrowRight, Layers, Plus, Minus, Disc, X, Maximize2, Minimize2, CloudRain, CloudSun, Play, Pause, Satellite, AlertTriangle, Radio } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { INITIAL_SATELLITES_CATALOG, satelliteEngine } from '@/lib/satelliteModularEngine';
 import { buildEngineeredSpacecraft, createSharedAerospaceMaterials } from '@/components/have2want/spacecraft3D/SpacecraftModelsBuilder';
-import { composeRainViewerGlobeCanvas } from '@/lib/rainViewerGlobeLayer';
-import { getGlobalHubWeatherSnapshots } from '@/lib/weatherService';
+import { collectRainViewerTimelineFrames, composeRainViewerFrameCanvas } from '@/lib/rainViewerGlobeLayer';
+import { getGlobalHubWeatherSnapshots, getRainViewerRadarData } from '@/lib/weatherService';
+import {
+  satelliteTelemetryStore,
+  computeInstantaneousOrbitTrack,
+  altitudeKmToGlobeRadius,
+  formatCoordLat,
+  formatCoordLng,
+} from '@/lib/satelliteTrackingService';
 
 // Database unificato ad altissima copertura per il raycasting su qualsiasi territorio del pianeta
 const ALL_COUNTRIES_DATA = (() => {
@@ -283,6 +290,10 @@ export default function Globo3D({
   isFullscreen = false,
   onToggleFullscreen = null,
   onOpenSatellite = null,
+  onInspectSatellite = null,
+  onSelectSatellite = null,
+  focusedSatelliteId = null,
+  focusSatelliteTrigger = 0,
   sponsoredBusinesses = SPONSORED_BUSINESSES,
   onSelectSponsor = null,
   activeChannel = null,
@@ -342,6 +353,25 @@ export default function Globo3D({
   onEnterUrban3DRef.current = onEnterUrban3D;
   const onOpenSatelliteRef = useRef(onOpenSatellite);
   onOpenSatelliteRef.current = onOpenSatellite;
+  const onInspectSatelliteRef = useRef(onInspectSatellite);
+  onInspectSatelliteRef.current = onInspectSatellite;
+  const onSelectSatelliteRef = useRef(onSelectSatellite);
+  onSelectSatelliteRef.current = onSelectSatellite;
+
+  // Stato selezione e telemetria reale dei satelliti CelesTrak GP/OMM
+  const [selectedSatelliteId, setSelectedSatelliteId] = useState(null);
+  const selectedSatelliteIdRef = useRef(null);
+  const setSelectedSatelliteSynced = (satId) => {
+    selectedSatelliteIdRef.current = satId;
+    setSelectedSatelliteId(satId);
+    if (onSelectSatelliteRef.current) {
+      onSelectSatelliteRef.current(satId);
+    }
+  };
+  const [satelliteTelemetryMap, setSatelliteTelemetryMap] = useState(() =>
+    satelliteTelemetryStore.getSnapshot(new Date())
+  );
+  const [isRefreshingSatellites, setIsRefreshingSatellites] = useState(false);
 
   // Ref to hold the fly-to reset function to be called from triggers or buttons
   const flyToResetRef = useRef(null);
@@ -354,6 +384,15 @@ export default function Globo3D({
   const [isPoliticalRevealed, setIsPoliticalRevealed] = useState(false);
   const [isWeatherActive, setIsWeatherActive] = useState(true);
   const [showWeatherLegend, setShowWeatherLegend] = useState(true);
+  const [radarMeta, setRadarMeta] = useState({
+    status: 'loading',
+    source: 'RainViewer • Open-Meteo',
+    updatedAt: null,
+    frames: [],
+    frameIdx: 0,
+    isPlaying: false,
+  });
+  const radarStepRef = useRef(null);
   const globeListingEntriesRef = useRef([]);
   const globeMerchantGroupsRef = useRef([]);
   const globeChatGroupsRef = useRef([]);
@@ -666,7 +705,8 @@ export default function Globo3D({
     ctx.fillStyle = borderColor;
     ctx.font = '900 13px system-ui, -apple-system, sans-serif';
     ctx.textAlign = 'right';
-    ctx.fillText(`${snap.temp}°`, 188, 18);
+    const tempDisplay = typeof snap.temp === 'number' && !Number.isNaN(snap.temp) ? `${snap.temp}°` : '--°';
+    ctx.fillText(tempDisplay, 188, 18);
 
     ctx.textAlign = 'left';
     ctx.fillStyle = borderColor;
@@ -982,24 +1022,7 @@ export default function Globo3D({
     }
     globeGroup.add(atmosMesh);
 
-    // 9. NUVOLE ATMOSFERICHE PULITE + RADAR METEOROLOGICO RAINVIEWER MORBIDO
-    // con dissolvenza allo zoom per evitare blocchi pixelati e fallback automatico su earth_clouds_1024.png
-    const softCloudsTexture = textureLoader.load('/textures/earth_clouds_1024.png');
-    softCloudsTexture.colorSpace = THREE.SRGBColorSpace;
-    const softCloudsGeo = new THREE.SphereGeometry(raggioGlobo + 0.44, 64, 48);
-    const softCloudsMat = new THREE.MeshStandardMaterial({
-      map: softCloudsTexture,
-      transparent: true,
-      opacity: 0.38,
-      blending: THREE.NormalBlending,
-      depthWrite: false,
-    });
-    const softCloudsMesh = new THREE.Mesh(softCloudsGeo, softCloudsMat);
-    if (initialGeo) {
-      softCloudsMesh.visible = false;
-    }
-    globeGroup.add(softCloudsMesh);
-
+    // 9. RADAR METEOROLOGICO REALE RAINVIEWER (DOPPLER + SATELLITE IR, ZERO NUVOLE STATICHE FITTIZIE)
     const radarCanvas = document.createElement('canvas');
     radarCanvas.width = 1024;
     radarCanvas.height = 512;
@@ -1009,23 +1032,9 @@ export default function Globo3D({
     radarTexture.magFilter = THREE.LinearFilter;
 
     let hasRadarTiles = false;
-    let staticCloudsTexture = null;
-    const applyStaticCloudsFallback = () => {
-      if (!isAlive) return;
-      hasRadarTiles = false;
-      if (!staticCloudsTexture) {
-        staticCloudsTexture = textureLoader.load('/textures/earth_clouds_1024.png', () => {
-          if (isAlive) {
-            staticCloudsTexture.needsUpdate = true;
-            cloudsMat.needsUpdate = true;
-          }
-        });
-        staticCloudsTexture.colorSpace = THREE.SRGBColorSpace;
-      }
-      cloudsMat.map = staticCloudsTexture;
-      cloudsMat.opacity = 0.24;
-      cloudsMat.needsUpdate = true;
-    };
+    let latestRadarPayload = null;
+    let latestSatelliteFrame = null;
+    let timelineFramesCache = [];
 
     const cloudsGeo = new THREE.SphereGeometry(raggioGlobo + 0.62, 64, 48);
     const cloudsMat = new THREE.MeshStandardMaterial({
@@ -1036,29 +1045,82 @@ export default function Globo3D({
       depthWrite: false,
     });
     const cloudsMesh = new THREE.Mesh(cloudsGeo, cloudsMat);
-    if (initialGeo) {
-      cloudsMesh.visible = false;
-    }
+    cloudsMesh.visible = false;
     globeGroup.add(cloudsMesh);
 
-    // Mostra subito nuvole statiche pulite mentre RainViewer carica i tasselli radar
-    applyStaticCloudsFallback();
-
-    const refreshRealRadarOverlay = async () => {
+    const renderRadarFrameAtIndex = async (idx, payloadOverride = null) => {
+      const payload = payloadOverride || latestRadarPayload;
+      if (!payload || !isAlive) return;
+      const frames = collectRainViewerTimelineFrames(payload).slice(-6);
+      timelineFramesCache = frames;
+      if (frames.length === 0) {
+        hasRadarTiles = false;
+        cloudsMesh.visible = false;
+        setRadarMeta((prev) => ({
+          ...prev,
+          status: 'unavailable',
+          frames: [],
+          isPlaying: false,
+        }));
+        return;
+      }
+      const safeIdx = ((idx % frames.length) + frames.length) % frames.length;
+      const frame = frames[safeIdx];
       try {
-        const result = await composeRainViewerGlobeCanvas(radarCanvas);
+        const result = await composeRainViewerFrameCanvas(radarCanvas, payload, frame, latestSatelliteFrame);
         if (!isAlive) return;
         if (result && result.tilesLoaded > 0) {
           hasRadarTiles = true;
           cloudsMat.map = radarTexture;
           cloudsMat.opacity = 0.72;
+          cloudsMesh.visible = weatherEnabled && !isPoliticalActiveRef.current;
           radarTexture.needsUpdate = true;
           cloudsMat.needsUpdate = true;
+          setRadarMeta((prev) => ({
+            ...prev,
+            status: 'live',
+            source: result.source || 'RainViewer Doppler Radar + Open-Meteo',
+            updatedAt: result.radarTimestamp || result.satelliteTimestamp || frame.time || null,
+            frames,
+            frameIdx: safeIdx,
+          }));
         } else {
-          applyStaticCloudsFallback();
+          hasRadarTiles = false;
+          cloudsMesh.visible = false;
+          setRadarMeta((prev) => ({ ...prev, status: 'unavailable', isPlaying: false }));
         }
       } catch {
-        applyStaticCloudsFallback();
+        hasRadarTiles = false;
+        cloudsMesh.visible = false;
+        setRadarMeta((prev) => ({ ...prev, status: 'unavailable', isPlaying: false }));
+      }
+    };
+
+    radarStepRef.current = renderRadarFrameAtIndex;
+
+    const refreshRealRadarOverlay = async () => {
+      try {
+        const payload = await getRainViewerRadarData();
+        if (!isAlive) return;
+        if (!payload) {
+          hasRadarTiles = false;
+          cloudsMesh.visible = false;
+          setRadarMeta((prev) => ({ ...prev, status: 'unavailable', frames: [], isPlaying: false }));
+          return;
+        }
+        latestRadarPayload = payload;
+        latestSatelliteFrame =
+          payload.satelliteFrames && payload.satelliteFrames.length > 0
+            ? payload.satelliteFrames[payload.satelliteFrames.length - 1]
+            : null;
+        const frames = collectRainViewerTimelineFrames(payload).slice(-6);
+        timelineFramesCache = frames;
+        await renderRadarFrameAtIndex(Math.max(0, frames.length - 1), payload);
+      } catch {
+        if (!isAlive) return;
+        hasRadarTiles = false;
+        cloudsMesh.visible = false;
+        setRadarMeta((prev) => ({ ...prev, status: 'unavailable', frames: [], isPlaying: false }));
       }
     };
     const radarInitTimeout = setTimeout(refreshRealRadarOverlay, 600);
@@ -1079,8 +1141,7 @@ export default function Globo3D({
       setIsWeatherActive(next);
       if (next) setShowWeatherLegend(true);
       if (!isPoliticalActiveRef.current) {
-        cloudsMesh.visible = next;
-        softCloudsMesh.visible = next;
+        cloudsMesh.visible = next && hasRadarTiles;
         weatherMarkersGroup.visible = next;
       }
       return next;
@@ -1105,7 +1166,6 @@ export default function Globo3D({
 
     if (initialGeo) {
       cloudsMesh.visible = false;
-      softCloudsMesh.visible = false;
       weatherMarkersGroup.visible = false;
       atmosMesh.visible = false;
       sunLight.intensity = 0.95;
@@ -1171,15 +1231,13 @@ export default function Globo3D({
           atmosMesh.visible = !nextActive;
           if (nextActive) {
             cloudsMesh.visible = false;
-            softCloudsMesh.visible = false;
             weatherMarkersGroup.visible = false;
             atmosMesh.visible = false;
             sunLight.intensity = 0.95;
             spaceAmbient.intensity = 0.85;
             cyanRimLight.intensity = 0.15;
           } else {
-            cloudsMesh.visible = weatherEnabled;
-            softCloudsMesh.visible = weatherEnabled;
+            cloudsMesh.visible = weatherEnabled && hasRadarTiles;
             weatherMarkersGroup.visible = weatherEnabled;
             atmosMesh.visible = true;
             sunLight.intensity = 1.25;
@@ -1229,40 +1287,77 @@ export default function Globo3D({
       orbitRadius: raggioGlobo * sat.orbitMultiplier,
     }));
 
-    satellitesData.forEach((sat) => {
-      // 1. Linea orbitale 3D visibile nello spazio intorno alla Terra
-      const orbitPoints = [];
-      const orbitSegments = 128;
-      for (let i = 0; i <= orbitSegments; i++) {
-        const theta = (i / orbitSegments) * Math.PI * 2;
-        orbitPoints.push(new THREE.Vector3(
-          sat.orbitRadius * Math.cos(theta),
-          sat.orbitRadius * Math.sin(theta) * Math.sin(sat.inclination),
-          sat.orbitRadius * Math.sin(theta) * Math.cos(sat.inclination)
-        ));
+    const rebuildSatelliteOrbitGeometry = (satEntry, nowDate) => {
+      if (!satEntry || !satEntry.orbitLine) return;
+      const omm = satelliteTelemetryStore.getOmmRecord(satEntry.id);
+      if (!omm) {
+        satEntry.orbitLine.visible = false;
+        return;
       }
-      const orbitGeo = new THREE.BufferGeometry().setFromPoints(orbitPoints);
+      const trackPoints = computeInstantaneousOrbitTrack(omm, nowDate, 96);
+      if (!trackPoints || trackPoints.length < 3) {
+        satEntry.orbitLine.visible = false;
+        return;
+      }
+      const vectors = trackPoints.map((pt) =>
+        convertiCoordinate(pt.lat, pt.lng, altitudeKmToGlobeRadius(pt.altitudeKm, raggioGlobo))
+      );
+      if (satEntry.orbitLine.geometry) {
+        satEntry.orbitLine.geometry.dispose();
+      }
+      satEntry.orbitLine.geometry = new THREE.BufferGeometry().setFromPoints(vectors);
+      satEntry.lastOrbitSyncMs = nowDate.getTime();
+    };
+
+    satellitesData.forEach((sat) => {
+      // 1. Traiettoria orbitale reale da CelesTrak OMM (nessuna orbita inventata: invisibile finché non arrivano dati reali)
+      const orbitGeo = new THREE.BufferGeometry();
       const orbitMat = new THREE.LineBasicMaterial({
         color: new THREE.Color(sat.color),
         transparent: true,
-        opacity: 0.12,
+        opacity: 0.22,
       });
       const orbitLine = new THREE.LineLoop(orbitGeo, orbitMat);
+      orbitLine.visible = false;
       globeGroup.add(orbitLine);
-      createdResources.push({ geo: orbitGeo, mat: orbitMat });
+      createdResources.push({ mat: orbitMat });
 
-      // 2. Modello ingegneristico 3D del veicolo spaziale
+      // 2. Collegamento visivo Nadir (raggio verticale dal satellite alla sua esatta coordinata (lat, lng) sulla Terra)
+      const nadirGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(0, 1, 0),
+      ]);
+      const nadirMat = new THREE.LineBasicMaterial({
+        color: new THREE.Color(sat.color),
+        transparent: true,
+        opacity: 0.78,
+      });
+      const nadirLine = new THREE.Line(nadirGeo, nadirMat);
+      nadirLine.visible = false;
+      globeGroup.add(nadirLine);
+      createdResources.push({ geo: nadirGeo, mat: nadirMat });
+
+      const footprintGeo = new THREE.RingGeometry(0.9, 1.8, 28);
+      const footprintMat = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(sat.color),
+        transparent: true,
+        opacity: 0.85,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      });
+      const nadirFootprint = new THREE.Mesh(footprintGeo, footprintMat);
+      nadirFootprint.visible = false;
+      globeGroup.add(nadirFootprint);
+      createdResources.push({ geo: footprintGeo, mat: footprintMat });
+
+      // 3. Modello ingegneristico 3D del veicolo spaziale
       const { craftGroup, clickables, strobeBeacons, radarPulse, lightMode } = buildEngineeredSpacecraft(
         sat,
         sharedAerospaceMaterials,
         textureLoader
       );
+      craftGroup.visible = false; // Visibile sul globo solo quando esistono coordinate reali tracciate
       globeGroup.add(craftGroup);
-
-      // Sincronizzazione immediata visibilità iniziale dallo stato dell engine (Zero sprechi GPU)
-      const isActiveInitial = satelliteEngine.isSatelliteActive(sat.id);
-      craftGroup.visible = isActiveInitial;
-      orbitLine.visible = isActiveInitial;
 
       clickables.forEach((mesh) => {
         clickableNodes.push(mesh);
@@ -1272,28 +1367,66 @@ export default function Globo3D({
         ...sat,
         craftGroup,
         orbitLine,
+        nadirLine,
+        nadirFootprint,
         strobeBeacons: strobeBeacons || [],
         radarPulse,
         lightMode,
-        angle: sat.startAngle ?? sat.angle ?? 0,
-        orbitRadius: sat.orbitRadius,
-        inclination: sat.inclination,
-        speed: sat.speed,
+        lastOrbitSyncMs: 0,
       });
     });
 
-    // Sottoscrizione reattiva al satelliteModularEngine: toggle ON/OFF istantaneo senza MAI distruggere o ricreare le mesh Three.js
-    const unsubscribeEngine = satelliteEngine.subscribe((states) => {
+    const syncSatellitesRealState = () => {
+      const nowDate = new Date();
+      const snap = satelliteTelemetryStore.getSnapshot(nowDate);
+      setSatelliteTelemetryMap(snap);
+
       activeSatellites.forEach((sat) => {
-        const active = states[sat.id] !== false;
-        if (sat.craftGroup) {
-          sat.craftGroup.visible = active;
-        }
-        if (sat.orbitLine) {
-          sat.orbitLine.visible = active;
+        const engineActive = satelliteEngine.isSatelliteActive(sat.id);
+        const telemetry = snap[sat.id];
+        const hasRealTrack =
+          engineActive &&
+          telemetry &&
+          telemetry.status === 'live' &&
+          typeof telemetry.lat === 'number' &&
+          typeof telemetry.lng === 'number' &&
+          typeof telemetry.altitudeKm === 'number';
+
+        if (hasRealTrack) {
+          rebuildSatelliteOrbitGeometry(sat, nowDate);
+          const orbitR = altitudeKmToGlobeRadius(telemetry.altitudeKm, raggioGlobo);
+          const pos = convertiCoordinate(telemetry.lat, telemetry.lng, orbitR);
+          sat.craftGroup.position.copy(pos);
+          sat.craftGroup.visible = true;
+          sat.orbitLine.visible = true;
+          const isSelected = selectedSatelliteIdRef.current === sat.id;
+          sat.orbitLine.material.opacity = isSelected ? 0.72 : 0.20;
+        } else {
+          sat.craftGroup.visible = false;
+          sat.orbitLine.visible = false;
+          sat.nadirLine.visible = false;
+          sat.nadirFootprint.visible = false;
         }
       });
+    };
+
+    const unsubscribeEngine = satelliteEngine.subscribe(() => {
+      syncSatellitesRealState();
     });
+    const unsubscribeTelemetry = satelliteTelemetryStore.subscribe((snap) => {
+      if (!isAlive) return;
+      setSatelliteTelemetryMap(snap);
+      syncSatellitesRealState();
+    });
+    satelliteTelemetryStore.refreshAll().catch(() => {});
+    const telemetryOmmRefreshInterval = setInterval(() => {
+      satelliteTelemetryStore.refreshAll(true).catch(() => {});
+    }, 15 * 60 * 1000);
+    const telemetryHudTicker = setInterval(() => {
+      if (isAlive) {
+        setSatelliteTelemetryMap(satelliteTelemetryStore.getSnapshot(new Date()));
+      }
+    }, 1000);
 
     // A) BANDIERE E INDICATORI DEI PAESI (Sempre visibili sul globo per capire dove si trovano gli annunci)
     const sourceListings = (allListings && allListings.length > 0) ? allListings : (listings || []);
@@ -1769,34 +1902,50 @@ export default function Globo3D({
     };
     flyToCountryRef.current = flyToCountry;
 
-    // Funzione Fly-To su un satellite specifico nello spazio con inquadratura ravvicinata
-    const flyToSatellite = (satIdOrType) => {
+    // Funzione Fly-To su un satellite specifico nello spazio con posizione geografica reale CelesTrak
+    const flyToSatellite = (satIdOrType, launchChannelOnArrive = false) => {
       const sat = activeSatellites.find((s) => s.id === satIdOrType || s.type === satIdOrType || s.legacyType === satIdOrType);
       if (!sat || !sat.craftGroup) return;
 
-      // Se il satellite era spento, accendilo per permettere all utente di vederlo
-      if (!sat.craftGroup.visible) {
-        satelliteEngine.setSatelliteState(sat.id, true);
+      setSelectedSatelliteSynced(sat.id);
+
+      const telemetry = satelliteTelemetryStore.getSatelliteTelemetry(sat.id, new Date());
+      if (telemetry.status !== 'live' || typeof telemetry.lat !== 'number' || typeof telemetry.lng !== 'number') {
+        if (telemetry.status === 'logical_channel') {
+          toast.info(`🛰️ ${sat.name} (${sat.codeName})`, {
+            description: telemetry.unavailableReason || 'Canale logico HAVE2WANT senza tracciamento orbitale fisico.',
+          });
+        } else {
+          toast.warning(`🛰️ ${sat.name}: telemetria reale non disponibile`, {
+            description: telemetry.unavailableReason || 'Nessuna orbita o coordinata inventata.',
+          });
+        }
+        return;
       }
+
+      if (!satelliteEngine.isSatelliteActive(sat.id)) {
+        satelliteEngine.setSatelliteActive(sat.id, true);
+      }
+      syncSatellitesRealState();
 
       zoneReticleGroup.visible = false;
       setActiveZoneSynced(null);
 
-      // Calcola posizione orbitale reale del satellite
+      // Posizione reale propagata in coordinate Three.js e trasformata in mondo
       globeGroup.updateMatrixWorld(true);
-      const satWorldPos = new THREE.Vector3();
-      sat.craftGroup.getWorldPosition(satWorldPos);
-
+      const orbitR = altitudeKmToGlobeRadius(telemetry.altitudeKm, raggioGlobo);
+      const localSatPos = convertiCoordinate(telemetry.lat, telemetry.lng, orbitR);
+      sat.craftGroup.position.copy(localSatPos);
+      const satWorldPos = globeGroup.localToWorld(localSatPos.clone());
       const dir = satWorldPos.clone().normalize();
-      // Quota di inquadratura: distanza ideale per ammirare il veicolo spaziale ingegneristico
-      const camPos = satWorldPos.clone().add(dir.clone().multiplyScalar(24)).add(new THREE.Vector3(0, 8, 12));
+      const camPos = satWorldPos.clone().add(dir.clone().multiplyScalar(28)).add(new THREE.Vector3(0, 8, 12));
 
       flyTo(camPos, satWorldPos, 950, () => {
-        toast.info(`🛰️ ${sat.name}`, {
-          description: `${sat.scientificModel} • ${sat.role}`,
+        toast.info(`🛰️ ${sat.codeName} • ${formatCoordLat(telemetry.lat)}, ${formatCoordLng(telemetry.lng)}`, {
+          description: `Quota reale ${telemetry.altitudeKm?.toFixed(1)} km • ${telemetry.source}`,
           duration: 3500,
         });
-        if (onOpenSatelliteRef.current) {
+        if (launchChannelOnArrive && onOpenSatelliteRef.current) {
           onOpenSatelliteRef.current(sat.id || sat.type);
         }
       });
@@ -1932,13 +2081,9 @@ export default function Globo3D({
 
           // Se è un satellite orbitante (uno degli 8 satelliti dello spazio H2W)
           if (markerObj.userData && markerObj.userData.isSatellite) {
-            const sat = markerObj.userData;
-            toast.info(`🛰️ ${sat.name}`, {
-              description: sat.description || `${sat.scientificModel || ''} • ${sat.satData?.role || ''}`,
-            });
-            if (onOpenSatelliteRef.current) {
-              onOpenSatelliteRef.current(sat.satelliteId || sat.satelliteType);
-            }
+            const satMeta = markerObj.userData;
+            const satId = satMeta.satelliteId || satMeta.satelliteType;
+            flyToSatellite(satId, false);
             return;
           }
 
@@ -2235,9 +2380,8 @@ export default function Globo3D({
 
       // Dissolvenza morbida del radar allo zoom ravvicinato per evitare blocchi pixelati giganti
       const radarZoomFade = THREE.MathUtils.clamp((currentCameraDist - 85) / 35, 0.14, 1.0);
-      if (weatherEnabled && !isPoliticalActiveRef.current) {
-        cloudsMat.opacity = (hasRadarTiles ? 0.72 : 0.22) * radarZoomFade;
-        softCloudsMat.opacity = 0.38 * (0.45 + 0.55 * radarZoomFade);
+      if (weatherEnabled && !isPoliticalActiveRef.current && hasRadarTiles) {
+        cloudsMat.opacity = 0.72 * radarZoomFade;
       }
 
       // Lo strato radar reale RainViewer resta ancorato alle coordinate geografiche di globeGroup
@@ -2276,30 +2420,93 @@ export default function Globo3D({
         }
       }
 
-      // Movimento continuo orbitale 3D degli 8 veicoli spaziali ingegnerizzati
+      // Movimento orbitale REALE degli 8 satelliti da elementi CelesTrak GP/OMM (nessuna orbita inventata)
       const strobeTime = Date.now() * 0.007;
       const strobeOn = Math.sin(strobeTime) > 0;
+      const nowDate = new Date();
+      const lookAheadDate = new Date(nowDate.getTime() + 10000);
+      const zUpVec = new THREE.Vector3(0, 0, 1);
 
       activeSatellites.forEach((sat) => {
-        // Se il satellite è disattivato dall utente (OFF), salta completamente i calcoli fisici e di rendering (0 CPU/GPU)
-        if (!sat.craftGroup || !sat.craftGroup.visible) return;
+        const engineActive = satelliteEngine.isSatelliteActive(sat.id);
+        const telemetry = satelliteTelemetryStore.getSatelliteTelemetry(sat.id, nowDate);
+        const isLive =
+          engineActive &&
+          telemetry.status === 'live' &&
+          typeof telemetry.lat === 'number' &&
+          typeof telemetry.lng === 'number' &&
+          typeof telemetry.altitudeKm === 'number';
 
-        sat.angle += sat.speed;
-        const r = sat.orbitRadius;
-        const inc = sat.inclination;
-        // Orbita circolare inclinata 3D nello spazio
-        const x = r * Math.cos(sat.angle);
-        const y = r * Math.sin(sat.angle) * Math.sin(inc);
-        const z = r * Math.sin(sat.angle) * Math.cos(inc);
+        if (!sat.craftGroup) return;
 
-        sat.craftGroup.position.set(x, y, z);
+        if (!isLive) {
+          sat.craftGroup.visible = false;
+          if (sat.orbitLine) sat.orbitLine.visible = false;
+          if (sat.nadirLine) sat.nadirLine.visible = false;
+          if (sat.nadirFootprint) sat.nadirFootprint.visible = false;
+          return;
+        }
 
-        // Orientamento cinematico lungo la traiettoria orbitale con asse nadir orientato al centro della Terra
-        const vx = -r * Math.sin(sat.angle);
-        const vy = r * Math.cos(sat.angle) * Math.sin(inc);
-        const vz = r * Math.cos(sat.angle) * Math.cos(inc);
-        const forward = new THREE.Vector3(vx, vy, vz).normalize();
-        const up = new THREE.Vector3(x, y, z).normalize();
+        sat.craftGroup.visible = true;
+        if (sat.orbitLine) {
+          sat.orbitLine.visible = true;
+          sat.orbitLine.material.opacity = selectedSatelliteIdRef.current === sat.id ? 0.72 : 0.20;
+          if (nowDate.getTime() - (sat.lastOrbitSyncMs || 0) > 60000) {
+            rebuildSatelliteOrbitGeometry(sat, nowDate);
+          }
+        }
+
+        const orbitR = altitudeKmToGlobeRadius(telemetry.altitudeKm, raggioGlobo);
+        const pos = convertiCoordinate(telemetry.lat, telemetry.lng, orbitR);
+        sat.craftGroup.position.copy(pos);
+
+        // Collegamento visivo Nadir al suolo per il satellite selezionato
+        const isSelectedSat = selectedSatelliteIdRef.current === sat.id;
+        if (sat.nadirLine && sat.nadirFootprint) {
+          if (isSelectedSat) {
+            const groundPos = convertiCoordinate(telemetry.lat, telemetry.lng, raggioGlobo + 0.35);
+            const groundNormal = groundPos.clone().normalize();
+            const posAttr = sat.nadirLine.geometry.getAttribute('position');
+            if (posAttr) {
+              posAttr.setXYZ(0, groundPos.x, groundPos.y, groundPos.z);
+              posAttr.setXYZ(1, pos.x, pos.y, pos.z);
+              posAttr.needsUpdate = true;
+            }
+            sat.nadirLine.visible = true;
+            sat.nadirFootprint.position.copy(groundPos);
+            sat.nadirFootprint.quaternion.setFromUnitVectors(zUpVec, groundNormal);
+            const pulseFp = 1.0 + Math.sin(strobeTime * 0.8) * 0.18;
+            sat.nadirFootprint.scale.set(pulseFp, pulseFp, 1);
+            sat.nadirFootprint.visible = true;
+          } else {
+            sat.nadirLine.visible = false;
+            sat.nadirFootprint.visible = false;
+          }
+        }
+
+        // Orientamento reale lungo vettore velocità (o prua orbitale) con asse nadir verso il centro Terra
+        const nextTelemetry = satelliteTelemetryStore.getSatelliteTelemetry(sat.id, lookAheadDate);
+        const up = pos.clone().normalize();
+        let forward;
+        if (
+          nextTelemetry.status === 'live' &&
+          typeof nextTelemetry.lat === 'number' &&
+          typeof nextTelemetry.lng === 'number' &&
+          typeof nextTelemetry.altitudeKm === 'number'
+        ) {
+          const nextPos = convertiCoordinate(
+            nextTelemetry.lat,
+            nextTelemetry.lng,
+            altitudeKmToGlobeRadius(nextTelemetry.altitudeKm, raggioGlobo)
+          );
+          const diff = nextPos.sub(pos);
+          forward = diff.lengthSq() > 1e-6 ? diff.normalize() : new THREE.Vector3(0, 1, 0).cross(up).normalize();
+        } else {
+          forward = new THREE.Vector3(0, 1, 0).cross(up).normalize();
+        }
+        if (forward.lengthSq() < 1e-6) {
+          forward = new THREE.Vector3(1, 0, 0);
+        }
         const matrix = new THREE.Matrix4().lookAt(new THREE.Vector3(0, 0, 0), forward, up);
         sat.craftGroup.quaternion.setFromRotationMatrix(matrix);
 
@@ -2314,8 +2521,6 @@ export default function Globo3D({
                 : Math.max(0.08, (sat.lightMode === 'BRIGHT' ? 0.62 : 0.45) - (s - 1.0) * 1.3);
           }
         }
-        // Solo i satelliti BLINKING (METEO_SAT e STREET_360_SAT) lampeggiano ON/OFF;
-        // i satelliti BRIGHT e NORMAL restano accesi in modo continuo.
         if (sat.strobeBeacons && sat.strobeBeacons.length > 0) {
           const shouldBlink = sat.lightMode === 'BLINKING';
           sat.strobeBeacons.forEach((b) => {
@@ -2359,11 +2564,14 @@ export default function Globo3D({
       isAlive = false;
       clearTimeout(radarInitTimeout);
       clearInterval(radarRefreshInterval);
+      clearInterval(telemetryOmmRefreshInterval);
+      clearInterval(telemetryHudTicker);
       cancelAnimationFrame(animationId);
       if (flyAnimationId) cancelAnimationFrame(flyAnimationId);
       if (crossfadeAnimationId) cancelAnimationFrame(crossfadeAnimationId);
 
       unsubscribeEngine();
+      unsubscribeTelemetry();
       resizeObserver.disconnect();
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('mousemove', onMouseMove);
@@ -2385,15 +2593,13 @@ export default function Globo3D({
       politicalTexture.dispose();
       cloudsGeo.dispose();
       cloudsMat.dispose();
-      softCloudsGeo.dispose();
-      softCloudsMat.dispose();
-      softCloudsTexture.dispose();
       radarTexture.dispose();
-      if (staticCloudsTexture) {
-        staticCloudsTexture.dispose();
-      }
       starsGeo.dispose();
       starsMat.dispose();
+
+      activeSatellites.forEach((sat) => {
+        if (sat.orbitLine?.geometry) sat.orbitLine.geometry.dispose();
+      });
 
       createdResources.forEach((res) => {
         if (res.geo) res.geo.dispose();
@@ -2474,6 +2680,26 @@ export default function Globo3D({
     }
   }, [selectedCountryId]);
 
+  // Collegamento esterno da SpacecraftInspectorModal -> Globo 3D su satellite selezionato
+  useEffect(() => {
+    if (focusedSatelliteId && flyToSatelliteRef.current) {
+      flyToSatelliteRef.current(focusedSatelliteId, false);
+    }
+  }, [focusedSatelliteId, focusSatelliteTrigger]);
+
+  // Animazione temporale dei frame reali RainViewer sul globo 3D
+  useEffect(() => {
+    if (!radarMeta.isPlaying || !isWeatherActive || isPoliticalRevealed || radarMeta.frames.length <= 1) {
+      return;
+    }
+    const timer = setInterval(() => {
+      if (radarStepRef.current) {
+        radarStepRef.current(radarMeta.frameIdx + 1);
+      }
+    }, 1800);
+    return () => clearInterval(timer);
+  }, [radarMeta.isPlaying, radarMeta.frameIdx, radarMeta.frames.length, isWeatherActive, isPoliticalRevealed]);
+
   return (
     <div className="w-full h-full relative overflow-hidden bg-black select-none">
       {/* 3D Canvas Contenitore Sfera Wireframe Blu/Verde */}
@@ -2492,26 +2718,48 @@ export default function Globo3D({
 
 
 
-      {/* LEGENDA METEO COMPATTA IN ALTO A SINISTRA */}
+      {/* LEGENDA METEO + TIMELINE RAINVIEWER IN ALTO A SINISTRA */}
       {isWeatherActive && !isPoliticalRevealed && showWeatherLegend && (
-        <div className="absolute top-3 left-3 z-20 pointer-events-auto flex items-center gap-2 bg-black/85 border border-zinc-800 rounded-xl px-2.5 py-1.5 text-[10px] font-bold text-zinc-200 shadow-lg max-w-[78vw] overflow-x-auto no-scrollbar">
-          <span className="text-amber-400 whitespace-nowrap">☀️ Sole</span>
-          <span className="text-zinc-600">•</span>
-          <span className="text-slate-300 whitespace-nowrap">☁️ Nubi</span>
-          <span className="text-zinc-600">•</span>
-          <span className="text-sky-400 whitespace-nowrap">🌧️ Pioggia</span>
-          <span className="text-zinc-600">•</span>
-          <span className="text-sky-100 whitespace-nowrap">❄️ Neve</span>
-          <span className="text-zinc-600">•</span>
-          <span className="text-purple-400 whitespace-nowrap">⛈️ Temporale</span>
-          <button
-            type="button"
-            onClick={() => setShowWeatherLegend(false)}
-            className="ml-1 text-zinc-400 hover:text-white cursor-pointer"
-            title="Nascondi legenda meteo"
-          >
-            <X className="w-3 h-3" />
-          </button>
+        <div className="absolute top-3 left-3 z-20 pointer-events-auto flex flex-col gap-1 bg-black/85 border border-zinc-800 rounded-xl px-2.5 py-1.5 text-[10px] font-bold text-zinc-200 shadow-lg max-w-[78vw]">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+            <span className="text-amber-400 whitespace-nowrap">☀️ Sole</span>
+            <span className="text-zinc-600">•</span>
+            <span className="text-slate-300 whitespace-nowrap">☁️ Nubi</span>
+            <span className="text-zinc-600">•</span>
+            <span className="text-sky-400 whitespace-nowrap">🌧️ Pioggia</span>
+            <span className="text-zinc-600">•</span>
+            <span className="text-sky-100 whitespace-nowrap">❄️ Neve</span>
+            <span className="text-zinc-600">•</span>
+            <span className="text-purple-400 whitespace-nowrap">⛈️ Temporale</span>
+            <button
+              type="button"
+              onClick={() => setShowWeatherLegend(false)}
+              className="ml-1 text-zinc-400 hover:text-white cursor-pointer"
+              title="Nascondi legenda meteo"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+          <div className="flex items-center justify-between gap-2 text-[9px] text-zinc-400 border-t border-zinc-800/80 pt-1">
+            <span className="truncate">
+              {radarMeta.status === 'live'
+                ? `🛰️ ${radarMeta.source} • Agg. ${radarMeta.updatedAt ? new Date(radarMeta.updatedAt * 1000).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : 'Live'}`
+                : radarMeta.status === 'loading'
+                ? '🛰️ Caricamento radar RainViewer...'
+                : '🛰️ Radar RainViewer non disponibile'}
+            </span>
+            {radarMeta.frames.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setRadarMeta((prev) => ({ ...prev, isPlaying: !prev.isPlaying }))}
+                className="px-1.5 py-0.5 rounded bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 text-sky-300 font-black flex items-center gap-1 cursor-pointer shrink-0"
+                title={radarMeta.isPlaying ? 'Pausa animazione radar' : 'Anima frame radar RainViewer'}
+              >
+                {radarMeta.isPlaying ? <Pause className="w-2.5 h-2.5" /> : <Play className="w-2.5 h-2.5" />}
+                <span>{radarMeta.frameIdx + 1}/{radarMeta.frames.length}</span>
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -2687,6 +2935,152 @@ export default function Globo3D({
           <RefreshCw className={`w-3.5 h-3.5 ${isRotating ? 'animate-spin' : ''}`} style={{ animationDuration: '8s' }} />
         </button>
       </div>
+
+      {/* Scheda Telemetria Orbitale Reale del Satellite Selezionato */}
+      {selectedSatelliteId && (() => {
+        const satCfg = INITIAL_SATELLITES_CATALOG.find((s) => s.id === selectedSatelliteId);
+        const telemetry = satelliteTelemetryMap[selectedSatelliteId];
+        if (!satCfg || !telemetry) return null;
+        return (
+          <div className="absolute bottom-3 left-3 right-3 sm:left-4 sm:right-auto sm:max-w-md z-30 pointer-events-auto animate-in fade-in slide-in-from-bottom-3 duration-200">
+            <div
+              className="rounded-2xl bg-black/92 backdrop-blur-md border p-3.5 text-white shadow-2xl space-y-2.5"
+              style={{ borderColor: `${satCfg.color}65` }}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="text-xl shrink-0">{satCfg.icon}</span>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs font-black text-white truncate">{satCfg.name}</span>
+                      <span
+                        className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800"
+                        style={{ color: satCfg.color }}
+                      >
+                        {satCfg.codeName}
+                      </span>
+                      {telemetry.noradId && (
+                        <span className="text-[9px] font-mono text-zinc-400">NORAD {telemetry.noradId}</span>
+                      )}
+                    </div>
+                    <div className="text-[10px] text-zinc-400 truncate">
+                      {telemetry.objectName || satCfg.officialDesignation}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedSatelliteSynced(null)}
+                  className="p-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer shrink-0"
+                  title="Chiudi telemetria satellite"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {telemetry.status === 'live' ? (
+                <div className="grid grid-cols-3 gap-2 text-[10px] font-mono bg-zinc-950/90 border border-zinc-800 rounded-xl p-2.5">
+                  <div>
+                    <div className="text-zinc-500 uppercase">Lat / Lng Reali</div>
+                    <div className="text-[#00ff66] font-black mt-0.5">
+                      {formatCoordLat(telemetry.lat)}
+                    </div>
+                    <div className="text-[#00ff66] font-black">
+                      {formatCoordLng(telemetry.lng)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-zinc-500 uppercase">Quota & Vel.</div>
+                    <div className="text-sky-300 font-black mt-0.5">
+                      {telemetry.altitudeKm !== null ? `${telemetry.altitudeKm.toFixed(1)} km` : 'N/D'}
+                    </div>
+                    <div className="text-white font-bold">
+                      {telemetry.velocityKms !== null ? `${telemetry.velocityKms.toFixed(2)} km/s` : 'N/D'}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-zinc-500 uppercase">Fonte Reale</div>
+                    <div className="text-emerald-300 font-bold mt-0.5 truncate">CelesTrak GP</div>
+                    <div className="text-zinc-400">
+                      {telemetry.computedAtIso
+                        ? new Date(telemetry.computedAtIso).toLocaleTimeString('it-IT')
+                        : 'Live'}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-2.5 rounded-xl bg-zinc-950 border border-zinc-800 flex items-start gap-2 text-[11px] text-zinc-300">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-white">
+                      {telemetry.status === 'logical_channel'
+                        ? 'Canale Logico (Nessun Satellite Fisico)'
+                        : telemetry.status === 'loading'
+                          ? 'Caricamento CelesTrak GP/OMM...'
+                          : 'Dati orbitali reali non disponibili'}
+                    </div>
+                    <p className="text-[10px] text-zinc-400 mt-0.5">{telemetry.unavailableReason}</p>
+                    {telemetry.status === 'unavailable' && (
+                      <button
+                        type="button"
+                        disabled={isRefreshingSatellites}
+                        onClick={async () => {
+                          setIsRefreshingSatellites(true);
+                          try {
+                            await satelliteTelemetryStore.refreshAll(true);
+                          } finally {
+                            setIsRefreshingSatellites(false);
+                          }
+                        }}
+                        className="mt-1.5 px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-[10px] font-bold text-white inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${isRefreshingSatellites ? 'animate-spin' : ''}`} />
+                        <span>Riprova CelesTrak</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2">
+                {telemetry.status === 'live' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (flyToSatelliteRef.current) flyToSatelliteRef.current(satCfg.id, false);
+                    }}
+                    className="px-2.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-[11px] font-bold text-white flex items-center gap-1 cursor-pointer"
+                  >
+                    <MapPin className="w-3.5 h-3.5 text-[#00ff66]" />
+                    <span>Centra</span>
+                  </button>
+                )}
+                {onInspectSatelliteRef.current && (
+                  <button
+                    type="button"
+                    onClick={() => onInspectSatelliteRef.current(satCfg.id)}
+                    className="px-2.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-[11px] font-bold text-zinc-200 flex items-center gap-1 cursor-pointer"
+                  >
+                    <Satellite className="w-3.5 h-3.5 text-sky-400" />
+                    <span>Ispezione & Flotta</span>
+                  </button>
+                )}
+                {onOpenSatelliteRef.current && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenSatelliteRef.current(satCfg.id)}
+                    className="flex-1 px-3 py-1.5 rounded-xl text-[11px] font-black text-black flex items-center justify-center gap-1 cursor-pointer"
+                    style={{ backgroundColor: satCfg.color }}
+                  >
+                    <span>Apri Canale</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Scheda Territoriale Fluttuante con Ingresso Diretto (Spostata in alto per liberare totalmente il fondo) */}
       {activeZone && (

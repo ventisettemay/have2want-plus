@@ -26,7 +26,7 @@ export const PiVerificationModal: React.FC<PiVerificationModalProps> = ({ isOpen
   const { login } = useAuth();
   const [isPiBrowser, setIsPiBrowser] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
-  const [authUser, setAuthUser] = useState<{ uid: string; username: string } | null>(null);
+  const [authUser, setAuthUser] = useState<{ uid: string; username: string; isSimulated?: boolean } | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
@@ -64,7 +64,7 @@ export const PiVerificationModal: React.FC<PiVerificationModalProps> = ({ isOpen
     try {
       const res = await authenticateWithPiPortal();
       if (res.success && res.user) {
-        setAuthUser(res.user);
+        setAuthUser({ ...res.user, isSimulated: Boolean(res.isSimulated) });
         login({
           id: res.user.uid,
           uid: res.firebaseUid || res.user.uid,
@@ -73,7 +73,11 @@ export const PiVerificationModal: React.FC<PiVerificationModalProps> = ({ isOpen
           accessToken: res.accessToken,
           verified_pioneer: !res.isSimulated,
         });
-        toast.success(`Autenticazione Pi riuscita: ${res.user.username}`);
+        toast.success(
+          res.isSimulated
+            ? `Sessione Web Preview avviata: ${res.user.username}`
+            : `Autenticazione Pi SDK verificata: ${res.user.username}`
+        );
       } else {
         toast.error(res.error || 'Autenticazione fallita');
       }
@@ -277,9 +281,11 @@ export const PiVerificationModal: React.FC<PiVerificationModalProps> = ({ isOpen
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-zinc-800 bg-zinc-900/60 flex items-center justify-between">
+        <div className="p-4 border-t border-zinc-800 bg-zinc-900/60 flex items-center justify-between gap-2">
           <span className="text-[11px] text-zinc-400">
-            Tutto è pronto. Se in <code className="text-amber-300">develop.pi</code> hai completato i campi, l'app è verificata!
+            {isPiBrowser && sdkReady
+              ? 'Sessione nativa Pi Browser attiva con validation-key e Firebase pronti.'
+              : 'Web Preview attiva: apri in Pi Browser per transazioni e firma reale su Pi Network.'}
           </span>
           <button
             onClick={onClose}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Globo3D from './Globo3D';
 import Urbano3D from './Urbano3D';
 import VoiceNoteChat from './VoiceNoteChat';
@@ -301,11 +301,14 @@ export default function MapView3DContainer({
   proximityPreference = 'EVERYWHERE',
   onProximityPreferenceChange,
   onTriggerHandshake,
+  onAddListing,
   onOpenCreateListing,
   onOpenGuides,
   onOpenTutor,
   activeSatelliteChannel = null,
   onActiveSatelliteChannelChange = null,
+  focusedSatelliteId: externalFocusedSatelliteId = null,
+  focusSatelliteTrigger: externalFocusSatelliteTrigger = 0,
 }) {
   const [internalLodLevel, setInternalLodLevel] = useState('GLOBO');
   const lodLevel = viewMode || internalLodLevel;
@@ -358,6 +361,16 @@ export default function MapView3DContainer({
   const [activeSatellite, setActiveSatellite] = useState(null);
   const [scientificSatellite, setScientificSatellite] = useState(null);
   const [inspectorTab, setInspectorTab] = useState('INSPECTOR');
+  const [focusedSatelliteId, setFocusedSatelliteId] = useState(externalFocusedSatelliteId);
+  const [focusSatelliteTrigger, setFocusSatelliteTrigger] = useState(externalFocusSatelliteTrigger);
+
+  useEffect(() => {
+    if (externalFocusedSatelliteId) {
+      setLodLevel('GLOBO');
+      setFocusedSatelliteId(externalFocusedSatelliteId);
+      setFocusSatelliteTrigger((prev) => prev + 1);
+    }
+  }, [externalFocusedSatelliteId, externalFocusSatelliteTrigger]);
   const [externalSearchQuery, setExternalSearchQuery] = useState('offerte');
   const [externalCountryCode, setExternalCountryCode] = useState(
     () => resolveCountryData(selectedCountryId)?.code || 'GLOBAL'
@@ -441,7 +454,10 @@ export default function MapView3DContainer({
     if (openVoiceChatTrigger > 0) setIsVoiceChatOpen(true);
   }, [openVoiceChatTrigger]);
 
+  const prevSatelliteChannelRef = useRef(activeSatelliteChannel);
   useEffect(() => {
+    const prevChannel = prevSatelliteChannelRef.current;
+    prevSatelliteChannelRef.current = activeSatelliteChannel;
     if (activeSatelliteChannel) {
       setActiveSatellite(activeSatelliteChannel);
       if (activeSatelliteChannel === 'CHAT') {
@@ -456,6 +472,10 @@ export default function MapView3DContainer({
           setIsCarpoolModalOpen(false);
         }
       }
+    } else if (prevChannel && !activeSatelliteChannel) {
+      setActiveSatellite(null);
+      setIsEmergencyModalOpen(false);
+      setIsCarpoolModalOpen(false);
     }
   }, [activeSatelliteChannel]);
 
@@ -773,6 +793,12 @@ export default function MapView3DContainer({
             isGeoMode={globeSubMode === 'GEO'}
             isFullscreen={isFullscreenMap}
             onToggleFullscreen={handleToggleFullscreen}
+            focusedSatelliteId={focusedSatelliteId}
+            focusSatelliteTrigger={focusSatelliteTrigger}
+            onInspectSatellite={(satId) => {
+              setInspectorTab('INSPECTOR');
+              setScientificSatellite(satId);
+            }}
             onOpenSatellite={(satIdentifier) => {
               if (satIdentifier === 'FLEET_CONTROLS') {
                 setInspectorTab('CONTROLS');
@@ -1353,6 +1379,11 @@ export default function MapView3DContainer({
           setActiveSatellite(targetChannel);
         }}
         onSelectSatellite={(satId) => setScientificSatellite(satId)}
+        onFocusSatelliteOnGlobe={(satId) => {
+          setLodLevel('GLOBO');
+          setFocusedSatelliteId(satId);
+          setFocusSatelliteTrigger((prev) => prev + 1);
+        }}
       />
 
       {/* 🏪 MODALE COMMERCIANTI & PUBBLICITÀ (Collegato a BUSINESS_ADS_SAT e Pin 3D) */}
@@ -1388,6 +1419,12 @@ export default function MapView3DContainer({
           onClose={handleCloseSatelliteModal}
           currentUser={currentProfile}
           onTriggerHandshake={onTriggerHandshake}
+          onOpenChat={(merchantId) =>
+            handleOpenVoiceChatForStore({
+              name: `Produttore Km Zero (${merchantId})`,
+              badge: 'Filiera Km 0 Verificata',
+            })
+          }
         />
       )}
       {(activeSatellite === 'MONDO' || activeSatellite === 'SUPERMARKET') && (
@@ -1396,7 +1433,8 @@ export default function MapView3DContainer({
             onBack={handleCloseSatelliteModal}
             currentUser={currentProfile}
             onAddWantListing={(listing) => {
-              if (onTriggerHandshake) onTriggerHandshake(listing);
+              if (onAddListing) onAddListing(listing);
+              else if (onTriggerHandshake) onTriggerHandshake(listing);
               handleCloseSatelliteModal();
             }}
           />

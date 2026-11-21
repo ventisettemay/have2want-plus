@@ -363,20 +363,20 @@ export async function verifySpecialistCap(cityName, currentAbitanti) {
 }
 
 /**
- * Gestore della Tokenomics: Controlla ed addebita la Quota X (0.15 π = 150 punti) dal saldo comunitario unificato
+ * Gestore della Tokenomics: Controlla ed addebita la Quota X ufficiale (0.25 π = 250 punti) dal saldo comunitario unificato
  */
 export async function processChatInteractionBilling(profileId) {
   try {
-    const QUOTA_POINTS = 150; // 0.15 π equivalenti (1000 punti = 1.0 π)
+    const QUOTA_POINTS = 250; // Quota X ufficiale: 0.25 π equivalenti (1000 punti = 1.0 π)
     const spend = spendPoints(
       QUOTA_POINTS,
-      `Sblocco interazione chat discreta (${profileId || 'pioneer'})`
+      `Sblocco interazione chat discreta - Quota X 0.25 π (${profileId || 'pioneer'})`
     );
 
     if (!spend.success) {
       return {
         success: false,
-        reason: `Saldo insufficiente: servono ${QUOTA_POINTS} punti (0.15 π) per avviare la chat discreta.`,
+        reason: `Saldo insufficiente: servono ${QUOTA_POINTS} punti (0.25 π) per avviare la chat discreta.`,
         pointsRemaining: spend.newBalance,
       };
     }

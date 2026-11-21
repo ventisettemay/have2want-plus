@@ -8,21 +8,19 @@ import {
   MicOff,
   Navigation,
   ArrowRight,
-  Info,
-  CheckCircle2,
   AlertCircle,
   Camera,
-  ImagePlus,
-  X,
-  Paperclip
+  X
 } from "lucide-react";
 import { HaveWantListing, SalvavatuttoGuide } from "../types";
-import { classifyIntent, processTestnetRequest, ProcessedProduct } from "../lib/testnetEngine";
+import { classifyIntent, calculateProximity, ProcessedProduct } from "../lib/testnetEngine";
+import { buildApiUrl } from "../lib/apiConfig";
+import { isValidCoord } from "../lib/worldAtlas";
 
 interface DiscreetAIAssistantProps {
   listings: HaveWantListing[];
   guides: SalvavatuttoGuide[];
-  onNavigateToPlanet: (planet: "planet-possibilita" | "planet-vita" | "planet-salvavatutto" | "pi-bridge") => void;
+  onNavigateToSection: (section: "bacheca" | "salvavatutto" | "pi-hub") => void;
 }
 
 interface Message {
@@ -34,32 +32,28 @@ interface Message {
   productPayload?: ProcessedProduct;
   suggestedAction?: {
     label: string;
-    target: "planet-possibilita" | "planet-vita" | "planet-salvavatutto" | "pi-bridge";
+    target: "bacheca" | "salvavatutto" | "pi-hub";
   };
 }
 
-// Copia questo blocco e incollalo all'inizio del componente della chat in React
 export function WelcomeTechnologyCard() {
   return (
     <div className="bg-gray-900 text-white p-4 rounded-xl border border-blue-500 shadow-lg my-4">
       <h3 className="text-lg font-bold text-blue-400 mb-2 flex items-center gap-2">
-        <span>✨ Piattaforma Avanzata Testnet Attiva</span>
+        <span>✨ Ricerca &amp; Orientamento HAVE2WANT PLUS</span>
       </h3>
       <p className="text-sm text-gray-300 mb-3">
-        Benvenuto nel marketplace. Puoi interagire liberamente <strong>digitando</strong>, parlando a <strong>voce</strong> o <strong>allegando foto</strong>:
+        Interagisci <strong>digitando</strong>, parlando al <strong>microfono</strong> o <strong>allegando una foto</strong>. La ricerca interroga annunci attivi reali, guide Salvavatutto e catalogo Testnet:
       </p>
       <ul className="text-xs space-y-2 text-gray-400">
         <li>
-          🎙️ <strong className="text-white">Conversational Search & Dettatura:</strong> Puoi cercare e interagire parlando al microfono. La voce viene elaborata all'istante on-device nel rispetto della privacy.
+          🎙️ <strong className="text-white">Ricerca Vocale Locale:</strong> Riconoscimento vocale del browser elaborato sul dispositivo.
         </li>
         <li>
-          📷 <strong className="text-white">Visual & Photo Recognition:</strong> Puoi scattare o caricare foto di articoli per classificazione immediata, verifica conformità e pubblicazione istantanea.
+          📍 <strong className="text-white">Prossimità Reale GPS:</strong> Calcolo distanza Haversine solo quando il GPS del dispositivo è autorizzato.
         </li>
         <li>
-          🧠 <strong className="text-white">AI Guardian Shield:</strong> Tutti i contenuti del catalogo sono monitorati e validati in tempo reale da algoritmi di intelligenza artificiale per assicurare un ambiente conforme e protetto.
-        </li>
-        <li>
-          📍 <strong className="text-white">Geospatial Proximity:</strong> Calcolo automatico della distanza geospaziale Haversine basato su coordinate GPS, con prossimità esatta in chilometri.
+          🛡️ <strong className="text-white">Nessun LLM Esterno Dichiarato:</strong> Le risposte usano il motore semantico locale su annunci e guide reali.
         </li>
       </ul>
     </div>
@@ -69,18 +63,17 @@ export function WelcomeTechnologyCard() {
 export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
   listings,
   guides,
-  onNavigateToPlanet,
+  onNavigateToSection,
 }) => {
   const [messages, setMessages] = useState<Message[]>([
     {
       sender: "ai",
-      text: "Assistente Ufficiale Testnet & Simply Discreet attivo.\nI tuoi comandi possono essere digitati o impartiti a voce tramite il microfono.\nGestione dati: Flat DB con calcolo geospaziale Haversine e conformità informativa 18+.",
+      text: "Assistente Locale Simply Discreet pronto.\nPuoi cercare tra gli annunci reali della bacheca, le guide pratiche Salvavatutto, le 9 Forme di Interazione o i Punti di Incontro Certificati.",
     },
   ]);
   const [inputQuery, setInputQuery] = useState("");
   const [isThinking, setIsThinking] = useState(false);
 
-  // Stato Allegato Fotografico (Multimodale: Scatto da Fotocamera / Upload Galleria)
   const [attachedImage, setAttachedImage] = useState<{
     dataUrl: string;
     name: string;
@@ -93,15 +86,11 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
     setAttachedImage(img);
     attachedImageRef.current = img;
   };
-  
-  // Coordinate geospaziali utente (Default: Asti / Torino con aggiornamento GPS nativo)
-  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number }>({
-    lat: 44.9008,
-    lng: 8.2065,
-  });
-  const [gpsStatus, setGpsStatus] = useState<"standard" | "gps_active">("standard");
 
-  // Stato Riconoscimento Vocale (Speech-to-Text)
+  // Nessuna coordinata hardcoded predefinita: null finché il GPS non risponde
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [gpsStatus, setGpsStatus] = useState<"waiting" | "gps_active" | "gps_unavailable">("waiting");
+
   const [isListening, setIsListening] = useState(false);
   const [sttSupported, setSttSupported] = useState(true);
   const recognitionRef = useRef<any>(null);
@@ -124,9 +113,8 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
     e.target.value = "";
   };
 
-  // Inizializzazione Geolocation
   useEffect(() => {
-    if (navigator.geolocation) {
+    if (typeof navigator !== "undefined" && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           setUserCoords({
@@ -136,15 +124,16 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
           setGpsStatus("gps_active");
         },
         () => {
-          // Mantieni coordinate di default
-          setGpsStatus("standard");
+          setUserCoords(null);
+          setGpsStatus("gps_unavailable");
         },
         { timeout: 5000 }
       );
+    } else {
+      setGpsStatus("gps_unavailable");
     }
   }, []);
 
-  // Inizializzazione SpeechRecognition nativa
   useEffect(() => {
     const SpeechRecognition =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -160,47 +149,36 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
     rec.interimResults = false;
     rec.maxAlternatives = 1;
 
-    rec.onstart = () => {
-      setIsListening(true);
-    };
+    rec.onstart = () => setIsListening(true);
 
     rec.onresult = (event: any) => {
       const textResult = event.results[0][0].transcript;
       setInputQuery(textResult);
 
-      // Timer automatico: invia dopo 1.5 secondi di silenzio
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = setTimeout(() => {
-        // Recupera le coordinate dal telefono (navigator.geolocation) e invia al backend Python
         if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(
             (position) => {
-              const lat = position.coords.latitude;
-              const lng = position.coords.longitude;
-              setUserCoords({ lat, lng });
+              const coords = { lat: position.coords.latitude, lng: position.coords.longitude };
+              setUserCoords(coords);
               setGpsStatus("gps_active");
-              sendToBackendAndClassify(textResult, lat, lng, attachedImageRef.current);
+              sendToBackendAndClassify(textResult, coords, attachedImageRef.current);
             },
             () => {
-              sendToBackendAndClassify(textResult, userCoords.lat, userCoords.lng, attachedImageRef.current);
+              sendToBackendAndClassify(textResult, userCoords, attachedImageRef.current);
             },
             { timeout: 5000 }
           );
         } else {
-          sendToBackendAndClassify(textResult, userCoords.lat, userCoords.lng, attachedImageRef.current);
+          sendToBackendAndClassify(textResult, userCoords, attachedImageRef.current);
         }
         setIsListening(false);
       }, 1500);
     };
 
-    rec.onerror = (err: any) => {
-      console.warn("Acquisizione audio:", err.error);
-      setIsListening(false);
-    };
-
-    rec.onend = () => {
-      setIsListening(false);
-    };
+    rec.onerror = () => setIsListening(false);
+    rec.onend = () => setIsListening(false);
 
     recognitionRef.current = rec;
 
@@ -209,7 +187,7 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
       if (recognitionRef.current) {
         try {
           recognitionRef.current.abort();
-        } catch (e) {}
+        } catch {}
       }
     };
   }, [userCoords]);
@@ -219,46 +197,37 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
     if (isListening) {
       try {
         recognitionRef.current.stop();
-      } catch (e) {}
+      } catch {}
       setIsListening(false);
     } else {
       try {
         recognitionRef.current.start();
-      } catch (e) {
+      } catch {
         setIsListening(false);
       }
     }
   };
 
-  // Funzione sendToBackend asincrona con supporto endpoint Python Flask (POST /api/testnet/query)
-  const sendToBackend = async (text: string, lat: number, lng: number) => {
-    const isLocalhost =
-      typeof window !== "undefined" &&
-      (window.location?.hostname === "localhost" || window.location?.hostname === "127.0.0.1");
-    const endpoints = isLocalhost
-      ? ["/api/testnet/query", "http://localhost:5000/api/testnet/query"]
-      : ["/api/testnet/query"];
-    for (const url of endpoints) {
-      try {
-        const res = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query_text: text, user_lat: lat, user_lng: lng })
-        });
-        if (res.ok) {
-          return await res.json();
-        }
-      } catch (err) {
-        // Fallback silenzioso
-      }
+  const sendToBackend = async (text: string, coords: { lat: number; lng: number } | null) => {
+    try {
+      const res = await fetch(buildApiUrl("/api/testnet/query"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query_text: text,
+          ...(coords ? { user_lat: coords.lat, user_lng: coords.lng } : {}),
+        }),
+      });
+      if (res.ok) return await res.json();
+    } catch {
+      // Backend /api/testnet/query non attivo
     }
     return null;
   };
 
   const sendToBackendAndClassify = async (
     rawText: string,
-    lat: number,
-    lng: number,
+    coords: { lat: number; lng: number } | null,
     imgPayload?: { dataUrl: string; name: string; file?: File } | null
   ) => {
     const currentImg = imgPayload !== undefined ? imgPayload : attachedImageRef.current;
@@ -267,7 +236,6 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
 
     const userDisplayText = text || (currentImg ? `[Foto: ${currentImg.name}]` : "");
 
-    // Registra messaggio utente con eventuale foto allegata
     const nextMessages: Message[] = [
       ...messages,
       {
@@ -282,103 +250,137 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
     updateAttachedImage(null);
     setIsThinking(true);
 
-    // Se l'utente ha allegato un file fisico, invia a /api/testnet/publish (Backend Python Flask)
     if (currentImg?.file) {
       try {
         const formData = new FormData();
         formData.append("image", currentImg.file);
         formData.append("product_name", text || currentImg.name.replace(/\.[^/.]+$/, ""));
-        formData.append("user_lat", String(lat));
-        formData.append("user_lng", String(lng));
-        formData.append("specs_anno", "2024");
-
-        const isLocalhost =
-          typeof window !== "undefined" &&
-          (window.location?.hostname === "localhost" || window.location?.hostname === "127.0.0.1");
-        const endpoints = isLocalhost
-          ? ["/api/testnet/publish", "http://localhost:5000/api/testnet/publish"]
-          : ["/api/testnet/publish"];
-        for (const ep of endpoints) {
-          try {
-            await fetch(ep, { method: "POST", body: formData });
-            break;
-          } catch (e) {}
+        if (coords) {
+          formData.append("user_lat", String(coords.lat));
+          formData.append("user_lng", String(coords.lng));
         }
-      } catch (uploadErr) {
-        console.warn("Upload foto backend opzionale:", uploadErr);
+        await fetch(buildApiUrl("/api/testnet/publish"), { method: "POST", body: formData }).catch(() => {});
+      } catch {
+        // Upload opzionale
       }
     }
 
-    // Esegui la chiamata a sendToBackend per ricerca / query
     const queryToSend = [text, currentImg?.name].filter(Boolean).join(" ");
-    await sendToBackend(queryToSend, lat, lng);
+    await sendToBackend(queryToSend, coords);
 
-    // 1. Verifica Intent sul Flat DB Testnet tramite Haversine e regole tassative
-    const intentResult = classifyIntent(queryToSend, lat, lng);
+    const q = queryToSend.toLowerCase();
+    const tokens = q.split(/\s+/).filter((t) => t.length >= 2);
 
-    if (intentResult.matched) {
+    // 1. Ricerca diretta negli annunci reali della piattaforma
+    const matchingListings = listings
+      .map((l) => {
+        const hay = `${l.title} ${l.description} ${l.category} ${l.author?.city || ""} ${(l.tags || []).join(" ")}`.toLowerCase();
+        const score = tokens.reduce((acc, t) => (hay.includes(t) ? acc + 1 : acc), 0);
+        const distKm =
+          coords && isValidCoord(l.lat, l.lng)
+            ? calculateProximity(coords.lat, coords.lng, l.lat!, l.lng!)
+            : null;
+        return { listing: l, score, distKm };
+      })
+      .filter((x) => x.score > 0 || q.includes("vicin") || q.includes("tutti"))
+      .sort((a, b) => b.score - a.score || (a.distKm ?? 99999) - (b.distKm ?? 99999))
+      .slice(0, 4);
+
+    // 2. Ricerca diretta nelle guide Salvavatutto reali
+    const matchingGuides = guides
+      .map((g) => {
+        const hay = `${g.title} ${g.summary} ${g.category} ${(g.tags || []).join(" ")}`.toLowerCase();
+        const score = tokens.reduce((acc, t) => (hay.includes(t) ? acc + 1 : acc), 0);
+        return { guide: g, score };
+      })
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3);
+
+    // 3. Fallback Testnet Intent Engine se c'è un riscontro esatto
+    const intentResult = coords
+      ? classifyIntent(queryToSend, coords.lat, coords.lng)
+      : { matched: false, text_response: "" };
+
+    if (q.includes("9 form") || q.includes("nove form") || q.includes("interazion")) {
+      setMessages([
+        ...nextMessages,
+        {
+          sender: "ai",
+          text:
+            "Le 9 Forme di Interazione Libera in HAVE2WANT PLUS:\n" +
+            "1. Baratto puro\n2. Cessione in Pi Coin (π)\n3. Ricerca bisogno (CERCO)\n4. Prestito temporaneo\n5. Passaggio / Carpooling\n6. Competenza & Servizio locale\n7. Filiera corta Km Zero\n8. Scambio libri scolastici\n9. Orientamento gratuito specialisti",
+          suggestedAction: { label: "Apri Bacheca Annunci", target: "bacheca" },
+        },
+      ]);
+    } else if (matchingListings.length > 0) {
+      const lines = matchingListings.map(({ listing: l, distKm }) => {
+        const loc = l.author?.city || l.locationArea || "Territorio";
+        const distLabel = distKm !== null ? ` • ${distKm} km` : "";
+        return `• ${l.title} (${l.intent}) — ${loc}${distLabel}`;
+      });
+      setMessages([
+        ...nextMessages,
+        {
+          sender: "ai",
+          text: `Ho trovato ${matchingListings.length} annunci pertinenti nel catalogo reale:\n${lines.join("\n")}${
+            matchingGuides.length > 0
+              ? `\n\nGuide Salvavatutto correlate: ${matchingGuides.map((g) => g.guide.title).join(", ")}`
+              : ""
+          }`,
+          suggestedAction: { label: "Esplora nella Bacheca", target: "bacheca" },
+        },
+      ]);
+    } else if (matchingGuides.length > 0 || q.includes("guida") || q.includes("salvavatutto")) {
+      const guideLines = (matchingGuides.length > 0 ? matchingGuides.map((m) => m.guide) : guides.slice(0, 3))
+        .map((g) => `• ${g.title} (${g.category})`);
+      setMessages([
+        ...nextMessages,
+        {
+          sender: "ai",
+          text: `In Salvavatutto sono presenti ${guides.length} guide pratiche:\n${guideLines.join("\n")}`,
+          suggestedAction: { label: "Apri Archivio Salvavatutto", target: "salvavatutto" },
+        },
+      ]);
+    } else if (intentResult.matched) {
       setMessages([
         ...nextMessages,
         {
           sender: "ai",
           text: intentResult.text_response,
-          is18PlusNotice: intentResult.product?.is_18_plus,
-          productPayload: intentResult.product,
+          is18PlusNotice: (intentResult as any).product?.is_18_plus,
+          productPayload: (intentResult as any).product,
         },
       ]);
     } else if (currentImg) {
-      // 2. Risposta Visiva Dedicata per Elemento Fotografico
       const cleanName = currentImg.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
-      const isAdultDetected = cleanName.toLowerCase().includes("18") || cleanName.toLowerCase().includes("adult");
-
-      if (isAdultDetected) {
-        setMessages([
-          ...nextMessages,
-          {
-            sender: "ai",
-            text: `SPECIFICHE TECNICHE OGGETTIVE (CONTENUTO RISERVATO 18+):\n- Riferimento File: ${currentImg.name}\n- Geolocalizzazione: Coordinate GPS (${lat.toFixed(4)}, ${lng.toFixed(4)})\n- Stato: Convalidato AI Guardian Shield. Erogazione puramente tecnica priva di testo promozionale.`,
-            is18PlusNotice: true,
-          },
-        ]);
-      } else {
-        setMessages([
-          ...nextMessages,
-          {
-            sender: "ai",
-            text: `📷 [Analisi Visiva AI Guardian]\n- Riconoscimento elemento: "${cleanName}"\n- Calcolo geospaziale: Haversine attivo su GPS (${lat.toFixed(4)}, ${lng.toFixed(4)})\n- Integrità e Conformità: Superato con successo.\n- Puoi interrogare il catalogo per scambi simili o confermarne la pubblicazione.`,
-            imageUrl: currentImg.dataUrl,
-            suggestedAction: {
-              label: "Esplora annunci simili nel catalogo",
-              target: "planet-possibilita",
-            },
-          },
-        ]);
-      }
-    } else {
-      // 3. Query generale di orientamento piattaforma
-      const q = text.toLowerCase();
-      let reply = "";
-      let action: Message["suggestedAction"] | undefined = undefined;
-
-      if (q.includes("scamb") || q.includes("baratt") || q.includes("offr") || q.includes("cerc")) {
-        reply = `Nel catalogo comunitario ci sono ${listings.length} scambi attivi. Puoi esplorare la bacheca generale o effettuare baratti protetti.`;
-        action = { label: "Esplora Bacheca Possibilità", target: "planet-possibilita" };
-      } else if (q.includes("guida") || q.includes("salva") || q.includes("soccorso")) {
-        reply = `In Salvavatutto sono custodite ${guides.length} guide pratiche di autosufficienza e prevenzione.`;
-        action = { label: "Apri Archivio Salvavatutto", target: "planet-salvavatutto" };
-      } else if (q.includes("pi") || q.includes("wallet")) {
-        reply = `In HAVE2WANT non esiste custodia di fondi interna. I trasferimenti avvengono sul Pi Wallet ufficiale.`;
-        action = { label: "Vedi Hub Pi Network", target: "pi-bridge" };
-      } else {
-        reply = intentResult.text_response;
-      }
-
       setMessages([
         ...nextMessages,
         {
           sender: "ai",
-          text: reply,
-          suggestedAction: action,
+          text: `📷 Foto acquisita: "${cleanName}".\n${
+            coords ? `GPS attivo: (${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}).` : "GPS non attivo sul dispositivo."
+          }\nNota: Nessun servizio AI generativo remoto è configurato su questo endpoint; puoi pubblicare la foto direttamente dalla bacheca.`,
+          imageUrl: currentImg.dataUrl,
+          suggestedAction: { label: "Vai alla Bacheca per Pubblicare", target: "bacheca" },
+        },
+      ]);
+    } else if (q.includes("pi") || q.includes("wallet") || q.includes("sicur") || q.includes("punt")) {
+      setMessages([
+        ...nextMessages,
+        {
+          sender: "ai",
+          text: "I trasferimenti Pi avvengono direttamente sul Pi Wallet ufficiale senza custodia interna. Per gli scambi dal vivo usa sempre i Punti di Incontro Certificati (OpenStreetMap) e la Stretta di Mano con PIN a 4 cifre.",
+          suggestedAction: { label: "Apri Hub Pi Network", target: "pi-hub" },
+        },
+      ]);
+    } else {
+      setMessages([
+        ...nextMessages,
+        {
+          sender: "ai",
+          text: `Nessuna corrispondenza diretta trovata nei ${listings.length} annunci e ${guides.length} guide per "${text}".\n(Servizio LLM conversazionale remoto non configurato su questo server: prova parole chiave presenti in bacheca o nelle guide).`,
+          suggestedAction: { label: "Sfoglia Bacheca Completa", target: "bacheca" },
         },
       ]);
     }
@@ -389,12 +391,11 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
     e.preventDefault();
     const text = inputQuery.trim();
     if (!text && !attachedImage) return;
-    sendToBackendAndClassify(text, userCoords.lat, userCoords.lng, attachedImage);
+    sendToBackendAndClassify(text, userCoords, attachedImage);
   };
 
   return (
     <div className="p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4">
-      {/* Header */}
       <div className="space-y-3 pb-3 border-b border-slate-800">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -403,51 +404,46 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-slate-100">Assistente Ufficiale Testnet</h3>
+                <h3 className="text-sm font-bold text-slate-100">Assistente Discreto Locale</h3>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
-                  <ShieldCheck className="w-3 h-3" /> Intent Engine
+                  <ShieldCheck className="w-3 h-3" /> Motore Locale
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-0.5">
-                <span>Coordinate: {userCoords.lat.toFixed(2)}, {userCoords.lng.toFixed(2)}</span>
-                <span className="text-slate-600">•</span>
-                <span className={gpsStatus === "gps_active" ? "text-cyan-400" : "text-amber-400"}>
-                  {gpsStatus === "gps_active" ? "GPS Rilevato" : "Posizione Stimata"}
-                </span>
+                {userCoords ? (
+                  <>
+                    <span>GPS: {userCoords.lat.toFixed(3)}, {userCoords.lng.toFixed(3)}</span>
+                    <span className="text-slate-600">•</span>
+                    <span className="text-cyan-400">Posizione reale attiva</span>
+                  </>
+                ) : (
+                  <span className="text-amber-400">
+                    {gpsStatus === "waiting" ? "Rilevamento GPS..." : "GPS non autorizzato (ricerca globale senza coordinate fittizie)"}
+                  </span>
+                )}
               </p>
             </div>
           </div>
 
           <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-slate-300 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800">
             <Navigation className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Haversine Attivo</span>
+            <span>{userCoords ? "Haversine Attivo" : "Solo Testo"}</span>
           </div>
         </div>
-
-        {/* AI Protection Badge */}
-        <div className="ai-protection-badge px-3 py-2 rounded-xl bg-cyan-950/40 border border-cyan-500/30 text-xs text-cyan-200 leading-relaxed">
-          <p>🧠 <strong>AI Guardian Shield:</strong> Tutti i contenuti disponibili nel catalogo sono validati e monitorati in tempo reale da algoritmi di intelligenza artificiale per garantire un ambiente conforme e sicuro.</p>
-        </div>
-
-        {/* Results Header: Dynamic Data Enrichment */}
-        <header className="results-header px-3 py-1.5 rounded-lg bg-slate-950/80 border border-slate-800 text-slate-400 text-xs">
-          <p className="text-sm italic">⚡ <strong>Dynamic Data Enrichment:</strong> Elenco generato istantaneamente tramite sistemi automatizzati di recupero multimediale e geolocalizzazione geospaziale attiva.</p>
-        </header>
       </div>
 
-      {/* Suggested Quick Prompts */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
         {[
-          "BMW X5 (TXT-001)",
-          "Audi Q5 (TXT-002)",
-          "Mostrami tutti i veicoli",
-          "Cosa posso scambiare oggi?",
+          "Annunci vicini",
+          "Guide Salvavatutto",
+          "9 Forme di Interazione",
+          "Punti sicuri e Pi Wallet",
         ].map((promptText, idx) => (
           <button
             key={idx}
             onClick={() => {
               setInputQuery(promptText);
-              sendToBackendAndClassify(promptText, userCoords.lat, userCoords.lng);
+              sendToBackendAndClassify(promptText, userCoords);
             }}
             className="px-3 py-1.5 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-cyan-300 whitespace-nowrap transition-colors text-[11px] cursor-pointer"
           >
@@ -456,7 +452,6 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
         ))}
       </div>
 
-      {/* Conversation Thread */}
       <div className="h-72 overflow-y-auto space-y-3 pr-2 text-xs">
         <WelcomeTechnologyCard />
         {messages.map((m, idx) => (
@@ -481,7 +476,6 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
                   : "bg-slate-950 border border-slate-800 text-slate-200 rounded-tl-none"
               }`}
             >
-              {/* Foto o immagine associata */}
               {m.imageUrl && (
                 <div className="mb-2.5">
                   <img
@@ -501,11 +495,10 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
                 </div>
               )}
 
-              {/* Badge conformità 18+ */}
               {m.is18PlusNotice && (
                 <div className="mb-2 flex items-center gap-1.5 px-2 py-1 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300 font-mono text-[10px]">
                   <AlertCircle className="w-3 h-3 shrink-0" />
-                  <span>Sezione 18+: Scheda Tecnica Informativa Oggettiva (Zero Incitamento)</span>
+                  <span>Sezione 18+: Scheda Tecnica Informativa Oggettiva</span>
                 </div>
               )}
 
@@ -513,7 +506,7 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
 
               {m.suggestedAction && (
                 <button
-                  onClick={() => onNavigateToPlanet(m.suggestedAction!.target)}
+                  onClick={() => onNavigateToSection(m.suggestedAction!.target)}
                   className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30 text-[11px] transition-all cursor-pointer"
                 >
                   <span>{m.suggestedAction.label}</span>
@@ -526,12 +519,11 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
         {isThinking && (
           <div className="flex items-center gap-2 text-xs text-slate-400 italic">
             <Bot className="w-4 h-4 text-cyan-400 animate-spin" />
-            Classificazione intento, analisi visiva e calcolo geospaziale in corso...
+            Ricerca tra annunci, guide e prossimità GPS in corso...
           </div>
         )}
       </div>
 
-      {/* Anteprima foto allegata */}
       {attachedImage && (
         <div className="flex items-center gap-2.5 p-2 px-3 bg-slate-950 rounded-xl border border-cyan-500/40 text-xs text-slate-300">
           <img
@@ -542,7 +534,7 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-slate-200 truncate">{attachedImage.name}</p>
             <p className="text-[10px] text-cyan-400 flex items-center gap-1">
-              <Sparkles className="w-3 h-3" /> Foto pronta per analisi AI Guardian & geolocalizzazione
+              <Sparkles className="w-3 h-3" /> Immagine pronta per l'invio
             </p>
           </div>
           <button
@@ -556,9 +548,7 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
         </div>
       )}
 
-      {/* Input query form con Microfono STT & Allegato Foto */}
       <form onSubmit={handleAsk} className="pt-2 flex items-center gap-2">
-        {/* Pulsante Fotocamera / Allegato Foto */}
         <button
           type="button"
           id="photo-button"
@@ -577,7 +567,6 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
           className="hidden"
         />
 
-        {/* Pulsante Microfono Speech-to-Text */}
         {sttSupported && (
           <button
             type="button"
@@ -602,8 +591,8 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
             isListening
               ? "Ascolto vocale attivo... (parla adesso)"
               : attachedImage
-              ? "Aggiungi istruzioni per la foto o premi Invia..."
-              : "Digita, parla al mic o allega una foto..."
+              ? "Aggiungi note per la foto o premi Invia..."
+              : "Cerca annunci, guide o parla al microfono..."
           }
           value={inputQuery}
           onChange={(e) => setInputQuery(e.target.value)}
@@ -622,16 +611,6 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
           <span>Invia</span>
         </button>
       </form>
-
-      {/* Secure Conversational Search Info & Multimodal Triad */}
-      <div className="pt-1 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5 border-t border-slate-800/60 text-xs text-gray-400">
-        <span className="leading-normal">
-          🎙️ <strong>Triplice Interazione Attiva:</strong> Puoi digitare, parlare al microfono con invio automatico su silenzio o allegare foto per analisi e pubblicazione geospaziale immediata.
-        </span>
-        <span className="text-[11px] text-cyan-400 shrink-0 font-medium">
-          🛡️ Privacy On-Device & AI Guardian
-        </span>
-      </div>
     </div>
   );
 };

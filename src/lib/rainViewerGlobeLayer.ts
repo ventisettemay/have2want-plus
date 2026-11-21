@@ -83,15 +83,55 @@ function loadCorsImage(url: string): Promise<HTMLImageElement | null> {
   });
 }
 
+export interface RainViewerTimelineFrame extends RainViewerFrame {
+  kind: 'past' | 'nowcast';
+}
+
+export function collectRainViewerTimelineFrames(
+  data?: RainViewerRadarPayload | null
+): RainViewerTimelineFrame[] {
+  if (!data) return [];
+  const past: RainViewerTimelineFrame[] = (data.pastFrames || [])
+    .filter((f) => Boolean(f?.path))
+    .map((f) => ({ ...f, kind: 'past' as const }));
+  const nowcast: RainViewerTimelineFrame[] = (data.nowcastFrames || [])
+    .filter((f) => Boolean(f?.path))
+    .map((f) => ({ ...f, kind: 'nowcast' as const }));
+  return [...past, ...nowcast];
+}
+
+export function buildRainViewerMapLibreTileUrl(
+  host: string,
+  frame: RainViewerFrame,
+  isSatellite = false
+): string {
+  const cleanHost = host || 'https://tilecache.rainviewer.com';
+  const suffix = isSatellite ? '0/0_0.png' : '2/1_1.png';
+  const rawUrl = `${cleanHost}${frame.path}/256/{z}/{x}/{y}/${suffix}`;
+  const isBrowserHttp =
+    typeof window !== 'undefined' &&
+    window.location &&
+    typeof window.location.protocol === 'string' &&
+    window.location.protocol.startsWith('http');
+
+  if (isBrowserHttp && rawUrl.startsWith('https://')) {
+    return `${buildApiUrl('/api/weather/rainviewer/tile')}?path=${encodeURIComponent(
+      `${frame.path}/256/{z}/{x}/{y}/${suffix}`
+    )}`;
+  }
+  return rawUrl;
+}
+
 /**
- * Disegna i veri tile RainViewer (satellite IR + radar precipitazioni Doppler)
+ * Disegna uno specifico frame RainViewer (satellite IR + radar precipitazioni Doppler)
  * su un canvas equirettangolare ad alta risoluzione pronto per THREE.CanvasTexture sulla sfera terrestre.
  */
-export async function composeRainViewerGlobeCanvas(
+export async function composeRainViewerFrameCanvas(
   canvas: HTMLCanvasElement,
-  providedData?: RainViewerRadarPayload | null
+  data: RainViewerRadarPayload | null | undefined,
+  radarFrameOverride?: RainViewerFrame | null,
+  satelliteFrameOverride?: RainViewerFrame | null
 ): Promise<ComposedGlobeRadarResult> {
-  const data = providedData ?? (await getRainViewerRadarData());
   const emptyResult: ComposedGlobeRadarResult = {
     radarFrame: null,
     satelliteFrame: null,
@@ -110,12 +150,16 @@ export async function composeRainViewerGlobeCanvas(
   ctx.clearRect(0, 0, width, height);
 
   const host = data.host || 'https://tilecache.rainviewer.com';
-  const latestSatellite =
-    data.satelliteFrames && data.satelliteFrames.length > 0
+  const targetSatellite =
+    satelliteFrameOverride !== undefined
+      ? satelliteFrameOverride
+      : data.satelliteFrames && data.satelliteFrames.length > 0
       ? data.satelliteFrames[data.satelliteFrames.length - 1]
       : null;
-  const latestRadar =
-    data.pastFrames && data.pastFrames.length > 0
+  const targetRadar =
+    radarFrameOverride !== undefined
+      ? radarFrameOverride
+      : data.pastFrames && data.pastFrames.length > 0
       ? data.pastFrames[data.pastFrames.length - 1]
       : data.nowcastFrames && data.nowcastFrames.length > 0
       ? data.nowcastFrames[0]
@@ -228,16 +272,27 @@ export async function composeRainViewerGlobeCanvas(
   }
 
   // 1. Strato nuvoloso reale all'infrarosso satellitare RainViewer
-  await projectLayerTiles(latestSatellite, '0/0_0.png', 0.42);
-  // 2. Strato precipitazioni radar Doppler reale RainViewer sfumato e morbido (senza quadratoni netti)
-  await projectLayerTiles(latestRadar, '2/1_1.png', 0.62);
+  await projectLayerTiles(targetSatellite, '0/0_0.png', 0.42);
+  // 2. Strato precipitazioni radar Doppler reale RainViewer sfumato e morbido
+  await projectLayerTiles(targetRadar, '2/1_1.png', 0.62);
 
   return {
-    radarFrame: latestRadar,
-    satelliteFrame: latestSatellite,
-    radarTimestamp: latestRadar?.time ?? null,
-    satelliteTimestamp: latestSatellite?.time ?? null,
+    radarFrame: targetRadar,
+    satelliteFrame: targetSatellite,
+    radarTimestamp: targetRadar?.time ?? null,
+    satelliteTimestamp: targetSatellite?.time ?? null,
     tilesLoaded,
     source: data.source || 'RainViewer International Doppler Radar Network',
   };
+}
+
+/**
+ * Disegna i veri tile RainViewer più recenti (retrocompatibile).
+ */
+export async function composeRainViewerGlobeCanvas(
+  canvas: HTMLCanvasElement,
+  providedData?: RainViewerRadarPayload | null
+): Promise<ComposedGlobeRadarResult> {
+  const data = providedData ?? (await getRainViewerRadarData());
+  return composeRainViewerFrameCanvas(canvas, data);
 }

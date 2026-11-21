@@ -14,7 +14,8 @@ import {
   Calendar, 
   Tag, 
   UserCheck, 
-  AlertCircle 
+  AlertCircle,
+  Flag
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getCachedPiRealPrice } from '@/lib/piRealPriceService';
@@ -51,6 +52,7 @@ interface ListingDetailModalProps {
   onClose: () => void;
   onProposeBarter: (listing: ListingDetailItem) => void;
   onContactSeller: (listing: ListingDetailItem) => void;
+  onReport?: (listing: ListingDetailItem) => void;
 }
 
 export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({
@@ -59,6 +61,7 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({
   onClose,
   onProposeBarter,
   onContactSeller,
+  onReport,
 }) => {
   const [selectedImageIndex, setSelectedImageIndex] = useState<number>(0);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -117,6 +120,16 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({
             )}
           </div>
           <div className="flex items-center gap-2">
+            {onReport && (
+              <button
+                onClick={() => onReport(listing)}
+                className="px-2.5 py-2 rounded-xl bg-zinc-900 hover:bg-red-950/60 text-zinc-400 hover:text-red-400 border border-transparent hover:border-red-500/40 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Segnala annuncio o abuso al Comitato Etico"
+              >
+                <Flag className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Segnala</span>
+              </button>
+            )}
             <button
               onClick={handleShare}
               className="p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors cursor-pointer"

@@ -24,7 +24,8 @@ import {
   FlaskConical,
   CheckCircle2,
   Filter,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Flag
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
@@ -36,10 +37,12 @@ import {
 import {
   HaveWantListing,
   InteractionIntent,
+  InteractionForm9,
   RealCategoryKey,
   RealSubcategoryKey,
   PioneerUser,
-  AbuseReportPayload
+  AbuseReportPayload,
+  AbuseReportReason
 } from "../types";
 import { REAL_CATEGORIES_MATRIX } from "../categories";
 import { Country, COUNTRIES, getCountryForListing } from "@/data/countries";
@@ -76,6 +79,7 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
   onAddListing,
   onSelectListingForTrade,
   onNavigate,
+  onReportAbuse,
   initialFilter,
   onSectionSelect,
   onOpenCarpoolModal,
@@ -250,10 +254,14 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
   const [quickContactListing, setQuickContactListing] = useState<HaveWantListing | null>(null);
   const [contactMessage, setContactMessage] = useState("");
   const [messageSentToast, setMessageSentToast] = useState(false);
+  const [reportTargetListing, setReportTargetListing] = useState<HaveWantListing | null>(null);
+  const [reportReason, setReportReason] = useState<AbuseReportReason>("richiesta_valuta_fiat_euro");
+  const [reportDetails, setReportDetails] = useState("");
 
   // New Listing Form State
   const [newTitle, setNewTitle] = useState("");
   const [newIntent, setNewIntent] = useState<InteractionIntent>("BARATTO_SCAMBIO");
+  const [newInteractionForm, setNewInteractionForm] = useState<InteractionForm9>("baratto_puro");
   const [newCategory, setNewCategory] = useState<RealCategoryKey>("casa_fai_da_te");
   const [newSubcategory, setNewSubcategory] = useState<RealSubcategoryKey>("arredamento_mobili");
   const [newDescription, setNewDescription] = useState("");
@@ -469,6 +477,7 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
     const created: HaveWantListing = {
       id: `listing-${Date.now()}`,
       intent: newIntent,
+      interactionForm: newInteractionForm,
       title: newTitle.trim(),
       description: newDescription.trim(),
       category: newCategory,
@@ -505,10 +514,8 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
       isFuzzyLocation: true,
       imageUrl: newImageUrl.trim() || defaultImages[newCategory] || defaultImages.casa_fai_da_te,
       createdAt: "Pochi istanti fa",
-      tags: [newCategory, newIntent, newCity],
+      tags: [newCategory, newIntent, newInteractionForm, newCity],
       status: "active",
-      planetId: "planet-possibilita",
-      satelliteId: "sat-oggetti",
     };
 
     onAddListing(created);
@@ -519,6 +526,39 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
     setNewPiPrice(0);
     setNewImageUrl("");
     toast.success("Annuncio pubblicato!");
+  };
+
+  const ABUSE_REASON_LABELS: Record<AbuseReportReason, string> = {
+    richiesta_valuta_fiat_euro: "Richiesta pagamento in valuta Fiat / Euro non consentita",
+    categoria_illegale_proibita: "Contenuto o categoria vietata dal regolamento",
+    molestie_comportamento_inappropriato: "Molestie o comportamento inappropriato",
+    merce_contraffatta_non_conforme: "Oggetto falso, truffaldino o non conforme",
+    abuso_consulenza_specialistica: "Abuso o falsa qualifica professionale",
+  };
+
+  const handleConfirmAbuseReport = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reportTargetListing) return;
+    const payload: AbuseReportPayload = {
+      id: `rep-${Date.now()}`,
+      reporterUsername: currentUser.username || "@pioneer",
+      targetUsername: reportTargetListing.author?.username || "@utente",
+      targetType: "listing",
+      targetId: reportTargetListing.id,
+      targetTitle: reportTargetListing.title,
+      reason: reportReason,
+      reasonLabel: ABUSE_REASON_LABELS[reportReason],
+      details: reportDetails.trim() || ABUSE_REASON_LABELS[reportReason],
+      timestamp: new Date().toISOString(),
+      status: "inviata",
+    };
+    if (onReportAbuse) {
+      onReportAbuse(payload);
+    } else {
+      toast.info("Segnalazione registrata localmente (handler backend non connesso).");
+    }
+    setReportTargetListing(null);
+    setReportDetails("");
   };
 
   const handleSendQuickMessage = () => {
@@ -1235,9 +1275,22 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
                             <Sparkles className="w-3 h-3 text-[#00ff66]" />
                             Tocca per specifiche complete
                           </span>
-                          <span className="text-zinc-400 font-mono text-[10px]">
-                            {item.images && item.images.length > 1 ? `📷 ${item.images.length} foto` : '📷 Foto'}
-                          </span>
+                          <div className="flex items-center gap-2 pointer-events-auto">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setReportTargetListing(item);
+                              }}
+                              className="p-1 rounded-md bg-black/70 hover:bg-red-950/80 text-zinc-400 hover:text-red-400 transition-colors cursor-pointer"
+                              title="Segnala annuncio al Comitato Etico"
+                            >
+                              <Flag className="w-3 h-3" />
+                            </button>
+                            <span className="text-zinc-400 font-mono text-[10px]">
+                              {item.images && item.images.length > 1 ? `📷 ${item.images.length} foto` : '📷 Foto'}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1542,7 +1595,8 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
               {messageSentToast ? (
                 <div className="p-6 text-center space-y-2">
                   <span className="text-2xl">✓</span>
-                  <p className="text-sm font-bold text-[#00ff66]">Messaggio inviato con successo!</p>
+                  <p className="text-sm font-bold text-[#00ff66]">Bozza messaggio registrata nella sessione</p>
+                  <p className="text-[11px] text-zinc-400">Nota: La chat remota P2P richiede la collezione Firestore dedicata lato server (Kilo).</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -1569,6 +1623,77 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
                   </div>
                 </div>
               )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 5. MODAL: SEGNALAZIONE ABUSO & MODERAZIONE */}
+      <AnimatePresence>
+        {reportTargetListing && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="w-full max-w-md bg-[#0e0e11] border border-red-500/30 rounded-2xl p-6 space-y-4 text-white relative shadow-2xl"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-zinc-900">
+                <div className="flex items-center gap-2">
+                  <Flag className="w-4 h-4 text-red-400" />
+                  <h3 className="text-sm font-black text-white">Segnala Annuncio al Comitato Etico</h3>
+                </div>
+                <button
+                  onClick={() => setReportTargetListing(null)}
+                  className="p-1.5 rounded-lg bg-black text-zinc-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <p className="text-xs text-zinc-400 truncate">
+                Annuncio: <strong className="text-white">{reportTargetListing.title}</strong>
+              </p>
+              <form onSubmit={handleConfirmAbuseReport} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-zinc-300 mb-1">Motivo della segnalazione</label>
+                  <select
+                    value={reportReason}
+                    onChange={(e) => setReportReason(e.target.value as AbuseReportReason)}
+                    className="w-full px-3 py-2 rounded-xl bg-black border border-zinc-800 text-white text-xs focus:outline-none cursor-pointer"
+                  >
+                    <option value="richiesta_valuta_fiat_euro">Richiesta valuta Fiat / Euro non consentita</option>
+                    <option value="merce_contraffatta_non_conforme">Oggetto falso, truffaldino o non conforme</option>
+                    <option value="categoria_illegale_proibita">Contenuto o categoria vietata</option>
+                    <option value="molestie_comportamento_inappropriato">Molestie o comportamento inappropriato</option>
+                    <option value="abuso_consulenza_specialistica">Abuso consulenza specialistica</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-zinc-300 mb-1">Dettagli aggiuntivi</label>
+                  <textarea
+                    rows={3}
+                    placeholder="Descrivi brevemente il problema riscontrato..."
+                    value={reportDetails}
+                    onChange={(e) => setReportDetails(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-black border border-zinc-800 text-white text-xs focus:outline-none focus:border-red-400"
+                  />
+                </div>
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setReportTargetListing(null)}
+                    className="px-4 py-2 rounded-xl bg-black text-zinc-400 text-xs font-bold cursor-pointer"
+                  >
+                    Annulla
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-xl bg-red-500 hover:bg-red-400 text-white text-xs font-black cursor-pointer"
+                  >
+                    Invia Segnalazione
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </div>
         )}
@@ -1610,6 +1735,12 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
           onContactSeller={() => {
             if (selectedListingForDetail) {
               setQuickContactListing(selectedListingForDetail);
+            }
+          }}
+          onReport={() => {
+            if (selectedListingForDetail) {
+              setSelectedListingForDetail(null);
+              setReportTargetListing(selectedListingForDetail);
             }
           }}
         />

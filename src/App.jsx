@@ -9,7 +9,7 @@ import { ClassicEssentialView } from '@/components/have2want/ClassicEssentialVie
 import { CreateListingModal } from '@/components/CreateListingModal';
 import { CertifiedMeetingPointsModal } from '@/components/CertifiedMeetingPointsModal';
 import { DiscreetAIAssistant } from '@/components/DiscreetAIAssistant';
-import { SalvavatuttoPlanet } from '@/components/SalvavatuttoPlanet';
+import { SalvavatuttoArchive } from '@/components/SalvavatuttoArchive';
 import { DriveExporter } from '@/components/DriveExporter';
 import { LegalWelcomeShield } from '@/components/LegalWelcomeShield';
 import { AuthorshipCertificateModal } from '@/components/AuthorshipCertificateModal';
@@ -41,7 +41,14 @@ import {
 import { INITIAL_LISTINGS, SALVAVATUTTO_GUIDES } from '@/data';
 import { REAL_CATEGORIES_MATRIX } from '@/categories';
 import { fetchExternal, getMarketplaces } from '@/lib/externalMarketplaces';
-import { subscribeToCloudListings, publishListingToCloud } from '@/lib/firestoreService';
+import {
+  subscribeToCloudListings,
+  publishListingToCloud,
+  subscribeToCloudGuides,
+  saveGuideToCloud,
+  upvoteGuideInCloud,
+  submitAbuseReportToCloud,
+} from '@/lib/firestoreService';
 
 export {
   calculateMunicipalityCentroid,
@@ -101,7 +108,7 @@ Flusso Fondamentale: WHAT YOU HAVE → WHAT YOU WANT
 3. ZERO BANCHE & ECONOMIA PI NETWORK (π)
    Libertà totale da commissioni parassitarie e costi di transazione tradizionali: scambi P2P diretti a costo zero o valorizzati tramite la criptovaluta sociale Pi Network.
 
-4. PIANETA SALVAVATUTTO & MEMORIA COLLETTIVA
+4. ARCHIVIO SALVAVATUTTO & MEMORIA COLLETTIVA
    Rigenerare anziché gettare. Guide pratiche comunitarie di autoproduzione, riparazione, ecologia applicata e conservazione dei saperi artigiani locali.
 
 5. SICUREZZA REALE & GEOPRIVACY ASSOLUTA
@@ -154,11 +161,24 @@ function Have2WantPlusMain() {
 
   // Dataset Annunci e Guide
   const [listings, setListings] = useState(INITIAL_LISTINGS);
-  const [guides, setGuides] = useState(SALVAVATUTTO_GUIDES);
+  const [guides, setGuides] = useState(() => {
+    try {
+      const savedMap = typeof localStorage !== 'undefined'
+        ? JSON.parse(localStorage.getItem('h2w_salvavatutto_upvotes_v1') || '{}')
+        : {};
+      return SALVAVATUTTO_GUIDES.map((g) =>
+        typeof savedMap[g.id] === 'number' && savedMap[g.id] > (g.upvotes || 0)
+          ? { ...g, upvotes: savedMap[g.id] }
+          : g
+      );
+    } catch {
+      return SALVAVATUTTO_GUIDES;
+    }
+  });
 
   // Sincronizzazione in tempo reale con Firebase Firestore Cloud Database
   useEffect(() => {
-    const unsubscribe = subscribeToCloudListings((cloudListings) => {
+    const unsubscribeListings = subscribeToCloudListings((cloudListings) => {
       if (cloudListings && cloudListings.length > 0) {
         setListings((prev) => {
           const cloudIds = new Set(cloudListings.map((c) => c.id));
@@ -167,7 +187,32 @@ function Have2WantPlusMain() {
         });
       }
     });
-    return () => unsubscribe();
+    const unsubscribeGuides = subscribeToCloudGuides((cloudGuides) => {
+      if (cloudGuides && cloudGuides.length > 0) {
+        const normalizedCloud = cloudGuides.map((g) => ({
+          id: g.id,
+          title: g.title || 'Guida Comunitaria',
+          category: g.category || 'Autonomia & Alimentazione',
+          summary: g.summary || g.content || '',
+          steps: Array.isArray(g.steps) && g.steps.length > 0 ? g.steps : [g.content || g.summary || ''],
+          author: g.author || g.authorName || 'Autore Comunità',
+          upvotes: typeof g.upvotes === 'number' ? g.upvotes : 1,
+          readTimeMin: typeof g.readTimeMin === 'number' ? g.readTimeMin : 3,
+          lastUpdated: g.lastUpdated || 'Cloud Sync',
+          tags: Array.isArray(g.tags) ? g.tags : [],
+          isEssential: Boolean(g.isEssential),
+        }));
+        setGuides((prev) => {
+          const cloudIds = new Set(normalizedCloud.map((c) => c.id));
+          const localRemaining = prev.filter((p) => !cloudIds.has(p.id));
+          return [...normalizedCloud, ...localRemaining];
+        });
+      }
+    });
+    return () => {
+      unsubscribeListings();
+      unsubscribeGuides();
+    };
   }, []);
 
   // Conteggio annunci per ogni categoria (per la Barra Rotante)
@@ -196,6 +241,8 @@ function Have2WantPlusMain() {
   const [showCarpoolModal, setShowCarpoolModal] = useState(false);
   const [showCraftMemoryModal, setShowCraftMemoryModal] = useState(false);
   const [activeSatelliteChannel, setActiveSatelliteChannel] = useState(null);
+  const [focusedSatelliteId, setFocusedSatelliteId] = useState(null);
+  const [focusSatelliteTrigger, setFocusSatelliteTrigger] = useState(0);
   const [showPiVerification, setShowPiVerification] = useState(false);
 
   // Scorrimento della barra superiore: attivo di default per scorrere dolcemente e mostrare tutte le voci
@@ -400,6 +447,11 @@ function Have2WantPlusMain() {
     };
 
     setListings((prev) => [newListing, ...prev]);
+    try {
+      await publishListingToCloud(newListing);
+    } catch (err) {
+      console.warn('Carpool cloud sync warning:', err);
+    }
     setActiveFilter('TRASFERTE');
     toast.success(`🚗 Nuova trasferta ${trip.originCity} ➔ ${trip.destinationCity} pubblicata con successo!`);
   };
@@ -463,9 +515,24 @@ function Have2WantPlusMain() {
   const [showInterruttoriModal, setShowInterruttoriModal] = useState(false);
   const [isAutoTutorActive, setIsAutoTutorActive] = useState(true);
 
-  const handleOpenPiHub = () => setOpenPiHubCount((prev) => prev + 1);
-  const handleOpenAdModal = () => setOpenAdModalCount((prev) => prev + 1);
-  const handleOpenVoiceChat = () => setOpenVoiceChatCount((prev) => prev + 1);
+  const ensureGlobeMountedForAction = () => {
+    setIsClassicMode(false);
+    setSelectedDedicatedCategory(null);
+    if (viewMode !== 'GLOBO') setViewMode('GLOBO');
+  };
+
+  const handleOpenPiHub = () => {
+    ensureGlobeMountedForAction();
+    setOpenPiHubCount((prev) => prev + 1);
+  };
+  const handleOpenAdModal = () => {
+    ensureGlobeMountedForAction();
+    setOpenAdModalCount((prev) => prev + 1);
+  };
+  const handleOpenVoiceChat = () => {
+    ensureGlobeMountedForAction();
+    setOpenVoiceChatCount((prev) => prev + 1);
+  };
 
   // Toggle Modalità Discreta (geoPrivacy)
   const handleToggleDiscreetMode = () => {
@@ -677,6 +744,7 @@ function Have2WantPlusMain() {
             <button
               id="btn-scroll-channel-km0"
               onClick={() => {
+                ensureGlobeMountedForAction();
                 setActiveSatelliteChannel('KMZERO');
                 toast.info("🌿 Canale Km 0: Produttori Locali & Filiera Corta");
               }}
@@ -694,6 +762,7 @@ function Have2WantPlusMain() {
             <button
               id="btn-scroll-channel-meteo"
               onClick={() => {
+                ensureGlobeMountedForAction();
                 setActiveSatelliteChannel('WEATHER');
                 toast.info("⛅ Canale Meteo Live: Clima e Previsioni in Tempo Reale");
               }}
@@ -711,6 +780,7 @@ function Have2WantPlusMain() {
             <button
               id="btn-scroll-channel-marketplace"
               onClick={() => {
+                ensureGlobeMountedForAction();
                 setActiveSatelliteChannel('MONDO');
                 toast.info("🌐 Canale Marketplace Globale: Supermarket e Spedizioni");
               }}
@@ -728,6 +798,7 @@ function Have2WantPlusMain() {
             <button
               id="btn-scroll-channel-lavoro"
               onClick={() => {
+                ensureGlobeMountedForAction();
                 setActiveSatelliteChannel('P2P');
                 toast.info("💼 Canale Lavoro P2P: Bacheca Mestieri, Servizi e Scambi");
               }}
@@ -737,7 +808,7 @@ function Have2WantPlusMain() {
               <span className="w-2.5 h-2.5 rounded-full bg-[#00ff66] shadow-[0_0_8px_#00ff66] animate-pulse shrink-0" />
               <div className="flex flex-col text-left leading-tight">
                 <span className="text-[12px] font-black text-[#00ff66]">💼 Lavoro P2P</span>
-                <span className="text-[9px] font-bold text-[#00ff66]/80 uppercase tracking-tighter">Bacheca & Servizi</span>
+                <span className="text-[9px] font-bold text-[#00ff66]/80 uppercase tracking-tighter">Bacheca &amp; Servizi</span>
               </div>
             </button>
 
@@ -762,16 +833,17 @@ function Have2WantPlusMain() {
             <button
               id="btn-scroll-botteghe"
               onClick={() => {
-                setShowCraftMemoryModal(true);
+                ensureGlobeMountedForAction();
+                setActiveSatelliteChannel('BUSINESS_ADS');
                 toast.info("🏪 Negozi, Artigiani & Attività Locali del Territorio");
               }}
               className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-amber-950/60 border-2 border-[#f59e0b] shadow-[0_0_12px_rgba(245,158,11,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
               title="Negozi, Commercianti, Artigianato e Imprese del Territorio"
             >
-              <BookOpen className="w-4 h-4 text-[#f59e0b] shrink-0" />
+              <Store className="w-4 h-4 text-[#f59e0b] shrink-0" />
               <div className="flex flex-col text-left leading-tight">
                 <span className="text-[12px] font-black text-amber-300">🏪 Negozi Locali</span>
-                <span className="text-[9px] font-bold text-amber-400/80 uppercase tracking-tighter">Commercio & Attività</span>
+                <span className="text-[9px] font-bold text-amber-400/80 uppercase tracking-tighter">Commercio &amp; Attività</span>
               </div>
             </button>
 
@@ -1099,11 +1171,32 @@ function Have2WantPlusMain() {
             )}
           </div>
 
-          {/* I 4 SATELLITI OPERATIVI ORBITANTI HAVE2WANT */}
+          {/* HUB CANALI TERRITORIALI & CONTROLLO FLOTTA 8 SATELLITI */}
           <OrbitalSatellitesHub
             currentUser={pioneerUser}
+            onAddWantListing={handleAddListing}
             onOpenChat={(mId) => {
-              toast.success(`💬 Handshake chat avviato per: ${mId}`);
+              handleOpenVoiceChat();
+              toast.success(`💬 Chat vocale avviata per: ${mId}`);
+            }}
+            onLaunchSatellite={(satId) => {
+              const CHANNEL_MAP = {
+                METEO_SAT: 'WEATHER',
+                KM0_SAT: 'KMZERO',
+                STREET_360_SAT: 'STRADARIO',
+                PI_CHAT_SAT: 'CHAT',
+                GLOBAL_MARKET_SAT: 'MONDO',
+                EXTERNAL_MARKET_SAT: 'EXTERNAL',
+                COMMUNITY_RESCUE_SAT: 'COMUNITA',
+                BUSINESS_ADS_SAT: 'BUSINESS_ADS',
+              };
+              ensureGlobeMountedForAction();
+              setActiveSatelliteChannel(CHANNEL_MAP[satId] || satId);
+            }}
+            onFocusSatelliteOnGlobe={(satId) => {
+              ensureGlobeMountedForAction();
+              setFocusedSatelliteId(satId);
+              setFocusSatelliteTrigger((c) => c + 1);
             }}
           />
 
@@ -1393,8 +1486,9 @@ function Have2WantPlusMain() {
                 setShowCreateModal(true);
               }}
               onOpenWeather={() => {
-                const btn = document.getElementById('btn-orbital-satellites-menu');
-                if (btn) btn.click();
+                setSelectedDedicatedCategory(null);
+                setViewMode('GLOBO');
+                setActiveSatelliteChannel('WEATHER');
               }}
             />
           </div>
@@ -1408,10 +1502,21 @@ function Have2WantPlusMain() {
               onNavigate={(tab) => {
                 if (tab === 'citta-viva' || tab === 'map') setViewMode('URBANO_3D');
                 else if (tab === 'universe') setViewMode('GLOBO');
-                else if (tab === 'planet-salvavatutto') setShowGuides(true);
+                else if (tab === 'salvavatutto') setShowGuides(true);
               }}
-              onReportAbuse={() => {
-                toast.success("Segnalazione inviata al Comitato di Moderazione Etico.");
+              onReportAbuse={async (payload) => {
+                const ok = await submitAbuseReportToCloud({
+                  targetId: payload?.targetId || '',
+                  listingId: payload?.targetId || '',
+                  targetType: payload?.targetType || 'listing',
+                  reason: payload?.reasonLabel || payload?.reason || 'Segnalazione utente',
+                  details: payload?.details || '',
+                });
+                if (ok) {
+                  toast.success("Segnalazione registrata su Cloud Firestore per il Comitato di Moderazione.");
+                } else {
+                  toast.info("Segnalazione registrata localmente (accedi con Firebase/Pi per inviarla al Cloud).");
+                }
               }}
               initialFilter={activeFilter}
               onSectionSelect={(sec) => setActiveFilter(sec)}
@@ -1449,6 +1554,7 @@ function Have2WantPlusMain() {
               proximityPreference={proximityPreference}
               onProximityPreferenceChange={setProximityPreference}
               onTriggerHandshake={handleTriggerHandshake}
+              onAddListing={handleAddListing}
               onSelectListing={(item) => {
                 // Selezione listing
               }}
@@ -1456,6 +1562,8 @@ function Have2WantPlusMain() {
               onOpenTutor={() => setShowTutorModal(true)}
               activeSatelliteChannel={activeSatelliteChannel}
               onActiveSatelliteChannelChange={setActiveSatelliteChannel}
+              focusedSatelliteId={focusedSatelliteId}
+              focusSatelliteTrigger={focusSatelliteTrigger}
             />
           </div>
         )}
@@ -1547,9 +1655,15 @@ function Have2WantPlusMain() {
               <DiscreetAIAssistant
                 listings={listings}
                 guides={guides}
-                onNavigateToPlanet={(planet) => {
-                  if (planet === 'planet-possibilita') setViewMode('BACHECA');
-                  if (planet === 'planet-salvavatutto') setShowGuides(true);
+                onNavigateToSection={(section) => {
+                  if (section === 'bacheca') setViewMode('BACHECA');
+                  else if (section === 'salvavatutto') setShowGuides(true);
+                  else if (section === 'pi-hub') {
+                    setIsClassicMode(false);
+                    setSelectedDedicatedCategory(null);
+                    setViewMode('GLOBO');
+                    handleOpenPiHub();
+                  }
                   setShowAIAssistant(false);
                 }}
               />
@@ -1573,7 +1687,7 @@ function Have2WantPlusMain() {
         />
       )}
 
-      {/* PIANETA SALVAVATUTTO GUIDES */}
+      {/* ARCHIVIO SALVAVATUTTO GUIDES */}
       {showGuides && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
           <div className="relative w-full max-w-4xl bg-[#070b19] border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl max-h-[92vh] flex flex-col">
@@ -1583,7 +1697,7 @@ function Have2WantPlusMain() {
                   <BookOpen className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-black text-white">Guide Pratiche & Riparazioni</h3>
+                  <h3 className="text-base font-black text-white">Guide Pratiche &amp; Riparazioni</h3>
                   <p className="text-xs text-slate-400">Manuali fai-da-te, consigli di riuso e autoproduzione per la comunità</p>
                 </div>
               </div>
@@ -1595,13 +1709,47 @@ function Have2WantPlusMain() {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto pt-3">
-              <SalvavatuttoPlanet
+              <SalvavatuttoArchive
                 guides={guides}
-                onAddGuide={(newGuide) => {
+                onAddGuide={async (newGuide) => {
                   setGuides((prev) => [newGuide, ...prev]);
-                  toast.success("Guida aggiunta a Salvavatutto!");
+                  const ok = await saveGuideToCloud({
+                    id: newGuide.id,
+                    title: newGuide.title,
+                    category: newGuide.category,
+                    summary: newGuide.summary,
+                    content: newGuide.steps?.join('\n') || newGuide.summary,
+                    authorName: newGuide.author,
+                    steps: newGuide.steps,
+                    tags: newGuide.tags,
+                    upvotes: newGuide.upvotes,
+                    readTimeMin: newGuide.readTimeMin,
+                    lastUpdated: newGuide.lastUpdated,
+                  });
+                  toast.success(ok ? "Guida salvata su Cloud Salvavatutto!" : "Guida aggiunta in locale a Salvavatutto!");
                 }}
-                onSelectListingForTrade={(item) => handleTriggerHandshake(item)}
+                onUpvoteGuide={async (guideId) => {
+                  const target = guides.find((g) => g.id === guideId);
+                  const nextUpvotes = (target?.upvotes || 0) + 1;
+                  setGuides((prev) =>
+                    prev.map((g) => (g.id === guideId ? { ...g, upvotes: nextUpvotes } : g))
+                  );
+                  try {
+                    if (typeof localStorage !== 'undefined') {
+                      const prevMap = JSON.parse(localStorage.getItem('h2w_salvavatutto_upvotes_v1') || '{}');
+                      prevMap[guideId] = nextUpvotes;
+                      localStorage.setItem('h2w_salvavatutto_upvotes_v1', JSON.stringify(prevMap));
+                    }
+                  } catch {
+                    // ignore storage quota errors
+                  }
+                  const synced = await upvoteGuideInCloud(guideId, nextUpvotes);
+                  toast.success(
+                    synced
+                      ? "Apprezzamento salvato su Cloud Salvavatutto!"
+                      : "Apprezzamento salvato in locale (sync Cloud disponibile per l'autore su Firestore)."
+                  );
+                }}
               />
             </div>
           </div>

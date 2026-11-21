@@ -27,26 +27,34 @@ export interface SatelliteConfig {
   id: SatelliteId;
   name: string;
   codeName: string;
+  noradId: number | null;
+  officialDesignation: string;
+  isPhysicalSpacecraft: boolean;
+  trackingSourceLabel: string;
   category: 'TERRITORIO' | 'METEO' | 'MERCATI' | 'COMUNICAZIONE' | 'COMUNITA';
   icon: string;
   color: string;
   foilColor: number; // Colore lamina termica (oro 0xd4af37, argento 0xe2e8f0, titanio 0x64748b)
-  altitudeKm: number;
+  altitudeKm: number | null;
   orbitMultiplier: number;
   speed: number;
-  inclination: number; // Inclinazione orbitale in radianti
+  inclination: number; // Inclinazione orbitale nominale in radianti
   startAngle: number;
   h2wRole: string;
   targetComponent: string;
   isActive: boolean;
 }
 
-// Configurazione Ingegneristica degli 8 Satelliti (Distribuzione orbitale a 360° LEO, MEO, GEO)
+// Configurazione Ingegneristica degli 8 Satelliti (6 veicoli fisici reali NORAD + 2 canali logici H2W)
 export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
   {
     id: 'METEO_SAT',
     name: 'Meteo & Clima Live',
-    codeName: 'METEOSAT-3G',
+    codeName: 'METEOSAT-12',
+    noradId: 54743,
+    officialDesignation: 'METEOSAT-12 (MTG-I1)',
+    isPhysicalSpacecraft: true,
+    trackingSourceLabel: 'CelesTrak GP/OMM (NORAD 54743)',
     category: 'METEO',
     icon: '🌦️',
     color: '#38bdf8',
@@ -63,7 +71,11 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
   {
     id: 'KM0_SAT',
     name: 'Produttori a Km 0',
-    codeName: 'SENTINEL-2 (ESA)',
+    codeName: 'SENTINEL-2A',
+    noradId: 40697,
+    officialDesignation: 'SENTINEL-2A (ESA Copernicus)',
+    isPhysicalSpacecraft: true,
+    trackingSourceLabel: 'CelesTrak GP/OMM (NORAD 40697)',
     category: 'TERRITORIO',
     icon: '🌾',
     color: '#10b981',
@@ -81,6 +93,10 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
     id: 'STREET_360_SAT',
     name: 'Stradario & Vista 360°',
     codeName: 'WORLDVIEW-3',
+    noradId: 40115,
+    officialDesignation: 'WORLDVIEW-3 (WV-3)',
+    isPhysicalSpacecraft: true,
+    trackingSourceLabel: 'CelesTrak GP/OMM (NORAD 40115)',
     category: 'TERRITORIO',
     icon: '🧭',
     color: '#06b6d4',
@@ -97,7 +113,11 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
   {
     id: 'PI_CHAT_SAT',
     name: 'Chat Vocale & Video',
-    codeName: 'STARLINK-COMM',
+    codeName: 'STARLINK-3109',
+    noradId: 49143,
+    officialDesignation: 'STARLINK-3109 (SpaceX)',
+    isPhysicalSpacecraft: true,
+    trackingSourceLabel: 'CelesTrak GP/OMM (NORAD 49143)',
     category: 'COMUNICAZIONE',
     icon: '🎙️',
     color: '#22c55e',
@@ -115,6 +135,10 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
     id: 'GLOBAL_MARKET_SAT',
     name: 'Marketplace Globale',
     codeName: 'TELSTAR 19V',
+    noradId: 43562,
+    officialDesignation: 'TELSTAR 19V (Telesat)',
+    isPhysicalSpacecraft: true,
+    trackingSourceLabel: 'CelesTrak GP/OMM (NORAD 43562)',
     category: 'MERCATI',
     icon: '🌐',
     color: '#a855f7',
@@ -132,11 +156,15 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
     id: 'EXTERNAL_MARKET_SAT',
     name: 'Marketplace Esterni',
     codeName: 'GATEWAY-RELAIS',
+    noradId: null,
+    officialDesignation: 'Canale logico HAVE2WANT (nessun satellite fisico)',
+    isPhysicalSpacecraft: false,
+    trackingSourceLabel: 'Nessun tracciamento orbitale fisico previsto',
     category: 'MERCATI',
     icon: '🛒',
     color: '#f97316',
     foilColor: 0xd4af37,
-    altitudeKm: 2000,
+    altitudeKm: null,
     orbitMultiplier: 1.44,
     speed: 0.00075,
     inclination: -0.62,
@@ -148,12 +176,16 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
   {
     id: 'COMMUNITY_RESCUE_SAT',
     name: 'Comunità & Soccorso',
-    codeName: 'COSPAS-SARSAT',
+    codeName: 'GALILEO-SAR',
+    noradId: 43566,
+    officialDesignation: 'GSAT0219 (GALILEO 23 · Cospas-Sarsat SAR)',
+    isPhysicalSpacecraft: true,
+    trackingSourceLabel: 'CelesTrak GP/OMM (NORAD 43566)',
     category: 'COMUNITA',
     icon: '🤝',
     color: '#ef4444',
     foilColor: 0xe2e8f0,
-    altitudeKm: 19000,
+    altitudeKm: 23222,
     orbitMultiplier: 1.52,
     speed: 0.0007,
     inclination: 1.10,
@@ -166,16 +198,20 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
     id: 'BUSINESS_ADS_SAT',
     name: 'Pubblicità Esercenti',
     codeName: 'BEACON-BUSINESS',
+    noradId: null,
+    officialDesignation: 'Canale logico HAVE2WANT (nessun satellite fisico)',
+    isPhysicalSpacecraft: false,
+    trackingSourceLabel: 'Nessun tracciamento orbitale fisico previsto',
     category: 'TERRITORIO',
     icon: '🏪',
     color: '#e11d48',
     foilColor: 0xd4af37,
-    altitudeKm: 1100,
+    altitudeKm: null,
     orbitMultiplier: 1.34,
     speed: 0.0009,
     inclination: -0.38,
     startAngle: 5.497,
-    h2wRole: 'Locandine e spazi pubblicitari per negozi ed esercenti con Quota X (0.15)',
+    h2wRole: 'Locandine e spazi pubblicitari per negozi ed esercenti con Quota X (0.25 π)',
     targetComponent: 'BusinessSponsorModal',
     isActive: true,
   },

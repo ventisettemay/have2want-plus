@@ -28,6 +28,10 @@ import {
   Maximize2,
   Minimize2,
   Search,
+  Volume2,
+  VolumeX,
+  Play,
+  Radar,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import WorldNavigatorModal from './WorldNavigatorModal';
@@ -36,9 +40,10 @@ import LiveWeatherModal from './LiveWeatherModal';
 import WeatherAtmosphereOverlay from './WeatherAtmosphereOverlay';
 import StreetView360Modal from './StreetView360Modal';
 import MerchantDetailModal from './MerchantDetailModal';
-import { getRealtimeWeather } from '@/lib/weatherService';
+import { getRealtimeWeather, getRainViewerRadarData, getRouteWeatherForecast } from '@/lib/weatherService';
 import { getExternalServicesForArea } from '@/lib/externalGatewayServices';
-import { calculateRealRoute } from '@/lib/routingService';
+import { calculateRealRoutes, distanceToRouteMeters } from '@/lib/routingService';
+import { collectRainViewerTimelineFrames, buildRainViewerMapLibreTileUrl } from '@/lib/rainViewerGlobeLayer';
 import { SPONSORED_BUSINESSES } from '@/data/regions';
 import { subscribeToCloudShops } from '@/lib/firestoreService';
 import {
@@ -107,63 +112,6 @@ export function buildNextTurnBanner(route, curLat, curLng) {
     distanceMeters: distMeters,
     instruction,
     text: `Tra ${distMeters} metri: ${instruction}`,
-  };
-}
-
-// Generatore procedurale di edifici 3D volumetrici realistici ad alta definizione
-// Garantisce la presenza immediata di palazzi 3D volumetrici estrusi in qualsiasi città o quartiere
-function generateProceduralBuildingsGeoJSON(centerLat, centerLng) {
-  const features = [];
-  const rows = 11;
-  const cols = 11;
-  const stepLat = 0.00062;
-  const stepLng = 0.00092;
-  const sizeLat = 0.00045;
-  const sizeLng = 0.00068;
-
-  let id = 1;
-  for (let r = -Math.floor(rows / 2); r <= Math.floor(rows / 2); r++) {
-    for (let c = -Math.floor(cols / 2); c <= Math.floor(cols / 2); c++) {
-      // Lascia spazio per i viali principali e le piazze centrali
-      if ((r % 4 === 0 && Math.abs(c) <= 2) || (c % 4 === 0 && Math.abs(r) <= 2)) continue;
-
-      const jitterLat = Math.sin(id * 2.1) * 0.00010;
-      const jitterLng = Math.cos(id * 2.7) * 0.00014;
-      const bLat = centerLat + r * stepLat + jitterLat;
-      const bLng = centerLng + c * stepLng + jitterLng;
-
-      // Altezze volumetriche variabili realistiche: palazzi da 18m fino a grattacieli di 85m
-      const isCorner = Math.abs(r) >= 3 || Math.abs(c) >= 3;
-      const baseH = isCorner ? 22 + Math.abs(Math.sin(id * 3.1)) * 35 : 32 + Math.abs(Math.sin(id * 2.4)) * 52;
-      const height = Math.round(id % 5 === 0 ? baseH + 25 : baseH);
-      const isCommercial = id % 3 === 0;
-
-      features.push({
-        type: 'Feature',
-        id: id++,
-        properties: {
-          render_height: height,
-          render_min_height: 0,
-          name: isCommercial ? `Complesso Commerciale 3D #${id}` : `Edificio Residenziale 3D #${id}`,
-          building_type: isCommercial ? 'commercial' : 'residential',
-        },
-        geometry: {
-          type: 'Polygon',
-          coordinates: [[
-            [bLng - sizeLng / 2, bLat - sizeLat / 2],
-            [bLng + sizeLng / 2, bLat - sizeLat / 2],
-            [bLng + sizeLng / 2, bLat + sizeLat / 2],
-            [bLng - sizeLng / 2, bLat + sizeLat / 2],
-            [bLng - sizeLng / 2, bLat - sizeLat / 2],
-          ]],
-        },
-      });
-    }
-  }
-
-  return {
-    type: 'FeatureCollection',
-    features,
   };
 }
 
@@ -253,6 +201,9 @@ export default function Urbano3D({
   const orbitIntervalRef = useRef(null);
   const userHasAdjustedZoomRef = useRef(false);
   const userHasPannedRef = useRef(false);
+  const lastRerouteAtRef = useRef(0);
+  const isReroutingRef = useRef(false);
+  const lastSpokenBannerRef = useRef('');
 
   const [selectedSponsor, setSelectedSponsor] = useState(null);
   const [selectedMerchantModal, setSelectedMerchantModal] = useState(null);
@@ -271,11 +222,23 @@ export default function Urbano3D({
   const [showStreetView, setShowStreetView] = useState(false);
   const [weatherData, setWeatherData] = useState(null);
   const [weatherEffectsEnabled, setWeatherEffectsEnabled] = useState(true);
+  const [radarOverlayEnabled, setRadarOverlayEnabled] = useState(false);
+  const [radarHost, setRadarHost] = useState('');
+  const [radarFrames, setRadarFrames] = useState([]);
+  const [radarFrameIdx, setRadarFrameIdx] = useState(0);
+  const [radarPlaying, setRadarPlaying] = useState(false);
+  const [radarSourceLabel, setRadarSourceLabel] = useState('');
+  const [radarLoading, setRadarLoading] = useState(false);
+  const [radarError, setRadarError] = useState(false);
   const [activeRoute, setActiveRoute] = useState(null);
+  const [routeWeather, setRouteWeather] = useState(null);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
   const [isGpsFollowPaused, setIsGpsFollowPaused] = useState(false);
-  const [navProfile, setNavProfile] = useState('driving'); // 'driving' | 'walking'
+  const [navProfile, setNavProfile] = useState('driving'); // 'driving' | 'walking' | 'cycling'
+  const navProfileRef = useRef('driving');
+  navProfileRef.current = navProfile;
   const [userLocation, setUserLocation] = useState(null);
   const [navDestination, setNavDestination] = useState(null);
   const [placeSearchQuery, setPlaceSearchQuery] = useState('');
@@ -413,187 +376,43 @@ export default function Urbano3D({
     }
   }, [placeData, countryName]);
 
-  // Normalizza gli annunci con coordinate visibili e supporto dedicato a ogni città
+  // Normalizza esclusivamente gli annunci reali dotati di coordinate geografiche valide
   const annunci = useMemo(() => {
-    if (!hasValidCoords) return [];
-    // Se il filtro è LIBRI_SCOLASTICI, genera punti di scambio libri scolastici usati attivi per la città corrente
-    if (filter === 'LIBRI_SCOLASTICI' || filter === 'LIBRI') {
-      const schoolBooksForCity = [
-        {
-          id: `book_${selectedCity}_1`,
-          title: `Scambio Testi 3ª Media: Matematica, Scienze e Storia (${selectedCity})`,
-          category: 'libri_scuola_cultura',
-          subcategory: 'scambio_libri_scolastici',
-          action_type: 'baratto_scambio',
-          intent: 'BARATTO_SCAMBIO',
-          price: 'Scambio con 1° Superiore o 0.5 π',
-          piPrice: 0.5,
-          author: `@famiglia_${selectedCity.toLowerCase().replace(/\s+/g, '')}`,
-          city: selectedCity,
-          privacy_mode_active: false,
-          lat: effectiveLat + 0.0014,
-          lng: effectiveLng + 0.0016,
-          have_description: 'Testi 3ª Media in ottimo stato con copertine protettive',
-          want_description: 'Libri 1° Superiore o 0.5 Pi Coin',
-          isSchoolBook: true,
-        },
-        {
-          id: `book_${selectedCity}_2`,
-          title: `Manuali Liceo Scientifico (Fisica e Chimica Zanichelli) - ${selectedCity}`,
-          category: 'libri_scuola_cultura',
-          subcategory: 'scambio_libri_scolastici',
-          action_type: 'baratto_scambio',
-          intent: 'BARATTO_SCAMBIO',
-          price: 'Scambio o 1.2 π',
-          piPrice: 1.2,
-          author: `@studente_${selectedCity.toLowerCase().replace(/\s+/g, '')}`,
-          city: selectedCity,
-          privacy_mode_active: true,
-          lat: effectiveLat - 0.0012,
-          lng: effectiveLng - 0.0014,
-          have_description: 'Manuali biennio sottolineati solo a matita, completi di fascicoli',
-          want_description: 'Testi 3° Anno o 1.2 Pi',
-          isSchoolBook: true,
-        },
-        {
-          id: `book_${selectedCity}_3`,
-          title: `CERCO: Testo Inglese Cambridge B2 & Storia - ${selectedCity}`,
-          category: 'libri_scuola_cultura',
-          subcategory: 'scambio_libri_scolastici',
-          action_type: 'acquisto_cerco',
-          intent: 'ACQUISTO_CERCO',
-          price: 'Cerco • Offro 1 π',
-          piPrice: 1.0,
-          author: `@chiara_liceo`,
-          city: selectedCity,
-          privacy_mode_active: false,
-          lat: effectiveLat + 0.0009,
-          lng: effectiveLng - 0.0022,
-          have_description: 'Offro 1 Pi o ripetizioni di matematica di base',
-          want_description: 'Testo Cambridge B2 4° anno liceo',
-          isSchoolBook: true,
-        },
-        {
-          id: `book_${selectedCity}_4`,
-          title: `Blocco Libri 1ª Superiore Istituto Tecnico - ${selectedCity}`,
-          category: 'libri_scuola_cultura',
-          subcategory: 'scambio_libri_scolastici',
-          action_type: 'vendo',
-          intent: 'VENDO',
-          price: '2.5 π (Intero Blocco)',
-          piPrice: 2.5,
-          author: `@genitori_solidali`,
-          city: selectedCity,
-          privacy_mode_active: false,
-          lat: effectiveLat - 0.0017,
-          lng: effectiveLng + 0.0018,
-          have_description: 'Intero blocco 1° anno ITI integro',
-          want_description: '2.5 Pi per acquisto libri 2° anno',
-          isSchoolBook: true,
-        },
-        {
-          id: `book_${selectedCity}_5`,
-          title: `Dizionario Latino Castiglioni Mariotti + Antologia (${selectedCity})`,
-          category: 'libri_scuola_cultura',
-          subcategory: 'scambio_libri_scolastici',
-          action_type: 'baratto_scambio',
-          intent: 'BARATTO_SCAMBIO',
-          price: 'Baratto con Dizionario Greco',
-          piPrice: 0.8,
-          author: `@lucia_classico`,
-          city: selectedCity,
-          privacy_mode_active: true,
-          lat: effectiveLat + 0.0021,
-          lng: effectiveLng - 0.0011,
-          have_description: 'Dizionario perfetto per ginnasio e liceo classico',
-          want_description: 'Vocabolario Greco antico Rocci o 0.8 Pi',
-          isSchoolBook: true,
-        },
-      ];
-
-      return schoolBooksForCity;
+    if (!hasValidCoords || !Array.isArray(filteredListings) || filteredListings.length === 0) {
+      return [];
     }
 
-    if (filteredListings && filteredListings.length > 0) {
-      return filteredListings.slice(0, 15).map((item, idx) => {
-        const offsetLat = (idx % 3 === 0 ? 0.0015 : idx % 3 === 1 ? -0.0012 : 0.0008) * (Math.floor(idx / 3) + 1);
-        const offsetLng = (idx % 2 === 0 ? 0.0018 : -0.0015) * (Math.floor(idx / 2) + 1);
-        const isSchool = item.category === 'libri_scuola_cultura' || item.subcategory === 'scambio_libri_scolastici';
+    return filteredListings
+      .filter((item) => isValidCoord(item?.lat, item?.lng))
+      .slice(0, 40)
+      .map((item, idx) => {
+        const isSchool =
+          item.category === 'libri_scuola_cultura' ||
+          item.subcategory === 'scambio_libri_scolastici';
         return {
           id: item.id || `ann_${idx}`,
           title: item.title || item.have_description || `Annuncio ${idx + 1}`,
           category: item.category || 'Generale',
           subcategory: item.subcategory,
-          intent: item.intent || (item.action_type === 'vendo' ? 'VENDO' : item.action_type === 'acquisto_cerco' ? 'ACQUISTO_CERCO' : 'BARATTO_SCAMBIO'),
+          intent:
+            item.intent ||
+            (item.action_type === 'vendo'
+              ? 'VENDO'
+              : item.action_type === 'acquisto_cerco'
+              ? 'ACQUISTO_CERCO'
+              : 'BARATTO_SCAMBIO'),
           action_type: item.action_type,
-          price: item.piPrice ? `${item.piPrice} π` : (item.want_description || 'Scambio'),
+          price: item.piPrice ? `${item.piPrice} π` : item.want_description || 'Scambio',
           author: item.author?.name || item.owner_name || '@pioniere',
           city: item.city || item.locationArea || selectedCity,
-          privacy_mode_active: Boolean(item.privacy_mode_active ?? (idx % 2 === 1)),
-          lat: effectiveLat + offsetLat,
-          lng: effectiveLng + offsetLng,
+          privacy_mode_active: Boolean(item.privacy_mode_active),
+          lat: item.lat,
+          lng: item.lng,
           isSchoolBook: isSchool,
           raw: item,
         };
       });
-    }
-
-    // Demo listings precaricati attorno alla coordinata se non ce ne sono
-    return [
-      {
-        id: '1',
-        title: `Libri Scolastici & Saggi (${selectedCity})`,
-        category: 'libri_scuola_cultura',
-        subcategory: 'scambio_libri_scolastici',
-        intent: 'BARATTO_SCAMBIO',
-        price: 'Scambio o 0.5 π',
-        author: '@famiglia_pi',
-        city: selectedCity,
-        privacy_mode_active: false,
-        lat: effectiveLat + 0.0012,
-        lng: effectiveLng + 0.0015,
-        isSchoolBook: true,
-      },
-      {
-        id: '2',
-        title: `Scambio Manuali Liceo & Medie (${selectedCity})`,
-        category: 'libri_scuola_cultura',
-        subcategory: 'scambio_libri_scolastici',
-        intent: 'BARATTO_SCAMBIO',
-        price: 'Baratto',
-        author: '@chiara_studenti',
-        city: selectedCity,
-        privacy_mode_active: true,
-        lat: effectiveLat - 0.0014,
-        lng: effectiveLng - 0.0011,
-        isSchoolBook: true,
-      },
-      {
-        id: '3',
-        title: `Smartphone Ricondizionato 5G (${selectedCity})`,
-        category: 'Elettronica',
-        intent: 'VENDO',
-        price: '18 π',
-        author: '@tech_pioneer',
-        city: selectedCity,
-        privacy_mode_active: false,
-        lat: effectiveLat + 0.0008,
-        lng: effectiveLng - 0.002,
-      },
-      {
-        id: '4',
-        title: `CERCO: Bicicletta per Studente (${selectedCity})`,
-        category: 'Mobilita',
-        intent: 'ACQUISTO_CERCO',
-        price: 'Cerco • Offro 6 π',
-        author: '@elena_bici',
-        city: selectedCity,
-        privacy_mode_active: true,
-        lat: effectiveLat - 0.0018,
-        lng: effectiveLng + 0.0019,
-      },
-    ];
-  }, [filteredListings, hasValidCoords, effectiveLat, effectiveLng, selectedCity, filter]);
+  }, [filteredListings, hasValidCoords, selectedCity]);
 
   // Se la prop selectedListing cambia dall'esterno, centra la mappa
   useEffect(() => {
@@ -1039,9 +858,6 @@ export default function Urbano3D({
       if (map.getLayer('3d-buildings')) {
         map.setLayoutProperty('3d-buildings', 'visibility', visibility);
       }
-      if (map.getLayer('procedural-3d-buildings-layer')) {
-        map.setLayoutProperty('procedural-3d-buildings-layer', 'visibility', visibility);
-      }
       if (map.getLayer('building-3d')) {
         map.setLayoutProperty('building-3d', 'visibility', visibility);
       }
@@ -1356,15 +1172,10 @@ export default function Urbano3D({
     merchantMarkersRef.current.forEach((m) => m.remove());
     merchantMarkersRef.current = [];
 
-    allMerchants.forEach((biz, idx) => {
-      const hasBizCoords = isValidCoord(biz.lat, biz.lng);
-      const bizLat = hasBizCoords
-        ? biz.lat
-        : effectiveLat + (idx === 0 ? 0.002 : -0.002) + Math.sin(idx) * 0.001;
-      const bizLng = hasBizCoords
-        ? biz.lng
-        : effectiveLng + (idx === 0 ? 0.0025 : -0.0015) + Math.cos(idx) * 0.001;
-      if (!isValidCoord(bizLat, bizLng)) return;
+    allMerchants.forEach((biz) => {
+      if (!isValidCoord(biz.lat, biz.lng)) return;
+      const bizLat = biz.lat;
+      const bizLng = biz.lng;
 
       const pinType = classifyMerchantPin(biz);
 
@@ -1798,34 +1609,95 @@ export default function Urbano3D({
     }
   };
 
-  const handleCalculateRoute = async (destLat, destLng, destName, customProfile = navProfile, startCoords = null) => {
-    if (!mapRef.current || !isValidCoord(destLat, destLng)) return null;
+  const handleCalculateRoute = async (destLat, destLng, destName, customProfile = navProfile, startCoords = null, silent = false) => {
+    if (!mapRef.current || !isValidCoord(destLat, destLng)) {
+      if (!silent) toast.error('Coordinate di destinazione reali non valide');
+      return null;
+    }
     const startLat = startCoords?.lat ?? userLocation?.lat ?? effectiveLat;
     const startLng = startCoords?.lng ?? userLocation?.lng ?? effectiveLng;
     if (!isValidCoord(startLat, startLng)) return null;
+
     setIsCalculatingRoute(true);
     try {
-      const route = await calculateRealRoute(startLat, startLng, destLat, destLng, customProfile);
-      if (route) {
-        const nextRoute = { ...route, destinationName: destName, destLat, destLng };
-        setActiveRoute(nextRoute);
-        setNavDestination({ lat: destLat, lng: destLng, name: destName });
-        toast.success(`🧭 Percorso (${customProfile === 'walking' ? 'A piedi' : 'Auto'}) verso ${destName}: ${route.totalDistanceKm} km (${route.totalDurationMinutes} min)`);
-
-        renderRouteOnMap(route.coordinates);
-
-        const bounds = new maplibregl.LngLatBounds();
-        route.coordinates.forEach((coord) => bounds.extend(coord));
-        mapRef.current.fitBounds(bounds, { padding: 70, duration: 800 });
-        return nextRoute;
+      const routes = await calculateRealRoutes(startLat, startLng, destLat, destLng, customProfile, true);
+      if (!routes || routes.length === 0) {
+        if (!silent) {
+          setActiveRoute(null);
+          setRouteWeather(null);
+          if (mapRef.current.getSource('real-route-source')) {
+            mapRef.current.getSource('real-route-source').setData({
+              type: 'FeatureCollection',
+              features: [],
+            });
+          }
+          toast.error('Percorso stradale non disponibile da OSRM', {
+            description: 'Il servizio di routing reale non ha trovato un itinerario valido per questa modalità.',
+          });
+        }
+        return null;
       }
+
+      const primaryRoute = routes[0];
+      const nextRoute = {
+        ...primaryRoute,
+        destinationName: destName,
+        destLat,
+        destLng,
+        alternatives: routes,
+        selectedAlternativeIdx: 0,
+      };
+      setActiveRoute(nextRoute);
+      setNavDestination({ lat: destLat, lng: destLng, name: destName });
+
+      const profileLabel =
+        customProfile === 'walking' ? 'A piedi' : customProfile === 'cycling' ? 'In bici' : 'In auto';
+      if (!silent) {
+        toast.success(
+          `🧭 Percorso (${profileLabel}) verso ${destName}: ${primaryRoute.totalDistanceKm} km (${primaryRoute.totalDurationMinutes} min)`
+        );
+      }
+
+      renderRouteOnMap(primaryRoute.coordinates);
+
+      if (!silent) {
+        const bounds = new maplibregl.LngLatBounds();
+        primaryRoute.coordinates.forEach((coord) => bounds.extend(coord));
+        mapRef.current.fitBounds(bounds, { padding: 70, duration: 800 });
+      }
+
+      // Carica meteo reale lungo il percorso (Open-Meteo Partenza / Metà / Arrivo)
+      getRouteWeatherForecast(primaryRoute.coordinates)
+        .then((forecast) => {
+          setRouteWeather(forecast);
+        })
+        .catch(() => {
+          setRouteWeather(null);
+        });
+
+      return nextRoute;
     } catch (err) {
       console.error('Errore calcolo percorso:', err);
-      toast.error('Impossibile calcolare il percorso stradale');
+      if (!silent) toast.error('Percorso stradale non disponibile da OSRM');
     } finally {
       setIsCalculatingRoute(false);
     }
     return null;
+  };
+
+  const selectAlternativeRoute = (idx) => {
+    if (!activeRoute || !Array.isArray(activeRoute.alternatives) || !activeRoute.alternatives[idx]) return;
+    const alt = activeRoute.alternatives[idx];
+    const updated = {
+      ...activeRoute,
+      ...alt,
+      selectedAlternativeIdx: idx,
+    };
+    setActiveRoute(updated);
+    renderRouteOnMap(alt.coordinates);
+    getRouteWeatherForecast(alt.coordinates)
+      .then((forecast) => setRouteWeather(forecast))
+      .catch(() => {});
   };
 
   const stopTurnByTurnNavigation = () => {
@@ -1837,6 +1709,10 @@ export default function Urbano3D({
       userArrowMarkerRef.current.remove();
       userArrowMarkerRef.current = null;
     }
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    lastSpokenBannerRef.current = '';
     userArrowInnerRef.current = null;
     prevGpsRef.current = null;
     userHasAdjustedZoomRef.current = false;
@@ -1865,22 +1741,19 @@ export default function Urbano3D({
     if (!mapRef.current || !hasValidCoords) return;
     const profileToUse = forcedProfile || navProfile;
 
-    // Determina destinazione (passata, già selezionata o commerciante più vicino)
-    let dest = targetDest;
+    // Determina destinazione reale (niente offset +0.004 inventati)
+    let dest = targetDest && isValidCoord(targetDest.lat, targetDest.lng) ? targetDest : null;
     if (!dest && navDestination && isValidCoord(navDestination.lat, navDestination.lng)) {
       dest = navDestination;
     }
     if (!dest && (selectedMerchantModal || selectedSponsor)) {
       const biz = selectedMerchantModal || selectedSponsor;
-      const hasBizCoords = isValidCoord(biz.lat, biz.lng);
-      dest = {
-        lat: hasBizCoords ? biz.lat : effectiveLat + 0.004,
-        lng: hasBizCoords ? biz.lng : effectiveLng + 0.004,
-        name: biz.name,
-      };
+      if (isValidCoord(biz.lat, biz.lng)) {
+        dest = { lat: biz.lat, lng: biz.lng, name: biz.name };
+      }
     }
     if (!dest && allMerchants.length > 0) {
-      let nearestBiz = allMerchants[0];
+      let nearestBiz = null;
       let minD = Infinity;
       allMerchants.forEach((b) => {
         if (isValidCoord(b.lat, b.lng)) {
@@ -1891,15 +1764,13 @@ export default function Urbano3D({
           }
         }
       });
-      const hasNearestCoords = isValidCoord(nearestBiz.lat, nearestBiz.lng);
-      dest = {
-        lat: hasNearestCoords ? nearestBiz.lat : effectiveLat + 0.004,
-        lng: hasNearestCoords ? nearestBiz.lng : effectiveLng + 0.004,
-        name: nearestBiz.name,
-      };
+      if (nearestBiz) {
+        dest = { lat: nearestBiz.lat, lng: nearestBiz.lng, name: nearestBiz.name };
+      }
     }
     if (!dest) {
-      dest = { lat: effectiveLat + 0.004, lng: effectiveLng + 0.004, name: `${selectedCity} Centro` };
+      toast.error('Seleziona una destinazione reale dalla ricerca o da un pin sulla mappa');
+      return;
     }
 
     // Ottieni posizione iniziale GPS se disponibile (con fallback rapido alla vista corrente)
@@ -1946,6 +1817,7 @@ export default function Urbano3D({
     const initialHeading = computeBearingDeg(initialPos.lat, initialPos.lng, dest.lat, dest.lng);
     userHasAdjustedZoomRef.current = false;
     userHasPannedRef.current = false;
+    lastRerouteAtRef.current = Date.now();
     setIsGpsFollowPaused(false);
     setUserLocation({ lat: initialPos.lat, lng: initialPos.lng, heading: initialHeading });
     ensureBlueArrowMarker(initialPos.lat, initialPos.lng, initialHeading);
@@ -1985,6 +1857,34 @@ export default function Urbano3D({
           setUserLocation({ lat: uLat, lng: uLng, heading });
           ensureBlueArrowMarker(uLat, uLng, heading);
 
+          // Ricalcolo automatico se il dispositivo devia oltre 55 metri dalla linea stradale OSRM
+          const currentRoute = activeRouteRef.current;
+          if (
+            currentRoute &&
+            Array.isArray(currentRoute.coordinates) &&
+            currentRoute.coordinates.length >= 2 &&
+            isValidCoord(currentRoute.destLat, currentRoute.destLng) &&
+            !isReroutingRef.current &&
+            Date.now() - lastRerouteAtRef.current > 12000
+          ) {
+            const devMeters = distanceToRouteMeters(uLat, uLng, currentRoute.coordinates);
+            if (devMeters > 55) {
+              isReroutingRef.current = true;
+              lastRerouteAtRef.current = Date.now();
+              toast.info('🔄 Deviazione rilevata: ricalcolo percorso reale...');
+              handleCalculateRoute(
+                currentRoute.destLat,
+                currentRoute.destLng,
+                currentRoute.destinationName || dest.name,
+                navProfileRef.current,
+                { lat: uLat, lng: uLng },
+                true
+              ).finally(() => {
+                isReroutingRef.current = false;
+              });
+            }
+          }
+
           const easeOptions = computeGpsCameraEaseOptions({
             uLat,
             uLng,
@@ -2007,6 +1907,7 @@ export default function Urbano3D({
   const handleClearRoute = () => {
     stopTurnByTurnNavigation();
     setActiveRoute(null);
+    setRouteWeather(null);
     setNavDestination(null);
     if (mapRef.current && mapRef.current.getSource('real-route-source')) {
       mapRef.current.getSource('real-route-source').setData({
@@ -2021,84 +1922,263 @@ export default function Urbano3D({
     [activeRoute, userLocation, effectiveLat, effectiveLng]
   );
 
+  // Sintesi vocale indicazioni svolta-per-svolta (Web Speech API)
+  useEffect(() => {
+    if (!isNavigating || !voiceEnabled || !nextTurnBanner?.text) return;
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    if (lastSpokenBannerRef.current === nextTurnBanner.text) return;
+    lastSpokenBannerRef.current = nextTurnBanner.text;
+    try {
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(nextTurnBanner.text);
+      utter.lang = 'it-IT';
+      utter.rate = 1.0;
+      window.speechSynthesis.speak(utter);
+    } catch {
+      // Ignora eventuali restrizioni browser autoplay
+    }
+  }, [isNavigating, voiceEnabled, nextTurnBanner]);
+
+  // Caricamento e rimozione overlay radar RainViewer direttamente su MapLibre
+  const updateMapLibreRadarLayer = (host, frame) => {
+    const map = mapRef.current;
+    if (!map || !frame) return;
+    const tileUrl = buildRainViewerMapLibreTileUrl(host, frame, false);
+    const applyLayer = () => {
+      try {
+        if (map.getLayer('rainviewer-radar-layer')) {
+          map.removeLayer('rainviewer-radar-layer');
+        }
+        if (map.getSource('rainviewer-radar-source')) {
+          map.removeSource('rainviewer-radar-source');
+        }
+        map.addSource('rainviewer-radar-source', {
+          type: 'raster',
+          tiles: [tileUrl],
+          tileSize: 256,
+          maxzoom: 12,
+          attribution: 'RainViewer Radar',
+        });
+        const beforeId = map.getLayer('3d-buildings') ? '3d-buildings' : undefined;
+        map.addLayer(
+          {
+            id: 'rainviewer-radar-layer',
+            type: 'raster',
+            source: 'rainviewer-radar-source',
+            paint: { 'raster-opacity': 0.58 },
+          },
+          beforeId
+        );
+      } catch (e) {
+        console.warn('RainViewer MapLibre layer notice:', e);
+      }
+    };
+    if (map.isStyleLoaded()) {
+      applyLayer();
+    } else {
+      map.once('load', applyLayer);
+    }
+  };
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!radarOverlayEnabled) {
+      setRadarPlaying(false);
+      if (map) {
+        try {
+          if (map.getLayer('rainviewer-radar-layer')) map.removeLayer('rainviewer-radar-layer');
+          if (map.getSource('rainviewer-radar-source')) map.removeSource('rainviewer-radar-source');
+        } catch {
+          // ignore
+        }
+      }
+      return;
+    }
+
+    let alive = true;
+    setRadarLoading(true);
+    setRadarError(false);
+    getRainViewerRadarData()
+      .then((payload) => {
+        if (!alive) return;
+        const frames = collectRainViewerTimelineFrames(payload);
+        if (!payload || frames.length === 0) {
+          setRadarError(true);
+          setRadarFrames([]);
+          toast.error('Radar meteorologico RainViewer non disponibile');
+          return;
+        }
+        const host = payload.host || 'https://tilecache.rainviewer.com';
+        const lastIdx = Math.max(0, frames.length - 1);
+        setRadarHost(host);
+        setRadarFrames(frames);
+        setRadarFrameIdx(lastIdx);
+        setRadarSourceLabel(payload.source || 'RainViewer Doppler Radar');
+        updateMapLibreRadarLayer(host, frames[lastIdx]);
+      })
+      .catch(() => {
+        if (alive) setRadarError(true);
+      })
+      .finally(() => {
+        if (alive) setRadarLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [radarOverlayEnabled, mapStyleMode]);
+
+  useEffect(() => {
+    if (!radarOverlayEnabled || !radarPlaying || radarFrames.length <= 1 || !radarHost) return;
+    const timer = setInterval(() => {
+      setRadarFrameIdx((prev) => {
+        const nextIdx = (prev + 1) % radarFrames.length;
+        updateMapLibreRadarLayer(radarHost, radarFrames[nextIdx]);
+        return nextIdx;
+      });
+    }, 1700);
+    return () => clearInterval(timer);
+  }, [radarOverlayEnabled, radarPlaying, radarFrames, radarHost]);
+
   return (
     <div className={`relative w-full h-full overflow-hidden select-none ${mapStyleMode === 'night3d' ? 'bg-[#0b1120]' : 'bg-[#e2e8f0]'}`}>
       {/* BANNER SUPERIORE NAVIGAZIONE ATTIVA (Turn-by-Turn) OPPURE BARRA DI RICERCA DESTINAZIONE */}
       {isNavigating && activeRoute ? (
-        <div className="absolute top-14 left-2.5 right-14 z-40 pointer-events-auto max-w-xl bg-gradient-to-r from-sky-950/95 via-slate-950/95 to-emerald-950/95 backdrop-blur-md p-3 rounded-2xl border-2 border-sky-400/80 shadow-2xl flex items-center justify-between gap-2.5 text-white">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-sky-500 text-white flex items-center justify-center font-black shrink-0 shadow-lg shadow-sky-500/40 animate-pulse">
-              <Navigation className="w-4 h-4 fill-current" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs sm:text-sm font-black text-sky-300 truncate">
-                {nextTurnBanner.text}
+        <div className="absolute top-14 left-2.5 right-14 z-40 pointer-events-auto max-w-xl bg-gradient-to-r from-sky-950/95 via-slate-950/95 to-emerald-950/95 backdrop-blur-md p-3 rounded-2xl border-2 border-sky-400/80 shadow-2xl flex flex-col gap-2 text-white">
+          <div className="flex items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-sky-500 text-white flex items-center justify-center font-black shrink-0 shadow-lg shadow-sky-500/40 animate-pulse">
+                <Navigation className="w-4 h-4 fill-current" />
               </div>
-              <div className="text-[11px] text-zinc-200 font-bold flex items-center gap-2 mt-0.5 flex-wrap">
-                <span>{navProfile === 'walking' ? '🚶 A piedi' : '🚗 In auto'} • Verso {activeRoute.destinationName}</span>
-                <span className="text-[#00ff66]">{activeRoute.totalDistanceKm} km ({activeRoute.totalDurationMinutes} min)</span>
+              <div className="min-w-0">
+                <div className="text-xs sm:text-sm font-black text-sky-300 truncate">
+                  {nextTurnBanner.text}
+                </div>
+                <div className="text-[11px] text-zinc-200 font-bold flex items-center gap-2 mt-0.5 flex-wrap">
+                  <span>{navProfile === 'walking' ? '🚶 A piedi' : navProfile === 'cycling' ? '🚲 In bici' : '🚗 In auto'} • Verso {activeRoute.destinationName}</span>
+                  <span className="text-[#00ff66]">{activeRoute.totalDistanceKm} km ({activeRoute.totalDurationMinutes} min)</span>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
-            {isGpsFollowPaused && (
+            <div className="flex items-center gap-1.5 shrink-0">
               <button
-                id="btn-recenter-gps"
                 type="button"
-                onClick={recenterGpsNavigation}
-                className="px-2.5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-[11px] shrink-0 cursor-pointer shadow-lg active:scale-95"
+                onClick={() => setVoiceEnabled((prev) => !prev)}
+                className={`p-2 rounded-xl border text-xs font-black cursor-pointer ${
+                  voiceEnabled ? 'bg-emerald-500/20 border-emerald-400 text-[#00ff66]' : 'bg-zinc-900 border-zinc-700 text-zinc-400'
+                }`}
+                title={voiceEnabled ? 'Disattiva voce guida' : 'Attiva voce guida italiana'}
               >
-                🎯 Ricentra GPS
+                {voiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
               </button>
-            )}
-            <button
-              id="btn-stop-turn-by-turn"
-              type="button"
-              onClick={stopTurnByTurnNavigation}
-              className="px-2.5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-black text-[11px] shrink-0 cursor-pointer shadow-lg active:scale-95"
-            >
-              Termina Navigazione
-            </button>
+              {isGpsFollowPaused && (
+                <button
+                  id="btn-recenter-gps"
+                  type="button"
+                  onClick={recenterGpsNavigation}
+                  className="px-2.5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-[11px] shrink-0 cursor-pointer shadow-lg active:scale-95"
+                >
+                  🎯 Ricentra GPS
+                </button>
+              )}
+              <button
+                id="btn-stop-turn-by-turn"
+                type="button"
+                onClick={stopTurnByTurnNavigation}
+                className="px-2.5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-black text-[11px] shrink-0 cursor-pointer shadow-lg active:scale-95"
+              >
+                Termina
+              </button>
+            </div>
           </div>
+          {routeWeather?.points?.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap text-[10px] text-zinc-300 border-t border-white/10 pt-1.5">
+              <span className="text-sky-300 font-bold">Meteo percorso:</span>
+              {routeWeather.points.map((pt, i) => (
+                <span key={i} className="bg-black/40 px-1.5 py-0.5 rounded border border-white/10">
+                  {pt.label} {pt.condition.icon} {pt.temperature}°C
+                </span>
+              ))}
+              <span className="text-zinc-500 ml-auto">Traffico live: non disponibile</span>
+            </div>
+          )}
         </div>
       ) : activeRoute ? (
-        <div className="absolute top-14 left-2.5 right-14 z-40 pointer-events-auto max-w-xl bg-black/95 backdrop-blur-md p-3 rounded-2xl border border-emerald-500/50 shadow-2xl flex items-center justify-between gap-2.5 text-white">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-emerald-500 text-black flex items-center justify-center font-black shrink-0 shadow-lg shadow-emerald-500/30">
-              <Navigation className="w-4 h-4 fill-current" />
+        <div className="absolute top-14 left-2.5 right-14 z-40 pointer-events-auto max-w-xl bg-black/95 backdrop-blur-md p-3 rounded-2xl border border-emerald-500/50 shadow-2xl flex flex-col gap-2 text-white">
+          <div className="flex items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-emerald-500 text-black flex items-center justify-center font-black shrink-0 shadow-lg shadow-emerald-500/30">
+                <Navigation className="w-4 h-4 fill-current" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-black flex items-center gap-2 truncate">
+                  <span>Verso: {activeRoute.destinationName}</span>
+                </div>
+                <div className="text-[11px] text-zinc-300 font-bold mt-0.5">
+                  {activeRoute.totalDistanceKm} km • {activeRoute.totalDurationMinutes} min ({navProfile === 'walking' ? '🚶 A piedi' : navProfile === 'cycling' ? '🚲 In bici' : '🚗 In auto'})
+                </div>
+                <div className="text-[10px] text-sky-300 font-bold truncate max-w-xs mt-0.5">
+                  {nextTurnBanner.text}
+                </div>
+              </div>
             </div>
-            <div className="min-w-0">
-              <div className="text-xs font-black flex items-center gap-2 truncate">
-                <span>Verso: {activeRoute.destinationName}</span>
-              </div>
-              <div className="text-[11px] text-zinc-300 font-bold mt-0.5">
-                {activeRoute.totalDistanceKm} km • {activeRoute.totalDurationMinutes} min ({navProfile === 'walking' ? '🚶 A piedi' : '🚗 In auto'})
-              </div>
-              <div className="text-[10px] text-sky-300 font-bold truncate max-w-xs mt-0.5">
-                {nextTurnBanner.text}
-              </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                id="btn-start-turn-by-turn"
+                type="button"
+                onClick={() => startTurnByTurnNavigation()}
+                className="px-2.5 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-[11px] cursor-pointer shadow-md"
+              >
+                Avvia Navigazione
+              </button>
+              <button
+                type="button"
+                onClick={handleClearRoute}
+                className="p-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white cursor-pointer"
+                title="Chiudi percorso"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              id="btn-start-turn-by-turn"
-              type="button"
-              onClick={() => startTurnByTurnNavigation()}
-              className="px-2.5 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-[11px] cursor-pointer shadow-md"
-            >
-              Avvia Navigazione
-            </button>
-            <button
-              type="button"
-              onClick={handleClearRoute}
-              className="p-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white cursor-pointer"
-              title="Chiudi percorso"
-            >
-              <X className="w-4 h-4" />
-            </button>
+          <div className="flex items-center justify-between gap-2 flex-wrap border-t border-zinc-800 pt-1.5 text-[10px]">
+            {Array.isArray(activeRoute.alternatives) && activeRoute.alternatives.length > 1 ? (
+              <div className="flex items-center gap-1 flex-wrap">
+                <span className="text-zinc-400 font-bold">Alternative OSRM:</span>
+                {activeRoute.alternatives.map((alt, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => selectAlternativeRoute(idx)}
+                    className={`px-2 py-0.5 rounded-md font-bold cursor-pointer border ${
+                      activeRoute.selectedAlternativeIdx === idx
+                        ? 'bg-[#00ff66] text-black border-[#00ff66]'
+                        : 'bg-zinc-900 text-zinc-300 border-zinc-700 hover:border-zinc-500'
+                    }`}
+                  >
+                    #{idx + 1}: {alt.totalDistanceKm} km ({alt.totalDurationMinutes}m)
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <span className="text-zinc-400 font-semibold">Fonte: OSRM (OpenStreetMap)</span>
+            )}
+            <span className="text-amber-400/90">Traffico live: fonte non configurata</span>
           </div>
+
+          {routeWeather?.points?.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap text-[10px] text-zinc-300">
+              <span className="text-sky-400 font-bold">Open-Meteo tratta:</span>
+              {routeWeather.points.map((pt, i) => (
+                <span key={i} className="bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800">
+                  {pt.label}: {pt.condition.icon} {pt.temperature}°C ({pt.windSpeed} km/h)
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       ) : (
         /* BARRA DI RICERCA DESTINAZIONE DIRETTA: Scrivi città, via, piazza o negozio */
@@ -2194,7 +2274,7 @@ export default function Urbano3D({
 
       {/* BARRA RAPIDA AVVIO / MODALITÀ NAVIGAZIONE GPS SEMPRE ACCESSIBILE IN BASSO A SINISTRA */}
       {!isNavigating && (
-        <div className="absolute bottom-12 left-3 sm:left-4 z-30 pointer-events-auto flex items-center gap-1.5 bg-black/90 border border-zinc-800 rounded-xl p-1 shadow-xl">
+        <div className="absolute bottom-12 left-3 sm:left-4 z-30 pointer-events-auto flex items-center gap-1 bg-black/90 border border-zinc-800 rounded-xl p-1 shadow-xl">
           <button
             type="button"
             onClick={() => setNavProfile('walking')}
@@ -2203,7 +2283,17 @@ export default function Urbano3D({
             }`}
             title="Modalità navigazione a piedi"
           >
-            🚶 A piedi
+            🚶 Piedi
+          </button>
+          <button
+            type="button"
+            onClick={() => setNavProfile('cycling')}
+            className={`px-2 py-1 rounded-lg text-[10px] font-black cursor-pointer transition-colors ${
+              navProfile === 'cycling' ? 'bg-sky-500 text-slate-950' : 'text-zinc-300 hover:bg-zinc-900'
+            }`}
+            title="Modalità navigazione in bicicletta"
+          >
+            🚲 Bici
           </button>
           <button
             type="button"
@@ -2363,7 +2453,22 @@ export default function Urbano3D({
           {isOrbiting ? <Pause className="w-4 h-4" /> : <RotateCw className="w-4 h-4" />}
         </button>
 
-        {/* APRI IN GOOGLE EARTH WEB */}
+        {/* TOGGLE RADAR PRECIPITAZIONI RAINVIEWER SU MAPPA */}
+        <button
+          id="btn-urbano-radar"
+          type="button"
+          onClick={() => setRadarOverlayEnabled((prev) => !prev)}
+          className={`w-10 h-10 rounded-xl shadow-xl flex flex-col items-center justify-center cursor-pointer transition-all border active:scale-90 font-black text-[9px] ${
+            radarOverlayEnabled
+              ? 'bg-sky-500 text-slate-950 border-sky-300 shadow-sky-500/30'
+              : 'bg-slate-900/90 text-sky-400 border-slate-700/80 hover:bg-slate-800'
+          }`}
+          title="Mostra/Nascondi radar meteorologico reale RainViewer sulla mappa"
+        >
+          <Radar className="w-4 h-4" />
+          <span className="text-[7px] leading-none mt-0.5">RADAR</span>
+        </button>
+
         {/* STREET VIEW 360° & NAVIGAZIONE STRADALE INTEGRATA */}
         <button
           id="btn-open-street-view-360"
@@ -2371,16 +2476,50 @@ export default function Urbano3D({
           onClick={() => {
             setShowStreetView(true);
             toast.success(`🚶 Entro in Street View 360° a ${selectedCity}`, {
-              description: 'Navigazione per le strade e indicazioni svolta per svolta attive',
+              description: 'Ricerca fotografie stradali reali Panoramax / Mapillary',
               duration: 3000,
             });
           }}
           className="w-10 h-10 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 border border-amber-300 shadow-xl backdrop-blur-xl flex items-center justify-center cursor-pointer transition-all active:scale-90 font-black text-[11px]"
-          title="Street View 360°: Gira per le strade con il nostro sistema di navigazione"
+          title="Street View 360°: Visualizza foto panoramiche stradali reali"
         >
           <span>360°</span>
         </button>
       </div>
+
+      {/* CONTROLLO TIMELINE RADAR METEO IN MAPPA URBANA QUANDO ATTIVO */}
+      {radarOverlayEnabled && (
+        <div className="absolute bottom-14 right-14 z-30 pointer-events-auto bg-black/90 backdrop-blur-md border border-sky-500/50 rounded-xl px-2.5 py-1.5 text-[10px] text-white shadow-xl flex items-center gap-2">
+          <CloudRain className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+          {radarLoading ? (
+            <span className="text-zinc-300">Caricamento radar RainViewer...</span>
+          ) : radarError || radarFrames.length === 0 ? (
+            <span className="text-amber-300">Radar RainViewer non disponibile</span>
+          ) : (
+            <>
+              <span className="text-sky-200 font-bold">
+                {radarSourceLabel} •{' '}
+                {radarFrames[radarFrameIdx]?.time
+                  ? new Date(radarFrames[radarFrameIdx].time * 1000).toLocaleTimeString('it-IT', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })
+                  : 'Live'}
+              </span>
+              {radarFrames.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setRadarPlaying((prev) => !prev)}
+                  className="px-1.5 py-0.5 rounded bg-sky-500 text-slate-950 font-black flex items-center gap-1 cursor-pointer"
+                >
+                  {radarPlaying ? <Pause className="w-2.5 h-2.5" /> : <Play className="w-2.5 h-2.5" />}
+                  <span>{radarFrameIdx + 1}/{radarFrames.length}</span>
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {/* FOOTER INFORMATIVO & TELEMETRIA 3D IN BASSO A SINISTRA */}
       <div className="absolute bottom-2 left-4 z-20 pointer-events-auto text-[10px] text-slate-300 font-medium flex flex-wrap items-center gap-2 bg-slate-950/90 px-3.5 py-1.5 rounded-2xl backdrop-blur-md border border-slate-800 shadow-2xl">
@@ -2407,7 +2546,7 @@ export default function Urbano3D({
           <Coins className="w-3 h-3" />
           <span>{currentPlace.currency?.code} ({currentPlace.currency?.symbol})</span>
         </button>
-        {weatherData && (
+        {weatherData ? (
           <>
             <span className="text-slate-600">•</span>
             <button
@@ -2418,6 +2557,18 @@ export default function Urbano3D({
               <span>{weatherData.condition?.icon || '🌤️'}</span>
               <span>{weatherData.temperature}°C</span>
               <span className="text-slate-400 hidden sm:inline">({weatherData.condition?.label})</span>
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="text-slate-600">•</span>
+            <button
+              onClick={() => setShowWeatherModal(true)}
+              className="hover:text-sky-300 cursor-pointer flex items-center gap-1 transition-colors text-slate-400 font-semibold"
+              title="Apri pannello meteo Open-Meteo"
+            >
+              <CloudSun className="w-3 h-3 text-sky-400" />
+              <span>Meteo</span>
             </button>
           </>
         )}
@@ -2452,7 +2603,7 @@ export default function Urbano3D({
       )}
 
       {/* MODALE METEO IN TEMPO REALE & FUSO ORARIO */}
-      {showWeatherModal && weatherData && (
+      {showWeatherModal && (
         <LiveWeatherModal
           isOpen={showWeatherModal}
           onClose={() => setShowWeatherModal(false)}
@@ -2596,9 +2747,11 @@ export default function Urbano3D({
               <button
                 type="button"
                 onClick={() => {
-                  const destLat = isValidCoord(selectedSponsor.lat, selectedSponsor.lng) ? selectedSponsor.lat : effectiveLat;
-                  const destLng = isValidCoord(selectedSponsor.lat, selectedSponsor.lng) ? selectedSponsor.lng : effectiveLng;
-                  handleCalculateRoute(destLat, destLng, selectedSponsor.name);
+                  if (!isValidCoord(selectedSponsor.lat, selectedSponsor.lng)) {
+                    toast.error('Coordinate reali di questo esercente non disponibili');
+                    return;
+                  }
+                  handleCalculateRoute(selectedSponsor.lat, selectedSponsor.lng, selectedSponsor.name);
                 }}
                 disabled={isCalculatingRoute}
                 className="py-2.5 px-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[11px] font-black flex flex-col items-center justify-center gap-1 shadow-lg shadow-emerald-500/25 cursor-pointer active:scale-95 transition-all"
@@ -2634,15 +2787,15 @@ export default function Urbano3D({
           }
         }}
         onNavigateToBusiness={(biz) => {
-          const destLat = isValidCoord(biz.lat, biz.lng) ? biz.lat : effectiveLat + 0.004;
-          const destLng = isValidCoord(biz.lat, biz.lng) ? biz.lng : effectiveLng + 0.004;
-          if (isValidCoord(destLat, destLng)) {
-            startTurnByTurnNavigation({
-              lat: destLat,
-              lng: destLng,
-              name: biz.name,
-            });
+          if (!isValidCoord(biz.lat, biz.lng)) {
+            toast.error('Coordinate reali di questa attività non disponibili');
+            return;
           }
+          startTurnByTurnNavigation({
+            lat: biz.lat,
+            lng: biz.lng,
+            name: biz.name,
+          });
         }}
       />
 
