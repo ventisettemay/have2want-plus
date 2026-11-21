@@ -52,6 +52,8 @@ import { ListingDetailModal } from "@/components/have2want/ListingDetailModal";
 import { DedicatedCategoryPage } from "@/components/DedicatedCategoryPage";
 import { GlobalMarketplaceView } from "@/components/have2want/GlobalMarketplaceView";
 import { ListingExpiryManager } from "@/components/have2want/ListingExpiryManager";
+import { GlobalSearchBar } from "@/components/GlobalSearchBar";
+import { CommerceShop } from "@/types";
 
 export type SectionKey = 'VENDO' | 'SCAMBIO' | 'CERCO' | 'TRASFERTE' | 'SERVIZI' | 'LIBRI' | 'ESTERNI' | 'ALL';
 
@@ -668,40 +670,13 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
           </div>
         </div>
 
-        {/* Centro: Barra Ricerca Grande, Visibile e Voce */}
-        <div className="relative w-full md:max-w-xl flex items-center rounded-2xl border-2 border-zinc-700 focus-within:border-[#00ff66] bg-zinc-900 transition-all shadow-md">
-          <Search className="w-4 h-4 text-[#00ff66] absolute left-3.5 pointer-events-none stroke-[2.5]" />
-          <input
-            type="text"
-            placeholder="Cerca cosa ti serve (es. libro, bicicletta, riparazione...)"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-24 py-2.5 rounded-2xl bg-transparent text-white text-xs sm:text-sm font-medium placeholder-zinc-400 focus:outline-none transition-all"
-          />
-          <div className="absolute right-2 flex items-center gap-1.5">
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery("")}
-                className="p-1 text-zinc-400 hover:text-white transition-colors cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={toggleVoiceSearch}
-              className={`p-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                isVoiceListening
-                  ? "bg-[#00ff66] text-black animate-pulse"
-                  : "text-zinc-400 hover:text-[#00ff66]"
-              }`}
-              title="Ricerca Vocale"
-            >
-              {isVoiceListening ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
-            </button>
-          </div>
-        </div>
+        {/* Centro: GlobalSearchBar Polimorfica (Macro/Urban/Product LOD) */}
+        <GlobalSearchBar
+          shops={[]}
+          listings={listings}
+          onFlyToTarget={() => {}} // Handler gestito internamente da MapView3DContainer
+          className="w-full md:max-w-xl"
+        />
 
         {/* Destra: Desktop Pubblica Annuncio & Hub Pi Network */}
         <div className="hidden md:flex items-center gap-2.5">
