@@ -3,9 +3,11 @@
 **Data:** 21/11/2026
 **Repository ufficiale:** https://github.com/ventisettemay/have2want-plus.git
 **Branch di lavoro:** `kilo/turbo-lark-8wz`
-**Commit codice:** `058f4ce` — `feat: consolida il progetto sul territorio 3D e attiva economia e servizi reali`
+**Commit precedenti:** `058f4ce` — `feat: consolida il progetto sul territorio 3D e attiva economia e servizi reali`
 **Merge:** `8e8c827` — integra il commit remoto `573004a` (rinomina `SalvavatuttoArchive`, `SATELLITE_TO_CHANNEL`)
-**HEAD del branch:** `8e8c827`
+**Blocco pagamenti:** `c1d7266` — pagamenti Pi fail-closed, prelievo su conferma server
+**Blocco meteo:** `74134f7` — meteo reale nel canale METEO_SAT, nessun fallback simulato
+**HEAD del branch:** `74134f7`
 **Branch base:** `kilo/turbo-lark-8wz` (non creare repository paralleli)
 
 > **Istruzione operativa per AI Studio:** aggiornare il progetto esistente a partire da questo repository GitHub. **Non ricaricare, duplicare o ricreare file già presenti.** Importare solo ciò che manca, lavorando su un branch dedicato e aprendo una PR verso `kilo/turbo-lark-8wz`.
@@ -25,11 +27,12 @@
 | Tre viste | `GLOBO` · `URBANO_3D` · `BACHECA` |
 | Comandi | `bun run build` · `npx tsc --noEmit` · `node ./node_modules/vitest/vitest.mjs run --pool=forks --no-file-parallelism` |
 
-**Esito verifiche del commit `058f4ce`:**
+**Esito verifiche del commit `74134f7`:**
 
-- `bun run build` → **OK** (2427 moduli, `dist/server.cjs` generato).
+- `bun run build` → **OK** (`dist/server.cjs` generato).
 - `npx tsc --noEmit` → **0 errori**.
-- Test unitari → **60/60 passati**, 9 file su 10. `tests/app_render.test.tsx` non è eseguibile in sandbox per **OOM del worker** (limite noto, non regressione).
+- Test unitari → **63/63 passati** su 9 file. `tests/app_render.test.tsx` non è eseguibile in sandbox per **OOM del worker** (limite noto, non regressione).
+- Nota ambiente: in sandbox la suite completa può andare in OOM in file diversi (`app_render.test.tsx`, `unified_system_and_radar.test.ts`) per memoria non sufficiente; gli stessi file passano se eseguiti singolarmente.
 
 ---
 
@@ -37,6 +40,14 @@
 
 | File | Modifica |
 |---|---|
+| `server.ts` | `/api/pi/approve` e `/api/pi/complete`: 503 senza `PI_API_KEY`; `/api/pi/withdraw`: 503 senza chiave, 401 senza `uid`, nessun `txHash` inventato |
+| `src/lib/piSdkService.ts` | Rimossi i fallback `success:true`; il completamento è confermato solo se il server risponde OK |
+| `src/lib/communityRewardsService.ts` | `executePiWithdrawal` scala punti solo dopo conferma del server |
+| `src/lib/weatherService.js` | `getRealtimeWeather` restituisce `null` senza rete: nessun dato meteo simulato |
+| `src/components/have2want/OrbitalSatellitesHub.tsx` | Canale METEO con `LiveWeatherModal` (Open-Meteo + RainViewer, fonte e orario); ON/OFF `METEO_SAT` |
+| `tests/pi_sdk_auth_payments.test.ts` | Aggiornati i test pagamenti al comportamento fail-closed |
+| `tests/rewards_and_listings.test.ts` | Test prelievo: solo conferma server, nessun addebito senza conferma |
+| `tests/routing_and_weather.test.ts` | Test meteo: `null` senza rete e parsing corretto dei dati reali Open-Meteo |
 | `src/types.ts` | Rimossi `planetId` e `satelliteId` dal listing |
 | `src/data.ts` | Rimossi 50 righe con riferimenti a pianeti/satelliti |
 | `src/App.jsx` | Navigazione dell'assistente verso viste territoriali; ricerca globale propagata alla bacheca |
@@ -74,7 +85,7 @@
 
 ### 3.2 Servizi reali
 - `src/lib/routingService.ts` — `calculateRealRoute` OSRM, profili `driving` / `walking` / `cycling`, passi in italiano, fallback geodetico.
-- `src/lib/weatherService.js` — Open-Meteo + RainViewer radar.
+- `src/lib/weatherService.js` — Open-Meteo + RainViewer radar; `null` se la rete non è disponibile (nessun fallback simulato).
 - `src/components/have2want/StreetView360Modal.tsx` — Panoramax 360°, Nominatim reverse geocoding, navigazione a piedi/auto.
 - `src/lib/globalProductsCatalog.ts` — 14 prodotti affiliati (7 eBay + 7 AliExpress), wallet configurabile.
 - `src/components/have2want/GlobalMarketplaceView.tsx` — marketplace esterno, distinto dal globo commerciale.
@@ -86,7 +97,7 @@
 - `src/lib/h2wContext.tsx` — listino 20/120/475 π, sconto 50% (10/60/237,5), `spendMerchantPi`.
 - `src/lib/countryAdvertisingPricing.ts` — listino 11 Stati, prezzo per viste.
 - `src/lib/piRealPriceService.ts` — prezzo Pi di riferimento, cache browser, `PI_REAL_PRICE_EUR`.
-- `src/lib/piSdkService.ts` — SDK Pi + fallback web.
+- `src/lib/piSdkService.ts` — SDK Pi, pagamenti fail-closed senza fallback simulato.
 - `server.ts` — endpoint `/api/pi/approve`, `/api/pi/complete`, `/api/pi/withdraw`.
 
 ### 3.4 Interfaccia
@@ -132,6 +143,9 @@ Questi elementi facevano parte del vecchio sistema cosmologico o di moduli mai c
 8. **Navigatore** — Auto / Piedi / Bici con OSRM reale.
 9. **Canale Agenzie** — `VetrinaAgenziePaywall` raggiungibile dai Canali Territoriali.
 10. **Conteggio prodotti** — 14, derivato dal catalogo.
+11. **Pagamenti Pi fail-closed** — senza `PI_API_KEY` gli endpoint `/api/pi/*` rispondono 503; nessun pagamento o prelievo dichiarato riuscito senza conferma del server.
+12. **Prelievo Pi** — scala punti solo dopo conferma del server; senza conferma non addebita nulla.
+13. **Meteo reale** — canale METEO con dati Open-Meteo + radar RainViewer, fonte e orario visibili; nessun dato simulato quando la rete non è disponibile.
 
 ---
 
@@ -140,7 +154,7 @@ Questi elementi facevano parte del vecchio sistema cosmologico o di moduli mai c
 | # | Funzione | Stato | File di riferimento |
 |---|---|---|---|
 | 1 | **Pi Ads ufficiali** (`Pi.Ads`, interstitial, rewarded) | assente | `src/components/have2want/AdRewardHub.jsx`, `PioneerRewardsHubModal.tsx` |
-| 2 | **Verifica pagamenti server-side** con autenticazione e chiave API | endpoint senza auth, fallback `success:true` | `server.ts:110–303`, `src/lib/piSdkService.ts:237–250` |
+| 2 | **Verifica pagamenti server-side** con autenticazione e chiave API | endpoint fail-closed (503 senza `PI_API_KEY`, 401 senza `uid`); manca solo `PI_API_KEY` per la verifica end-to-end | `server.ts`, `src/lib/piSdkService.ts` |
 | 3 | **Firebase Auth e regole per-utente** | regole aperte in lettura | `firestore.rules`, `src/lib/firebase.ts` |
 | 4 | **Gemini server-side** | 0 import di `@google/genai` | `metadata.json`, `src/lib/testnetEngine.ts` |
 | 5 | **Stella delle Possibilità** | assente | `src/components/DiscreetAIAssistant.tsx` |
@@ -227,7 +241,7 @@ firestore.rules                       (regole Firestore)
    npx tsc --noEmit
    node ./node_modules/vitest/vitest.mjs run --pool=forks --no-file-parallelism
    ```
-   Nota: `tests/app_render.test.tsx` può andare in OOM in ambienti con poca memoria; non è un errore del codice.
+   Nota: in sandbox con poca memoria la suite completa può andare in OOM (per esempio `tests/app_render.test.tsx` o `tests/unified_system_and_radar.test.ts`); non è un errore del codice. In tal caso eseguire i file di test singolarmente per confermare il risultato.
 9. **Commit chiari** e PR verso `kilo/turbo-lark-8wz`.
 
 ---
@@ -247,7 +261,7 @@ firestore.rules                       (regole Firestore)
 
 - Repository: https://github.com/ventisettemay/have2want-plus.git
 - Branch: `kilo/turbo-lark-8wz`
-- Commit codice: `058f4ce`
-- Merge: `8e8c827` (HEAD del branch)
+- Blocco pagamenti: `c1d7266`
+- Blocco meteo: `74134f7` (HEAD del branch)
 - Documenti di specifica nel repository: `HAVE2WANT_MASTER_SPECIFICATION_v1.0.md`, `specifiche_tecniche_progetto.md`, `CERTIFICATE_OF_AUTHORSHIP.md`.
 - Report di verifica (solo lettura): `/artifacts/HAVE2WANT_FOTOGRAFIA_FEDELE.md`.
