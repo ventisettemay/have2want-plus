@@ -1,8 +1,8 @@
 # HAVE2WANT PLUS - API Contracts per AI Studio
 
-**Versione:** 1.0 (BLOCCO 1 - Sicurezza e Pagamenti Pi Network)
+**Versione:** 2.0 (BLOCCO 1-5 completati)
 **Branch:** `kilo/falling-breeze-kdw`
-**Commit:** `d83bb4c` (precedente) → nuovo commit dopo BLOCCO 1
+**Commit:** `80f78bc` (BLOCCO 5)
 **Base URL:** `/api` (stesso dominio/origine, CORS configurato via `ALLOWED_ORIGINS`)
 
 ---
@@ -34,8 +34,6 @@
 - `401` - `accessToken` mancante o non valido (`/v2/me` fallito)
 - `503` - `FIREBASE_SERVICE_ACCOUNT` non configurata server-side
 
-**Note:** Richiede `FIREBASE_SERVICE_ACCOUNT_JSON` (o `FIREBASE_CLIENT_EMAIL` + `FIREBASE_PRIVATE_KEY`) nelle variabili d'ambiente server.
-
 ---
 
 ## 2. Configurazione Pi Network
@@ -55,10 +53,6 @@
 }
 ```
 
-**Campi:**
-- `mode`: `"live_pi_api"` | `"structured_fallback"` | `"unconfigured"`
-- `idempotencyScope`: `"d1_global"` | `"firestore_global"` | `"local_file"` | `"edge_cache_pop"` | `"in_memory"`
-
 ---
 
 ## 3. Pagamenti Pi (Server-Side Verification)
@@ -77,8 +71,6 @@
 }
 ```
 
-**Validazione:** `paymentId` alfanumerico + `_.:-`, 3-128 caratteri.
-
 **Response 200 (live):**
 ```json
 {
@@ -90,12 +82,7 @@
 }
 ```
 
-**Errori:**
-- `400` - `paymentId` mancante/non valido
-- `409` - Pagamento già completato (idempotenza `complete_pay:{paymentId}`)
-- `503` - `PI_API_KEY` non configurata (**FAIL-CLOSED**, nessun fallback success)
-- `502` - Errore connessione Pi Network
-- `429` - Rate limit superato
+**Errori:** `400` (paymentId non valido), `409` (duplicato), `503` (PI_API_KEY mancante - FAIL-CLOSED), `502` (errore connessione), `429` (rate limit)
 
 ---
 
@@ -114,12 +101,6 @@
 }
 ```
 
-**Validazione:** Entrambi campi obbligatori, stesso formato `paymentId`.
-
-**Idempotenza:** Doppia chiave:
-- `complete_pay:{paymentId}` - previene doppio completamento stesso pagamento
-- `complete_txid:{txid}` - previene riutilizzo stesso `txid`
-
 **Response 200 (live):**
 ```json
 {
@@ -133,12 +114,7 @@
 }
 ```
 
-**Errori:**
-- `400` - Campi mancanti/non validi
-- `409` - Pagamento già completato / `txid` già usato / pagamento annullato su Pi
-- `503` - `PI_API_KEY` non configurata (**FAIL-CLOSED**)
-- `502` - Errore connessione Pi Network
-- `429` - Rate limit superato
+**Errori:** `400`, `409` (duplicato paymentId/txid, annullato), `503` (FAIL-CLOSED), `502`, `429`
 
 ---
 
@@ -147,7 +123,7 @@
 
 **Autenticazione:** `Authorization: Bearer <pi_access_token>` (obbligatorio se `PI_API_KEY` configurata)
 
-**Header:** `Idempotency-Key` **obbligatorio** (prevent duplicate withdrawals)
+**Header:** `Idempotency-Key` **obbligatorio**
 
 **Rate Limit:** 30 req/min per IP
 
@@ -162,19 +138,7 @@
 }
 ```
 
-**Validazione:**
-- `requestedPi`: 0.50 - 100.00 π
-- `walletAddress`: stringa 6-128 caratteri (chiave pubblica Stellar/Pi `G...`)
-- `uid`: formato Pi Pioneer valido
-- `Idempotency-Key`: header o body, obbligatorio
-
-**Prerequisiti server (LIVE):**
-- `PI_API_KEY`
-- `PI_WALLET_PUBLIC_KEY` (formato `G...` 56 char)
-- `PI_WALLET_SEED` (formato `S...` 56 char)
-- `FIREBASE_SERVICE_ACCOUNT_JSON` (per verifica saldo punti)
-
-**Response 200 (live, successo):**
+**Response 200 (live):**
 ```json
 {
   "success": true,
@@ -192,19 +156,6 @@
 }
 ```
 
-**Errori LIVE:**
-- `400` - Importo/indirizzo non validi / `Idempotency-Key` mancante
-- `401` - `uid`/`accessToken` mancanti o non validi / sessione Pi scaduta
-- `403` - `uid` non corrisponde a `/v2/me` (anti-spoofing)
-- `409` - `Idempotency-Key` già processata / saldo punti insufficiente
-- `501` - `PI_WALLET_SEED`/`PUBLIC_KEY` mancanti (firma Horizon non configurata)
-- `502` - Errore Pi Platform API / Horizon
-- `503` - `PI_API_KEY` non configurata in produzione
-- `429` - Rate limit superato
-
-**Errori DEV (senza PI_API_KEY):**
-- `501` - **FAIL-CLOSED**: nessun fallback simulato, errore esplicito
-
 ---
 
 ## 4. Wallet Points (Firestore Sync)
@@ -212,9 +163,7 @@
 ### POST `/api/wallet/points`
 **Scopo:** Sincronizzazione atomica punti wallet su Firestore (server-authoritative).
 
-**Autenticazione:** **Una** delle due:
-- `Authorization: Bearer <pi_access_token>` (verifica via Pi `/v2/me`)
-- `X-Firebase-Token: <firebase_id_token>` (verifica via Firebase Auth REST)
+**Autenticazione:** `Authorization: Bearer <pi_access_token>` **OR** `X-Firebase-Token: <firebase_id_token>`
 
 **Request:**
 ```json
@@ -225,17 +174,9 @@
   "actionType": "REAL_LISTING_VERIFIED",
   "description": "Annuncio reale verificato",
   "txId": "rew_unique_123",
-  "piPaymentId": "pay_abc123",  // obbligatorio se merchantPiDelta > 0
-  "pioneerUsername": "@pioneer",
-  "pioneerWalletAddress": "GXXXX..."
+  "piPaymentId": "pay_abc123"
 }
 ```
-
-**Validazione server-side (autoritative):**
-- `actionType` deve essere in `SERVER_EARN_ACTION_RATES` o azione spend autorizzata
-- `pointsDelta` calcolato server-side per earn actions (ignora client)
-- `merchantPiDelta > 0` richiede `piPaymentId` verificato in `pi_idempotency`
-- `txId` deduplicato via history wallet (nessun doppio accredito)
 
 **Response 200:**
 ```json
@@ -250,19 +191,262 @@
 }
 ```
 
-**Errori:**
-- `401` - Token mancante/non valido
-- `403` - Tentativo modifica wallet altrui
-- `400` - Azione non autorizzata / saldo insufficiente / `piPaymentId` mancante
-- `503` - `FIREBASE_SERVICE_ACCOUNT_JSON` non configurata
-- `502` - Errore Firestore REST API
+---
+
+## 5. Chat P2P
+
+### POST `/api/chats`
+**Scopo:** Crea o recupera chat P2P tra due utenti (ID deterministico ordinato).
+
+**Autenticazione:** `Authorization: Bearer <pi_access_token>`
+
+**Request:**
+```json
+{
+  "participant2Uid": "PiUser.002",
+  "listingId": "item_123"
+}
+```
+
+**Response 200/201:**
+```json
+{
+  "success": true,
+  "chatId": "pi_user_001_pi_user_002",
+  "existing": false
+}
+```
 
 ---
 
-## 5. Health & Utils
+### GET `/api/chats`
+**Scopo:** Lista chat dell'utente autenticato.
+
+**Autenticazione:** `Authorization: Bearer <pi_access_token>`
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "chats": [
+    {
+      "id": "pi_user_001_pi_user_002",
+      "participant1Uid": "pi_user_001",
+      "participant2Uid": "pi_user_002",
+      "lastMessageAt": "2026-11-21T10:00:00.000Z",
+      "lastMessagePreview": "Ciao, come va?",
+      "unreadCount": 2
+    }
+  ]
+}
+```
+
+---
+
+### GET `/api/chats/:chatId/messages`
+**Scopo:** Recupera messaggi di una chat.
+
+**Autenticazione:** `Authorization: Bearer <pi_access_token>`
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "messages": [
+    {
+      "id": "msg_123",
+      "chatId": "pi_user_001_pi_user_002",
+      "senderUid": "pi_user_001",
+      "content": "Ciao!",
+      "type": "text",
+      "timestamp": "2026-11-21T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+### POST `/api/chats/:chatId/messages`
+**Scopo:** Invia messaggio in chat (testo, nota vocale, sistema).
+
+**Autenticazione:** `Authorization: Bearer <pi_access_token>`
+
+**Request:**
+```json
+{
+  "content": "Ciao!",
+  "type": "voice",
+  "voiceNoteUrl": "https://storage.example.com/voice_123.webm",
+  "voiceDurationSec": 14
+}
+```
+
+**Response 201:**
+```json
+{
+  "success": true,
+  "messageId": "msg_1234567890"
+}
+```
+
+---
+
+## 6. WebRTC Videochiamate
+
+### POST `/api/calls`
+**Scopo:** Crea una chiamata WebRTC (status: `ringing`).
+
+**Autenticazione:** `Authorization: Bearer <pi_access_token>`
+
+**Request:**
+```json
+{
+  "calleeUid": "PiUser.002",
+  "listingId": "item_123"
+}
+```
+
+**Response 201:**
+```json
+{
+  "success": true,
+  "callId": "call_1234567890_abc123"
+}
+```
+
+---
+
+### POST `/api/calls/:callId/signal`
+**Scopo:** Invia signaling WebRTC (offer, answer, ice-candidate).
+
+**Autenticazione:** `Authorization: Bearer <pi_access_token>`
+
+**Request:**
+```json
+{
+  "type": "offer",
+  "payload": { "sdp": "...", "type": "offer" }
+}
+```
+
+**Response 201:**
+```json
+{
+  "success": true,
+  "signalId": "sig_1234567890"
+}
+```
+
+---
+
+### GET `/api/calls/:callId/signaling`
+**Scopo:** Recupera tutti i messaggi di signaling per una chiamata.
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "signals": [
+    {
+      "id": "sig_123",
+      "callId": "call_123",
+      "senderUid": "pi_user_001",
+      "type": "offer",
+      "payload": { "sdp": "...", "type": "offer" },
+      "timestamp": "2026-11-21T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+### PATCH `/api/calls/:callId`
+**Scopo:** Aggiorna stato chiamata.
+
+**Request:**
+```json
+{
+  "status": "connected",
+  "durationSec": 120
+}
+```
+
+---
+
+## 7. Salvavatutto Guide
+
+### POST `/api/guides`
+**Scopo:** Crea nuova guida Salvavatutto.
+
+**Autenticazione:** `Authorization: Bearer <pi_access_token>`
+
+**Request:**
+```json
+{
+  "title": "Come riparare una gomma forata",
+  "category": "Riparazione & Meccanica",
+  "content": "Passaggi dettagliati...",
+  "steps": ["Smonta la ruota", "Rimuovi la camera d'aria", "Trova il buco", "Applica la toppa", "Rimonta tutto"],
+  "tags": ["bicicletta", "riparazione", "fai-da-te"],
+  "author": "Mario Rossi",
+  "readTimeMin": 5
+}
+```
+
+**Response 201:**
+```json
+{
+  "success": true,
+  "guideId": "salv-1234567890"
+}
+```
+
+---
+
+### GET `/api/guides`
+**Scopo:** Lista guide pubbliche (ordinate per lastUpdated desc).
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "guides": [
+    {
+      "id": "salv-123",
+      "title": "Come riparare una gomma forata",
+      "category": "Riparazione & Meccanica",
+      "author": "Mario Rossi",
+      "upvotes": 5,
+      "readTimeMin": 5
+    }
+  ]
+}
+```
+
+---
+
+### POST `/api/guides/:guideId/upvote`
+**Scopo:** Upvote atomico (+1) su una guida.
+
+**Autenticazione:** `Authorization: Bearer <pi_access_token>`
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "upvotes": 6
+}
+```
+
+**Errori:** `403` (auto-voto), `409` (conflitto, riprova)
+
+---
+
+## 8. Health & Utils
 
 ### GET `/api/health`
-**Response 200:**
 ```json
 {
   "status": "ok",
@@ -276,36 +460,35 @@
 ```
 
 ### GET `/validation-key.txt` | `/.well-known/validation-key.txt`
-**Response 200:** Chiave di validazione Pi Network (text/plain, 128 char)
+Chiave validazione Pi Network (text/plain, 128 char)
 
 ### GET `/api/weather/rainviewer`
-**Response 200:** Proxy CORS per `https://api.rainviewer.com/public/weather-maps.json` (cache 2 min)
+Proxy CORS per `https://api.rainviewer.com/public/weather-maps.json` (cache 2 min)
 
 ### GET `/api/weather/rainviewer/tile?url=...` | `?path=...`
-**Response 200:** Proxy tile immagine (solo domini `tilecache.rainviewer.com` / `api.rainviewer.com`)
+Proxy tile immagine (solo domini `tilecache.rainviewer.com` / `api.rainviewer.com`)
 
 ---
 
-## 6. Variabili d'Ambiente Richieste (Server/Worker)
+## 6. Variabili d'Ambiente Richieste
 
 | Variabile | Obbligatoria | Descrizione |
 |-----------|-------------|-------------|
-| `PI_API_KEY` | **SÌ** (per pagamenti reali) | Secret key Pi Platform API (da Developer Portal) |
+| `PI_API_KEY` | **SÌ** (pagamenti reali) | Secret key Pi Platform API |
 | `PI_WALLET_PUBLIC_KEY` | **SÌ** (per A2U) | Chiave pubblica Stellar/Pi `G...` 56 char |
 | `PI_WALLET_SEED` | **SÌ** (per A2U) | Chiave segreta Stellar/Pi `S...` 56 char |
-| `FIREBASE_SERVICE_ACCOUNT_JSON` | **SÌ** (per Auth/Firestore) | JSON completo Service Account Firebase |
-| `FIREBASE_WEB_API_KEY` | SÌ (per verify Firebase ID token) | Web API Key Firebase project |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | **SÌ** (Auth/Firestore) | JSON completo Service Account Firebase |
+| `FIREBASE_WEB_API_KEY` | SÌ (verify Firebase ID token) | Web API Key Firebase project |
 | `VITE_PI_SANDBOX` | No (`"true"`/`"false"`) | Modalità Testnet vs Mainnet |
-| `ALLOWED_ORIGINS` | No | Origini CORS permesse per API protette (comma-separated) |
+| `ALLOWED_ORIGINS` | No | Origini CORS permesse (comma-separated) |
 | `DB` | No (Worker) | Binding Cloudflare D1 per idempotenza globale |
 
-**Senza `PI_API_KEY`:** Tutti gli endpoint `/api/pi/*` restituiscono `503` (approve/complete) o `501` (withdraw) con `mode: "unconfigured"`. **Nessun fallback success simulato.**
-
-**Senza `FIREBASE_SERVICE_ACCOUNT_JSON`:** `/api/auth/firebase-token` → `503`, `/api/wallet/points` → `503`.
+**Senza `PI_API_KEY`:** Tutti `/api/pi/*` → `503`/`501` con `mode: "unconfigured"` (FAIL-CLOSED).
+**Senza `FIREBASE_SERVICE_ACCOUNT_JSON`:** `/api/auth/firebase-token` → `503`, `/api/wallet/points` → `503`, nuove API → `503`.
 
 ---
 
-## 7. Header Comuni
+## Header Comuni
 
 | Header | Descrizione |
 |--------|-------------|
@@ -319,29 +502,38 @@
 
 ---
 
-## 8. Contratti di Sicurezza per AI Studio
+## Contratti di Sicurezza per AI Studio
 
 1. **Non chiamare mai** `/api/pi/approve` o `/api/pi/complete` senza aver prima creato il pagamento via `Pi.createPayment` client-side.
 2. **Usare sempre** `Idempotency-Key` univoco (UUID v4) per `/api/pi/withdraw`.
 3. **Gestire** `409` (duplicate) e `429` (rate limit) con retry exponential backoff.
-4. **Non assumere** successo: verificare sempre `approved: true` / `completed: true` / `success: true` nella response.
-5. **In dev senza credenziali:** aspettarsi `503`/`501` con `mode: "unconfigured"` — non è un bug, è fail-closed.
+4. **Non assumere** successo: verificare sempre `approved: true` / `completed: true` / `success: true`.
+5. **In dev senza credenziali:** aspettarsi `503`/`501` con `mode: "unconfigured"` — è fail-closed.
 6. **Wallet points:** il frontend **non decide** `pointsDelta` per earn actions; il server usa `SERVER_EARN_ACTION_RATES`.
+7. **Chat:** `voiceNoteUrl` deve essere URL esterno (Firebase Storage/S3); backend non gestisce upload.
+8. **WebRTC:** Solo STUN attivo; per produzione servono TURN (coturn, Twilio, Metered).
+9. **Voice notes:** Frontend registra via MediaRecorder; carica su storage esterno e passa URL a `/api/chats/:chatId/messages`.
+10. **Salvavatutto upvote:** Non auto-voto; retry su conflitto 409.
 
 ---
 
-## 9. Changelog BLOCCO 1
-
-| Endpoint | Modifica |
-|----------|----------|
-| `/api/pi/approve` | Fail-closed 503 senza `PI_API_KEY` (era 200 fallback) |
-| `/api/pi/complete` | Fail-closed 503 senza `PI_API_KEY` (era 200 fallback) |
-| `/api/pi/withdraw` | Fail-closed 501/503 senza credenziali complete (era 200 fallback dev) |
-| Tutti `/api/pi/*` | Rate limiting 30/min/IP + validazione Content-Type |
-| Tutti `/api/pi/*` | Audit logging `[AUDIT]` per richieste, successi, errori, duplicati |
-| `/api/auth/firebase-token` | Validazione stretta token Pi, 503 senza Firebase SA |
-| `/api/wallet/points` | Anti-spoofing UID, punti authoritative server-side |
+## Quota X - Valore Ufficiale
+**`QUOTA_X_PERCENT = 0.25` (25% = 0.25π = 250 punti)**
+- Frontend: PioneerRewardsHubModal `+250 Punti (~0.25 π)`, BachecaLavoroP2P "Candidati (0.25π)"
+- Backend: `ECONOMIC_CONSTANTS.QUOTA_X_PERCENT = 0.25`
 
 ---
 
-*Documento generato automaticamente dal completamento BLOCCO 1. Aggiornare ad ogni modifica incompatibile.*
+## Changelog (BLOCCO 1-5)
+
+| Blocco | Modifiche principali |
+|--------|---------------------|
+| 1 | Pi payments fail-closed, idempotenza, rate limiting, audit logging |
+| 2 | Firebase Auth unificato, Firestore rules, Service Account parsing unificato |
+| 3 | `pi_payments` recording, formule economiche, merchant credits, community points |
+| 4 | OpenAPI 3.0.3, Swagger UI, test contratti automatici (29 test) |
+| 5 | Chat P2P, WebRTC signaling, Salvavatutto (guide + upvote), Quota X = 0.25π |
+
+---
+
+*Documento aggiornato al BLOCCO 5 (commit `80f78bc`).*
