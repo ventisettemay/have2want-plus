@@ -4,6 +4,8 @@
 **Repository ufficiale:** https://github.com/ventisettemay/have2want-plus.git
 **Branch di lavoro:** `kilo/turbo-lark-8wz`
 **Commit codice:** `058f4ce` — `feat: consolida il progetto sul territorio 3D e attiva economia e servizi reali`
+**Merge:** `8e8c827` — integra il commit remoto `573004a` (rinomina `SalvavatuttoArchive`, `SATELLITE_TO_CHANNEL`)
+**HEAD del branch:** `8e8c827`
 **Branch base:** `kilo/turbo-lark-8wz` (non creare repository paralleli)
 
 > **Istruzione operativa per AI Studio:** aggiornare il progetto esistente a partire da questo repository GitHub. **Non ricaricare, duplicare o ricreare file già presenti.** Importare solo ciò che manca, lavorando su un branch dedicato e aprendo una PR verso `kilo/turbo-lark-8wz`.
@@ -56,6 +58,7 @@
 | `src/components/PiPaymentModal.tsx` | Testo "Pianeta Vita" → "bacheca territoriale" |
 | `src/components/have2want/AppTutorModal.tsx` | Testo "pianeta" → "territorio" |
 | `src/components/MicroWorldModal.tsx` | **Eliminato** (643 righe, 0 importatori, conteneva "Albero Millenario della Vita") |
+| `src/components/SalvavatuttoPlanet.tsx` → `SalvavatuttoArchive.tsx` | Rinomina da integrare dal commit remoto `573004a` (archivio territoriale, non pianeta) |
 
 ---
 
@@ -141,7 +144,7 @@ Questi elementi facevano parte del vecchio sistema cosmologico o di moduli mai c
 | 3 | **Firebase Auth e regole per-utente** | regole aperte in lettura | `firestore.rules`, `src/lib/firebase.ts` |
 | 4 | **Gemini server-side** | 0 import di `@google/genai` | `metadata.json`, `src/lib/testnetEngine.ts` |
 | 5 | **Stella delle Possibilità** | assente | `src/components/DiscreetAIAssistant.tsx` |
-| 6 | **Salvavatutto con ricerca semantica** | presente solo `SalvavatuttoPlanet` con ricerca testuale | `src/components/SalvavatuttoPlanet.tsx` |
+| 6 | **Salvavatutto con ricerca semantica** | presente solo `SalvavatuttoArchive` con ricerca testuale | `src/components/SalvavatuttoArchive.tsx` |
 | 7 | **Scadenza annunci 30 giorni** | `ListingExpiryManager` 0 importatori, lifecycle simulato | `src/components/ListingExpiryManager.tsx` |
 | 8 | **Ricerca globale unificata** | `GlobalSearchBar.tsx` 0 importatori | `src/components/GlobalSearchBar.tsx` |
 | 9 | **Webcam pubbliche in VIEW** | presente Panoramax 360°, manca catalogo webcam | `src/components/have2want/StreetView360Modal.tsx` |
@@ -245,5 +248,6 @@ firestore.rules                       (regole Firestore)
 - Repository: https://github.com/ventisettemay/have2want-plus.git
 - Branch: `kilo/turbo-lark-8wz`
 - Commit codice: `058f4ce`
+- Merge: `8e8c827` (HEAD del branch)
 - Documenti di specifica nel repository: `HAVE2WANT_MASTER_SPECIFICATION_v1.0.md`, `specifiche_tecniche_progetto.md`, `CERTIFICATE_OF_AUTHORSHIP.md`.
 - Report di verifica (solo lettura): `/artifacts/HAVE2WANT_FOTOGRAFIA_FEDELE.md`.
