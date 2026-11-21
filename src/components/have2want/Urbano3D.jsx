@@ -38,7 +38,7 @@ import StreetView360Modal from './StreetView360Modal';
 import MerchantDetailModal from './MerchantDetailModal';
 import { getRealtimeWeather } from '@/lib/weatherService';
 import { getExternalServicesForArea } from '@/lib/externalGatewayServices';
-import { calculateRealRoute } from '@/lib/routingService';
+import { calculateRealRoute, recalculateRoute, getAlternativeRoutes } from '@/lib/routingService';
 import { SPONSORED_BUSINESSES } from '@/data/regions';
 import { subscribeToCloudShops } from '@/lib/firestoreService';
 import {
@@ -75,6 +75,40 @@ export function computeBearingDeg(lat1, lng1, lat2, lng2) {
   const y = Math.sin(dLambda) * Math.cos(phi2);
   const x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLambda);
   return (toDeg(Math.atan2(y, x)) + 360) % 360;
+}
+
+export function distanceToSegmentMeters(lat, lng, lat1, lng1, lat2, lng2) {
+  // Distance from point to line segment (in meters, using haversine approximation)
+  const R = 6371000;
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  
+  const latRad = toRad(lat);
+  const lngRad = toRad(lng);
+  const lat1Rad = toRad(lat1);
+  const lng1Rad = toRad(lng1);
+  const lat2Rad = toRad(lat2);
+  const lng2Rad = toRad(lng2);
+  
+  // Convert to Cartesian coordinates (approximate, valid for short distances)
+  const x = lngRad * Math.cos(latRad) * R;
+  const y = latRad * R;
+  const x1 = lng1Rad * Math.cos(lat1Rad) * R;
+  const y1 = lat1Rad * R;
+  const x2 = lng2Rad * Math.cos(lat2Rad) * R;
+  const y2 = lat2Rad * R;
+  
+  // Project point onto line segment
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const lenSq = dx * dx + dy * dy;
+  
+  if (lenSq === 0) return Math.hypot(x - x1, y - y1);
+  
+  const t = Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / lenSq));
+  const projX = x1 + t * dx;
+  const projY = y1 + t * dy;
+  
+  return Math.hypot(x - projX, y - projY);
 }
 
 export function buildNextTurnBanner(route, curLat, curLng) {
@@ -194,6 +228,7 @@ export default function Urbano3D({
   const watchIdRef = useRef(null);
   const prevGpsRef = useRef(null);
   const activeRouteRef = useRef(null);
+  const destRef = useRef(null);
   const orbitIntervalRef = useRef(null);
   const userHasAdjustedZoomRef = useRef(false);
   const userHasPannedRef = useRef(false);
@@ -222,6 +257,9 @@ export default function Urbano3D({
   const [navProfile, setNavProfile] = useState('driving'); // 'driving' | 'walking'
   const [userLocation, setUserLocation] = useState(null);
   const [navDestination, setNavDestination] = useState(null);
+  const [alternativeRoutes, setAlternativeRoutes] = useState([]);
+  const [showAlternativeRoutes, setShowAlternativeRoutes] = useState(false);
+  const [selectedAlternativeIndex, setSelectedAlternativeIndex] = useState(-1);
   const [placeSearchQuery, setPlaceSearchQuery] = useState('');
   const [placeSearchResults, setPlaceSearchResults] = useState([]);
   const [isSearchingPlace, setIsSearchingPlace] = useState(false);
@@ -1761,6 +1799,16 @@ export default function Urbano3D({
         const bounds = new maplibregl.LngLatBounds();
         route.coordinates.forEach((coord) => bounds.extend(coord));
         mapRef.current.fitBounds(bounds, { padding: 70, duration: 800 });
+
+        // Fetch alternative routes
+        const alternatives = await getAlternativeRoutes(startLat, startLng, destLat, destLng, customProfile, 2);
+        if (alternatives.length > 1) {
+          // First route is the primary (already set), rest are alternatives
+          setAlternativeRoutes(alternatives.slice(1));
+        } else {
+          setAlternativeRoutes([]);
+        }
+
         return nextRoute;
       }
     } catch (err) {
@@ -1887,6 +1935,9 @@ export default function Urbano3D({
     const calculated = await handleCalculateRoute(dest.lat, dest.lng, dest.name, profileToUse, initialPos);
     if (!calculated) return;
 
+    // Store destination for recalculation in watchPosition
+    destRef.current = dest;
+
     const initialHeading = computeBearingDeg(initialPos.lat, initialPos.lng, dest.lat, dest.lng);
     userHasAdjustedZoomRef.current = false;
     userHasPannedRef.current = false;
@@ -1909,8 +1960,9 @@ export default function Urbano3D({
       if (watchIdRef.current !== null) {
         navigator.geolocation.clearWatch(watchIdRef.current);
       }
+      let recalculationInProgress = false;
       watchIdRef.current = navigator.geolocation.watchPosition(
-        (pos) => {
+        async (pos) => {
           const uLat = pos.coords.latitude;
           const uLng = pos.coords.longitude;
           let heading = pos.coords.heading;
@@ -1922,7 +1974,10 @@ export default function Urbano3D({
               }
             }
             if (typeof heading !== 'number' || Number.isNaN(heading)) {
-              heading = computeBearingDeg(uLat, uLng, dest.lat, dest.lng);
+              const currentDest = destRef.current;
+              if (currentDest && isValidCoord(currentDest.lat, currentDest.lng)) {
+                heading = computeBearingDeg(uLat, uLng, currentDest.lat, currentDest.lng);
+              }
             }
           }
           prevGpsRef.current = { lat: uLat, lng: uLng };
@@ -1938,6 +1993,42 @@ export default function Urbano3D({
           });
           if (mapRef.current && easeOptions) {
             mapRef.current.easeTo(easeOptions);
+          }
+
+          // Deviation detection & auto-recalculation
+          const currentDest = destRef.current;
+          const currentRoute = activeRouteRef.current;
+          if (currentDest && currentRoute && !recalculationInProgress && !userHasPannedRef.current) {
+            // Calcola distanza dal percorso attuale (semplificato: distanza dal segmento più vicino)
+            const coords = currentRoute.coordinates;
+            if (coords && coords.length > 1) {
+              let minDistToRoute = Infinity;
+              for (let i = 0; i < coords.length - 1; i++) {
+                const [lng1, lat1] = coords[i];
+                const [lng2, lat2] = coords[i + 1];
+                // Distanza punto-segmento approssimata
+                const segmentDist = distanceToSegmentMeters(uLat, uLng, lat1, lng1, lat2, lng2);
+                if (segmentDist < minDistToRoute) minDistToRoute = segmentDist;
+              }
+              // Se deviazione > 50 metri dal percorso, ricalcola
+              if (minDistToRoute > 50) {
+                recalculationInProgress = true;
+                try {
+                  const newRoute = await recalculateRoute(uLat, uLng, currentDest.lat, currentDest.lng, navProfile, currentRoute, 'deviation');
+                  if (newRoute) {
+                    const updatedRoute = { ...newRoute, destinationName: currentDest.name, destLat: currentDest.lat, destLng: currentDest.lng };
+                    setActiveRoute(updatedRoute);
+                    activeRouteRef.current = updatedRoute;
+                    renderRouteOnMap(newRoute.coordinates);
+                    toast.info(`🔄 Percorso ricalcolato (deviazione ${Math.round(minDistToRoute)}m)`);
+                  }
+                } catch (e) {
+                  console.warn('Auto-recalculation failed:', e);
+                } finally {
+                  recalculationInProgress = false;
+                }
+              }
+            }
           }
         },
         (err) => {
@@ -1969,81 +2060,186 @@ export default function Urbano3D({
     <div className={`relative w-full h-full overflow-hidden select-none ${mapStyleMode === 'night3d' ? 'bg-[#0b1120]' : 'bg-[#e2e8f0]'}`}>
       {/* BANNER SUPERIORE NAVIGAZIONE ATTIVA (Turn-by-Turn) OPPURE BARRA DI RICERCA DESTINAZIONE */}
       {isNavigating && activeRoute ? (
-        <div className="absolute top-14 left-2.5 right-14 z-40 pointer-events-auto max-w-xl bg-gradient-to-r from-sky-950/95 via-slate-950/95 to-emerald-950/95 backdrop-blur-md p-3 rounded-2xl border-2 border-sky-400/80 shadow-2xl flex items-center justify-between gap-2.5 text-white">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-sky-500 text-white flex items-center justify-center font-black shrink-0 shadow-lg shadow-sky-500/40 animate-pulse">
-              <Navigation className="w-4 h-4 fill-current" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs sm:text-sm font-black text-sky-300 truncate">
-                {nextTurnBanner.text}
+        <>
+          <div className="absolute top-14 left-2.5 right-14 z-40 pointer-events-auto max-w-xl bg-gradient-to-r from-sky-950/95 via-slate-950/95 to-emerald-950/95 backdrop-blur-md p-3 rounded-2xl border-2 border-sky-400/80 shadow-2xl flex items-center justify-between gap-2.5 text-white">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-sky-500 text-white flex items-center justify-center font-black shrink-0 shadow-lg shadow-sky-500/40 animate-pulse">
+                <Navigation className="w-4 h-4 fill-current" />
               </div>
-              <div className="text-[11px] text-zinc-200 font-bold flex items-center gap-2 mt-0.5 flex-wrap">
-                <span>{navProfile === 'walking' ? '🚶 A piedi' : '🚗 In auto'} • Verso {activeRoute.destinationName}</span>
-                <span className="text-[#00ff66]">{activeRoute.totalDistanceKm} km ({activeRoute.totalDurationMinutes} min)</span>
+              <div className="min-w-0">
+                <div className="text-xs sm:text-sm font-black text-sky-300 truncate">
+                  {nextTurnBanner.text}
+                </div>
+                <div className="text-[11px] text-zinc-200 font-bold flex items-center gap-2 mt-0.5 flex-wrap">
+                  <span>{navProfile === 'walking' ? '🚶 A piedi' : '🚗 In auto'} • Verso {activeRoute.destinationName}</span>
+                  <span className="text-[#00ff66]">{activeRoute.totalDistanceKm} km ({activeRoute.totalDurationMinutes} min)</span>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
-            {isGpsFollowPaused && (
+            <div className="flex items-center gap-1.5 shrink-0">
+              {isGpsFollowPaused && (
+                <button
+                  id="btn-recenter-gps"
+                  type="button"
+                  onClick={recenterGpsNavigation}
+                  className="px-2.5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-[11px] shrink-0 cursor-pointer shadow-lg active:scale-95"
+                >
+                  🎯 Ricentra GPS
+                </button>
+              )}
               <button
-                id="btn-recenter-gps"
+                id="btn-stop-turn-by-turn"
                 type="button"
-                onClick={recenterGpsNavigation}
-                className="px-2.5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-[11px] shrink-0 cursor-pointer shadow-lg active:scale-95"
+                onClick={stopTurnByTurnNavigation}
+                className="px-2.5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-black text-[11px] shrink-0 cursor-pointer shadow-lg active:scale-95"
               >
-                🎯 Ricentra GPS
+                Termina Navigazione
               </button>
-            )}
-            <button
-              id="btn-stop-turn-by-turn"
-              type="button"
-              onClick={stopTurnByTurnNavigation}
-              className="px-2.5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-black text-[11px] shrink-0 cursor-pointer shadow-lg active:scale-95"
-            >
-              Termina Navigazione
-            </button>
-          </div>
-        </div>
-      ) : activeRoute ? (
-        <div className="absolute top-14 left-2.5 right-14 z-40 pointer-events-auto max-w-xl bg-black/95 backdrop-blur-md p-3 rounded-2xl border border-emerald-500/50 shadow-2xl flex items-center justify-between gap-2.5 text-white">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-emerald-500 text-black flex items-center justify-center font-black shrink-0 shadow-lg shadow-emerald-500/30">
-              <Navigation className="w-4 h-4 fill-current" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs font-black flex items-center gap-2 truncate">
-                <span>Verso: {activeRoute.destinationName}</span>
-              </div>
-              <div className="text-[11px] text-zinc-300 font-bold mt-0.5">
-                {activeRoute.totalDistanceKm} km • {activeRoute.totalDurationMinutes} min ({navProfile === 'walking' ? '🚶 A piedi' : '🚗 In auto'})
-              </div>
-              <div className="text-[10px] text-sky-300 font-bold truncate max-w-xs mt-0.5">
-                {nextTurnBanner.text}
-              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              id="btn-start-turn-by-turn"
-              type="button"
-              onClick={() => startTurnByTurnNavigation()}
-              className="px-2.5 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-[11px] cursor-pointer shadow-md"
-            >
-              Avvia Navigazione
-            </button>
-            <button
-              type="button"
-              onClick={handleClearRoute}
-              className="p-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white cursor-pointer"
-              title="Chiudi percorso"
-            >
-              <X className="w-4 h-4" />
-            </button>
+          {/* Alternative Routes Panel */}
+          {showAlternativeRoutes && alternativeRoutes.length > 0 && (
+            <div className="absolute top-72 left-2.5 right-14 z-39 pointer-events-auto max-w-xl bg-black/95 backdrop-blur-md border border-sky-500/50 rounded-2xl shadow-2xl p-2.5 text-white animate-slide-down">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-black text-sky-300">Percorsi alternativi</span>
+                <button
+                  type="button"
+                  onClick={() => setShowAlternativeRoutes(false)}
+                  className="p-1 text-zinc-400 hover:text-white cursor-pointer"
+                  title="Chiudi"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                {alternativeRoutes.map((alt, idx) => (
+                  <button
+                    key={`alt-${idx}`}
+                    type="button"
+                    onClick={() => {
+                      setActiveRoute({ ...alt, destinationName: activeRoute.destinationName, destLat: activeRoute.destLat, destLng: activeRoute.destLng });
+                      activeRouteRef.current = { ...alt, destinationName: activeRoute.destinationName, destLat: activeRoute.destLat, destLng: activeRoute.destLng };
+                      renderRouteOnMap(alt.coordinates);
+                      setSelectedAlternativeIndex(idx);
+                      setShowAlternativeRoutes(false);
+                      toast.success(`🔀 Percorso alternativo selezionato: ${alt.totalDistanceKm} km (${alt.totalDurationMinutes} min)`);
+                    }}
+                    className={`w-full text-left p-2 rounded-xl transition-colors ${selectedAlternativeIndex === idx ? 'bg-sky-500/30 border border-sky-500' : 'bg-zinc-900/50 hover:bg-zinc-800/80'}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-white">Alternativa {idx + 1}</span>
+                      <span className="text-[10px] text-sky-300 font-bold">{alt.totalDistanceKm} km • {alt.totalDurationMinutes} min</span>
+                    </div>
+                    <div className="text-[10px] text-zinc-300 mt-0.5 truncate">
+                      {alt.steps[0]?.instruction || 'Percorso alternativo'}
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAlternativeRoutes(!showAlternativeRoutes)}
+                className="w-full mt-2 px-2 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/50 text-sky-300 font-black text-[11px] cursor-pointer"
+              >
+                {showAlternativeRoutes ? 'Nascondi alternative' : 'Mostra alternative'}
+              </button>
+            </div>
+          )}
+        </>
+      ) : activeRoute ? (
+        <>
+          <div className="absolute top-14 left-2.5 right-14 z-40 pointer-events-auto max-w-xl bg-black/95 backdrop-blur-md p-3 rounded-2xl border border-emerald-500/50 shadow-2xl flex items-center justify-between gap-2.5 text-white">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-emerald-500 text-black flex items-center justify-center font-black shrink-0 shadow-lg shadow-emerald-500/30">
+                <Navigation className="w-4 h-4 fill-current" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-black flex items-center gap-2 truncate">
+                  <span>Verso: {activeRoute.destinationName}</span>
+                </div>
+                <div className="text-[11px] text-zinc-300 font-bold mt-0.5">
+                  {activeRoute.totalDistanceKm} km • {activeRoute.totalDurationMinutes} min ({navProfile === 'walking' ? '🚶 A piedi' : '🚗 In auto'})
+                </div>
+                <div className="text-[10px] text-sky-300 font-bold truncate max-w-xs mt-0.5">
+                  {nextTurnBanner.text}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                id="btn-start-turn-by-turn"
+                type="button"
+                onClick={() => startTurnByTurnNavigation()}
+                className="px-2.5 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-[11px] cursor-pointer shadow-md"
+              >
+                Avvia Navigazione
+              </button>
+              {alternativeRoutes.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAlternativeRoutes(!showAlternativeRoutes)}
+                  className="px-2 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/50 text-sky-300 font-black text-[11px] cursor-pointer"
+                  title={showAlternativeRoutes ? 'Nascondi alternative' : 'Mostra alternative'}
+                >
+                  {showAlternativeRoutes ? '🔀 Nascondi' : '🔀 Alt.'}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleClearRoute}
+                className="p-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white cursor-pointer"
+                title="Chiudi percorso"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
-        </div>
+
+          {/* Alternative Routes Panel (non-navigating) */}
+          {showAlternativeRoutes && alternativeRoutes.length > 0 && (
+            <div className="absolute top-72 left-2.5 right-14 z-39 pointer-events-auto max-w-xl bg-black/95 backdrop-blur-md border border-sky-500/50 rounded-2xl shadow-2xl p-2.5 text-white animate-slide-down">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-black text-sky-300">Percorsi alternativi</span>
+                <button
+                  type="button"
+                  onClick={() => setShowAlternativeRoutes(false)}
+                  className="p-1 text-zinc-400 hover:text-white cursor-pointer"
+                  title="Chiudi"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                {alternativeRoutes.map((alt, idx) => (
+                  <button
+                    key={`alt-${idx}`}
+                    type="button"
+                    onClick={() => {
+                      setActiveRoute({ ...alt, destinationName: activeRoute.destinationName, destLat: activeRoute.destLat, destLng: activeRoute.destLng });
+                      activeRouteRef.current = { ...alt, destinationName: activeRoute.destinationName, destLat: activeRoute.destLat, destLng: activeRoute.destLng };
+                      renderRouteOnMap(alt.coordinates);
+                      setSelectedAlternativeIndex(idx);
+                      setShowAlternativeRoutes(false);
+                      toast.success(`🔀 Percorso alternativo selezionato: ${alt.totalDistanceKm} km (${alt.totalDurationMinutes} min)`);
+                    }}
+                    className={`w-full text-left p-2 rounded-xl transition-colors ${selectedAlternativeIndex === idx ? 'bg-sky-500/30 border border-sky-500' : 'bg-zinc-900/50 hover:bg-zinc-800/80'}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-white">Alternativa {idx + 1}</span>
+                      <span className="text-[10px] text-sky-300 font-bold">{alt.totalDistanceKm} km • {alt.totalDurationMinutes} min</span>
+                    </div>
+                    <div className="text-[10px] text-zinc-300 mt-0.5 truncate">
+                      {alt.steps[0]?.instruction || 'Percorso alternativo'}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       ) : (
         /* BARRA DI RICERCA DESTINAZIONE DIRETTA: Scrivi città, via, piazza o negozio */
         <div className="absolute top-14 left-2.5 right-14 z-30 pointer-events-auto max-w-lg">

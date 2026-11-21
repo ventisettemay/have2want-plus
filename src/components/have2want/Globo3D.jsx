@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import { INITIAL_SATELLITES_CATALOG, satelliteEngine } from '@/lib/satelliteModularEngine';
 import { buildEngineeredSpacecraft, createSharedAerospaceMaterials } from '@/components/have2want/spacecraft3D/SpacecraftModelsBuilder';
 import { composeRainViewerGlobeCanvas } from '@/lib/rainViewerGlobeLayer';
-import { getGlobalHubWeatherSnapshots } from '@/lib/weatherService';
+import { getGlobalHubWeatherSnapshots, getRainViewerRadarData } from '@/lib/weatherService';
 
 // Database unificato ad altissima copertura per il raycasting su qualsiasi territorio del pianeta
 const ALL_COUNTRIES_DATA = (() => {
@@ -354,6 +354,8 @@ export default function Globo3D({
   const [isPoliticalRevealed, setIsPoliticalRevealed] = useState(false);
   const [isWeatherActive, setIsWeatherActive] = useState(true);
   const [showWeatherLegend, setShowWeatherLegend] = useState(true);
+  const [isRadarPlaying, setIsRadarPlaying] = useState(true);
+  const [radarTimestamp, setRadarTimestamp] = useState(null);
   const globeListingEntriesRef = useRef([]);
   const globeMerchantGroupsRef = useRef([]);
   const globeChatGroupsRef = useRef([]);
@@ -1054,6 +1056,8 @@ export default function Globo3D({
           cloudsMat.opacity = 0.72;
           radarTexture.needsUpdate = true;
           cloudsMat.needsUpdate = true;
+          if (result.radarTimestamp) setRadarTimestamp(result.radarTimestamp);
+          if (result.satelliteTimestamp && !radarTimestamp) setRadarTimestamp(result.satelliteTimestamp);
         } else {
           applyStaticCloudsFallback();
         }
@@ -1073,6 +1077,14 @@ export default function Globo3D({
 
     // Weather state reference inside Three.js
     let weatherEnabled = true;
+    const isRadarPlayingRef = { current: true };
+    const radarRefreshIntervalRef = { current: null };
+    
+    // Sincronizza isRadarPlaying con isRadarPlayingRef
+    useEffect(() => {
+      isRadarPlayingRef.current = isRadarPlaying;
+    }, [isRadarPlaying]);
+
     toggleWeatherRef.current = (forceValue) => {
       const next = typeof forceValue === 'boolean' ? forceValue : !weatherEnabled;
       weatherEnabled = next;
@@ -1084,6 +1096,30 @@ export default function Globo3D({
         weatherMarkersGroup.visible = next;
       }
       return next;
+    };
+
+    // Controllo animazione radar (Play/Pausa)
+    const toggleRadarAnimation = () => {
+      const next = !isRadarPlaying;
+      setIsRadarPlaying(next);
+      isRadarPlayingRef.current = next;
+      
+      if (next) {
+        // Riprendi: riavvia intervallo refresh
+        if (!radarRefreshIntervalRef.current) {
+          radarRefreshIntervalRef.current = setInterval(refreshRealRadarOverlay, 5 * 60 * 1000);
+          // Refresh immediato
+          refreshRealRadarOverlay();
+        }
+        toast.success("▶️ Animazione Radar Ripresa", { duration: 2000 });
+      } else {
+        // Pausa: ferma intervallo refresh
+        if (radarRefreshIntervalRef.current) {
+          clearInterval(radarRefreshIntervalRef.current);
+          radarRefreshIntervalRef.current = null;
+        }
+        toast.info("⏸️ Animazione Radar in Pausa", { duration: 2000 });
+      }
     };
 
     // 7B. DISSOLVENZA STANDARD ↔ GEOPOLITICO (2 MESH SEPARATI, RAGGIO 60 vs 60.02 ANTI Z-FIGHTING)
@@ -2492,26 +2528,70 @@ export default function Globo3D({
 
 
 
-      {/* LEGENDA METEO COMPATTA IN ALTO A SINISTRA */}
+      {/* LEGENDA METEO COMPATTA IN ALTO A SINISTRA + CONTROLLI RADAR */}
       {isWeatherActive && !isPoliticalRevealed && showWeatherLegend && (
-        <div className="absolute top-3 left-3 z-20 pointer-events-auto flex items-center gap-2 bg-black/85 border border-zinc-800 rounded-xl px-2.5 py-1.5 text-[10px] font-bold text-zinc-200 shadow-lg max-w-[78vw] overflow-x-auto no-scrollbar">
-          <span className="text-amber-400 whitespace-nowrap">☀️ Sole</span>
-          <span className="text-zinc-600">•</span>
-          <span className="text-slate-300 whitespace-nowrap">☁️ Nubi</span>
-          <span className="text-zinc-600">•</span>
-          <span className="text-sky-400 whitespace-nowrap">🌧️ Pioggia</span>
-          <span className="text-zinc-600">•</span>
-          <span className="text-sky-100 whitespace-nowrap">❄️ Neve</span>
-          <span className="text-zinc-600">•</span>
-          <span className="text-purple-400 whitespace-nowrap">⛈️ Temporale</span>
-          <button
-            type="button"
-            onClick={() => setShowWeatherLegend(false)}
-            className="ml-1 text-zinc-400 hover:text-white cursor-pointer"
-            title="Nascondi legenda meteo"
-          >
-            <X className="w-3 h-3" />
-          </button>
+        <div className="absolute top-3 left-3 z-20 pointer-events-auto flex flex-col gap-1.5 bg-black/85 border border-zinc-800 rounded-xl px-2.5 py-2 text-[10px] font-bold text-zinc-200 shadow-lg max-w-[78vw] overflow-x-auto no-scrollbar">
+          <div className="flex items-center gap-2">
+            <span className="text-amber-400 whitespace-nowrap">☀️ Sole</span>
+            <span className="text-zinc-600">•</span>
+            <span className="text-slate-300 whitespace-nowrap">☁️ Nubi</span>
+            <span className="text-zinc-600">•</span>
+            <span className="text-sky-400 whitespace-nowrap">🌧️ Pioggia</span>
+            <span className="text-zinc-600">•</span>
+            <span className="text-sky-100 whitespace-nowrap">❄️ Neve</span>
+            <span className="text-zinc-600">•</span>
+            <span className="text-purple-400 whitespace-nowrap">⛈️ Temporale</span>
+            <button
+              type="button"
+              onClick={() => setShowWeatherLegend(false)}
+              className="ml-1 text-zinc-400 hover:text-white cursor-pointer"
+              title="Nascondi legenda meteo"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+          {/* Controlli Radar: Play/Pausa + Timestamp */}
+          <div className="flex items-center gap-2 px-1 py-1 border-t border-zinc-800">
+            <button
+              type="button"
+              onClick={() => setIsRadarPlaying(!isRadarPlaying)}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-bold transition-colors cursor-pointer border ${
+                isRadarPlaying
+                  ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300'
+                  : 'bg-amber-950/60 border-amber-500/40 text-amber-300'
+              }"
+              title={isRadarPlaying ? "Pausa animazione radar" : "Riprendi animazione radar"}
+            >
+              {isRadarPlaying ? (
+                <>
+                  <span className="text-emerald-400">⏸</span>
+                  <span>Pausa</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-amber-400">▶</span>
+                  <span>Play</span>
+                </>
+              )}
+            </button>
+            {(radarTimestamp || null) && (
+              <span className="text-[9px] font-mono text-zinc-400 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Ultimo aggiornamento radar: {new Date(radarTimestamp).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} UTC</span>
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setRadarTimestamp(null);
+                setIsRadarPlaying(true);
+              }}
+              className="ml-auto px-2 py-1 rounded-lg text-[9px] font-bold bg-sky-950/60 border border-sky-500/40 text-sky-300 hover:bg-sky-950/80 transition-colors cursor-pointer"
+              title="Aggiorna radar ora"
+            >
+              Aggiorna
+            </button>
+          </div>
         </div>
       )}
 
@@ -2657,6 +2737,20 @@ export default function Globo3D({
           title={isWeatherActive ? "Disabilita Nuvole & Pioggia Dinamica" : "Attiva Nuvole & Pioggia Dinamica"}
         >
           {isWeatherActive ? <CloudRain className="w-4 h-4" /> : <CloudSun className="w-4 h-4" />}
+        </button>
+
+        {/* Play/Pausa Animazione Radar (Play/Pausa + Timestamp) */}
+        <button
+          type="button"
+          onClick={toggleRadarAnimation}
+          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer active:scale-95 border ${
+            isRadarPlaying
+              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+              : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+          }`}
+          title={isRadarPlaying ? "Pausa animazione radar" : "Riprendi animazione radar"}
+        >
+          {isRadarPlaying ? <span className="text-emerald-300">⏸</span> : <span className="text-amber-300">▶</span>}
         </button>
 
         {/* Pausa / Attiva Rotazione Asse Terrestre Reale (Inclinazione 23.44°) */}
