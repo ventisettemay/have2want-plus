@@ -512,8 +512,6 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
       createdAt: "Pochi istanti fa",
       tags: [newCategory, newIntent, newCity],
       status: "active",
-      planetId: "planet-possibilita",
-      satelliteId: "sat-oggetti",
     };
 
     onAddListing(created);
