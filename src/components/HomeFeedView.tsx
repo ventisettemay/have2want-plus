@@ -61,7 +61,6 @@ interface HomeFeedViewProps {
   currentUser: PioneerUser;
   onAddListing: (listing: HaveWantListing) => void;
   onSelectListingForTrade: (listing: HaveWantListing) => void;
-  onNavigate?: (tab: string) => void;
   onReportAbuse?: (payload: AbuseReportPayload) => void;
   initialFilter?: string | null;
   onSectionSelect?: (section: string | null) => void;
@@ -78,7 +77,6 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
   currentUser,
   onAddListing,
   onSelectListingForTrade,
-  onNavigate,
   initialFilter,
   onSectionSelect,
   onOpenCarpoolModal,

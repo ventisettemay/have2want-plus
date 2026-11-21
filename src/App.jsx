@@ -9,7 +9,7 @@ import { ClassicEssentialView } from '@/components/have2want/ClassicEssentialVie
 import { CreateListingModal } from '@/components/CreateListingModal';
 import { CertifiedMeetingPointsModal } from '@/components/CertifiedMeetingPointsModal';
 import { DiscreetAIAssistant } from '@/components/DiscreetAIAssistant';
-import { SalvavatuttoPlanet } from '@/components/SalvavatuttoPlanet';
+import { SalvavatuttoArchive } from '@/components/SalvavatuttoArchive';
 import { DriveExporter } from '@/components/DriveExporter';
 import { LegalWelcomeShield } from '@/components/LegalWelcomeShield';
 import { AuthorshipCertificateModal } from '@/components/AuthorshipCertificateModal';
@@ -301,7 +301,7 @@ Flusso Fondamentale: WHAT YOU HAVE → WHAT YOU WANT
 3. ZERO BANCHE & ECONOMIA PI NETWORK (π)
    Libertà totale da commissioni parassitarie e costi di transazione tradizionali: scambi P2P diretti a costo zero o valorizzati tramite la criptovaluta sociale Pi Network.
 
-4. PIANETA SALVAVATUTTO & MEMORIA COLLETTIVA
+4. SALVAVATUTTO & MEMORIA COLLETTIVA
    Rigenerare anziché gettare. Guide pratiche comunitarie di autoproduzione, riparazione, ecologia applicata e conservazione dei saperi artigiani locali.
 
 5. SICUREZZA REALE & GEOPRIVACY ASSOLUTA
@@ -1255,12 +1255,13 @@ function Have2WantPlusMain() {
             )}
           </div>
 
-          {/* I 4 SATELLITI OPERATIVI ORBITANTI HAVE2WANT */}
+          {/* GLI 8 SATELLITI OPERATIVI ORBITANTI HAVE2WANT */}
           <OrbitalSatellitesHub
             currentUser={pioneerUser}
             onOpenChat={(mId) => {
               toast.success(`💬 Handshake chat avviato per: ${mId}`);
             }}
+            onOpenSatelliteChannel={(channel) => setActiveSatelliteChannel(channel)}
           />
 
           <button
@@ -1561,11 +1562,6 @@ function Have2WantPlusMain() {
               currentUser={pioneerUser}
               onAddListing={handleAddListing}
               onSelectListingForTrade={(item) => handleTriggerHandshake(item)}
-              onNavigate={(tab) => {
-                if (tab === 'citta-viva' || tab === 'map') setViewMode('URBANO_3D');
-                else if (tab === 'universe') setViewMode('GLOBO');
-                else if (tab === 'salvavatutto') setShowGuides(true);
-              }}
               onReportAbuse={() => {
                 toast.success("Segnalazione inviata al Comitato di Moderazione Etico.");
               }}
@@ -1705,9 +1701,9 @@ function Have2WantPlusMain() {
                 listings={listings}
                 guides={guides}
                 onNavigate={(target) => {
-                  if (target === 'bacheca') setViewMode('BACHECA');
-                  else if (target === 'salvavatutto') setShowGuides(true);
-                  else if (target === 'mappa') setViewMode('GLOBO');
+                  if (target === 'BACHECA') setViewMode('BACHECA');
+                  else if (target === 'SALVAVATUTTO') setShowGuides(true);
+                  else if (target === 'PI_HUB') setOpenPiHubCount((c) => c + 1);
                   setShowAIAssistant(false);
                 }}
               />
@@ -1728,7 +1724,7 @@ function Have2WantPlusMain() {
         />
       )}
 
-      {/* PIANETA SALVAVATUTTO GUIDES */}
+      {/* SALVAVATUTTO — GUIDE PRATICHE */}
       {showGuides && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
           <div className="relative w-full max-w-4xl bg-[#070b19] border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl max-h-[92vh] flex flex-col">
@@ -1750,7 +1746,7 @@ function Have2WantPlusMain() {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto pt-3">
-              <SalvavatuttoPlanet
+              <SalvavatuttoArchive
                 guides={guides}
                 onAddGuide={(newGuide) => {
                   setGuides((prev) => [newGuide, ...prev]);

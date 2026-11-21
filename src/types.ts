@@ -231,53 +231,6 @@ export interface CommunityChatMessage {
   likes?: number;
 }
 
-export type CityStage = "paesino" | "borgo" | "citta" | "grande_citta" | "metropoli";
-
-export type CityBuildingId =
-  | "piazza"
-  | "giardino"
-  | "scuola"
-  | "officina"
-  | "memoria"
-  | "commercio"
-  | "studio_medico"
-  | "albero";
-
-export type CitizenAvailability = "disponibile" | "occupato" | "offline";
-
-export interface Citizen {
-  id: string;
-  name: string;
-  username: string;
-  avatar: string;
-  role: string;
-  roleCategory: "agricoltura" | "insegnamento" | "meccanica" | "artigianato" | "sanita" | "digitale" | "commercio" | "arte";
-  availability: CitizenAvailability;
-  locationInCity: CityBuildingId;
-  currentActivity: string;
-  skills: string[];
-  reputation: number;
-  tradesCompleted: number;
-  city: string;
-  bio: string;
-  recentQuote?: string;
-  isOnline: boolean;
-}
-
-export interface MemoryArticle {
-  id: string;
-  title: string;
-  category: "mestieri_antichi" | "tradizioni_rurali" | "usi_e_costumi" | "testimonianze" | "tecniche_manuali";
-  period: string;
-  author: string;
-  content: string;
-  keyTeachings: string[];
-  multimediaType: "foto" | "audio" | "racconto" | "testimonianze";
-  tags: string[];
-  upvotes: number;
-  dateAdded: string;
-}
-
 export interface CommerceShop {
   id: string;
   name: string;
@@ -364,18 +317,6 @@ export interface TerritoryNucleus {
   status: "in_aggregazione" | "massa_critica_raggiunta" | "nuovo_paese";
   evolvedPaeseName?: string;
   firstCommerceCategory?: string;
-}
-
-export interface VisualWorldElement {
-  id: string;
-  buildingId: CityBuildingId;
-  zone: string;
-  entityType: "listing" | "citizen" | "guide" | "shop" | "memory";
-  entityId: string;
-  label: string;
-  iconName: string;
-  badge?: string;
-  coords: { x: number; y: number };
 }
 
 // 6. Certified Neutral Meeting Points on Google Earth 3D

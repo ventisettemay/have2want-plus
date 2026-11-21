@@ -22,7 +22,7 @@ import { classifyIntent, processTestnetRequest, ProcessedProduct } from "../lib/
 interface DiscreetAIAssistantProps {
   listings: HaveWantListing[];
   guides: SalvavatuttoGuide[];
-  onNavigate: (target: "bacheca" | "mappa" | "salvavatutto" | "pi-hub") => void;
+  onNavigate: (target: "BACHECA" | "SALVAVATUTTO" | "PI_HUB") => void;
 }
 
 interface Message {
@@ -34,7 +34,7 @@ interface Message {
   productPayload?: ProcessedProduct;
   suggestedAction?: {
     label: string;
-    target: "bacheca" | "mappa" | "salvavatutto" | "pi-hub";
+    target: "BACHECA" | "SALVAVATUTTO" | "PI_HUB";
   };
 }
 
@@ -342,7 +342,7 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
             imageUrl: currentImg.dataUrl,
             suggestedAction: {
               label: "Esplora annunci simili nel catalogo",
-              target: "bacheca",
+              target: "BACHECA",
             },
           },
         ]);
@@ -355,13 +355,13 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
 
       if (q.includes("scamb") || q.includes("baratt") || q.includes("offr") || q.includes("cerc")) {
         reply = `Nel catalogo comunitario ci sono ${listings.length} scambi attivi. Puoi esplorare la bacheca generale o effettuare baratti protetti.`;
-        action = { label: "Esplora Bacheca Possibilità", target: "bacheca" };
+        action = { label: "Esplora Bacheca Possibilità", target: "BACHECA" };
       } else if (q.includes("guida") || q.includes("salva") || q.includes("soccorso")) {
         reply = `In Salvavatutto sono custodite ${guides.length} guide pratiche di autosufficienza e prevenzione.`;
-        action = { label: "Apri Archivio Salvavatutto", target: "salvavatutto" };
+        action = { label: "Apri Archivio Salvavatutto", target: "SALVAVATUTTO" };
       } else if (q.includes("pi") || q.includes("wallet")) {
         reply = `In HAVE2WANT non esiste custodia di fondi interna. I trasferimenti avvengono sul Pi Wallet ufficiale.`;
-        action = { label: "Vedi Hub Pi Network", target: "pi-hub" };
+        action = { label: "Vedi Hub Pi Network", target: "PI_HUB" };
       } else {
         reply = intentResult.text_response;
       }

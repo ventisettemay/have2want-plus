@@ -304,6 +304,9 @@ export interface SponsoredBusiness {
   isAd?: boolean;
   adHeadline?: string;
   flyerUrl?: string;
+  durationDays?: number;
+  paidPricePi?: number;
+  expiresAt?: string; // ISO date: scadenza automatica della vetrina sponsorizzata
 }
 
 export const SPONSORED_BUSINESSES: SponsoredBusiness[] = [

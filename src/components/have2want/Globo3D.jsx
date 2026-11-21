@@ -1499,7 +1499,7 @@ export default function Globo3D({
 
       // Se il satellite era spento, accendilo per permettere all utente di vederlo
       if (!sat.craftGroup.visible) {
-        satelliteEngine.setSatelliteState(sat.id, true);
+        satelliteEngine.setSatelliteActive(sat.id, true);
       }
 
       zoneReticleGroup.visible = false;
@@ -1516,7 +1516,7 @@ export default function Globo3D({
 
       flyTo(camPos, satWorldPos, 950, () => {
         toast.info(`🛰️ ${sat.name}`, {
-          description: `${sat.scientificModel} • ${sat.role}`,
+          description: `${sat.codeName} • ${sat.h2wRole}`,
           duration: 3500,
         });
         if (onOpenSatelliteRef.current) {
@@ -2162,7 +2162,7 @@ export default function Globo3D({
             }
           }}
           className="w-8 h-8 rounded-lg bg-zinc-950 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 border border-zinc-800 hover:border-emerald-500 flex items-center justify-center text-sm transition-colors cursor-pointer active:scale-95 shadow-md shadow-emerald-500/10"
-          title="Centro Controllo Flotta Spaziale: Interruttori ON/OFF degli 8 Satelliti, 7 Preset & Dati di Volo"
+          title="Centro Controllo Flotta Spaziale: Interruttori ON/OFF degli 8 Satelliti, 8 Preset & Dati di Volo"
         >
           <span>🛰️</span>
         </button>
