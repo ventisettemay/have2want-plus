@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   Plus,
   Star,
+  Package,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { classifyMerchantPin, MerchantPinCategory } from '@/lib/merchantPinClassifier';
@@ -43,6 +44,8 @@ export interface MerchantBusinessItem {
   website?: string;
   hours?: string;
   voiceIntro?: string;
+  address?: string;
+  products?: string[];
 }
 
 interface MerchantDetailModalProps {
@@ -266,14 +269,43 @@ export default function MerchantDetailModal({
                   </span>
                 </div>
               </div>
+              {selectedBusiness.address && (
+                <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center gap-2.5 sm:col-span-2">
+                  <MapPin className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-zinc-400 block uppercase font-bold">Indirizzo</span>
+                    <span className="text-zinc-100 font-semibold block truncate">
+                      {selectedBusiness.address}
+                    </span>
+                  </div>
+                </div>
+              )}
+              <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center gap-2.5">
+                <MapPin className="w-4 h-4 text-[#00ff66] shrink-0" />
+                <div className="min-w-0">
+                  <span className="text-[10px] text-zinc-400 block uppercase font-bold">Posizione</span>
+                  <a
+                    href={`https://www.openstreetmap.org/?mlat=${selectedBusiness.lat}&mlon=${selectedBusiness.lng}#map=17/${selectedBusiness.lat}/${selectedBusiness.lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-zinc-100 font-mono font-semibold truncate block hover:text-[#00ff66] hover:underline"
+                    title="Apri la posizione su OpenStreetMap"
+                  >
+                    {selectedBusiness.lat.toFixed(5)}, {selectedBusiness.lng.toFixed(5)}
+                  </a>
+                </div>
+              </div>
               {selectedBusiness.phone && (
                 <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center gap-2.5">
                   <Phone className="w-4 h-4 text-emerald-400 shrink-0" />
                   <div className="min-w-0">
                     <span className="text-[10px] text-zinc-400 block uppercase font-bold">Contatto</span>
-                    <span className="text-zinc-100 font-mono font-semibold truncate block">
+                    <a
+                      href={`tel:${selectedBusiness.phone.replace(/\s+/g, '')}`}
+                      className="text-zinc-100 font-mono font-semibold truncate block hover:text-[#00ff66] hover:underline"
+                    >
                       {selectedBusiness.phone}
-                    </span>
+                    </a>
                   </div>
                 </div>
               )}
@@ -282,11 +314,53 @@ export default function MerchantDetailModal({
                   <Globe className="w-4 h-4 text-purple-400 shrink-0" />
                   <div className="min-w-0">
                     <span className="text-[10px] text-zinc-400 block uppercase font-bold">Sito Web</span>
-                    <span className="text-zinc-100 font-semibold truncate block">
+                    <a
+                      href={selectedBusiness.website.startsWith('http') ? selectedBusiness.website : `https://${selectedBusiness.website}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-zinc-100 font-semibold truncate block hover:text-[#00ff66] hover:underline"
+                    >
                       {selectedBusiness.website}
-                    </span>
+                    </a>
                   </div>
                 </div>
+              )}
+            </div>
+
+            {/* Prodotti & Servizi */}
+            <div className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Package className="w-4 h-4 text-emerald-400" />
+                  <span className="text-[11px] font-black text-white uppercase tracking-wider">Prodotti & Servizi</span>
+                </div>
+                {onOpenVoiceChat && (
+                  <button
+                    onClick={() => {
+                      onClose();
+                      onOpenVoiceChat(selectedBusiness);
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold cursor-pointer hover:bg-emerald-900/60"
+                  >
+                    Chiedi catalogo
+                  </button>
+                )}
+              </div>
+              {selectedBusiness.products && selectedBusiness.products.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedBusiness.products.map((product, index) => (
+                    <span
+                      key={`${selectedBusiness.id}-product-${index}`}
+                      className="px-2 py-1 rounded-lg bg-emerald-950/50 border border-emerald-500/30 text-[11px] text-emerald-200"
+                    >
+                      {product}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[11px] text-zinc-400">
+                  Catalogo non ancora pubblicato. Chiedi al commerciante disponibilità, prodotti e prezzi.
+                </p>
               )}
             </div>
           </div>
@@ -326,6 +400,16 @@ export default function MerchantDetailModal({
                   <span>Vai in Urbano 3D</span>
                 </button>
               )}
+              <a
+                href={`https://www.openstreetmap.org/directions?to=${selectedBusiness.lat},${selectedBusiness.lng}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-sky-300 border border-sky-500/40 text-xs font-black flex items-center gap-1.5"
+                title="Apri le indicazioni stradali su OpenStreetMap"
+              >
+                <MapPin className="w-3.5 h-3.5" />
+                <span>Indicazioni</span>
+              </a>
               {onOpenVoiceChat && (
                 <button
                   onClick={() => {

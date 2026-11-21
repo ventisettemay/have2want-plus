@@ -14,6 +14,8 @@ import { GlobalMarketplaceView } from './GlobalMarketplaceView';
 import BachecaLavoroP2P from './BachecaLavoroP2P';
 import LiveWeatherModal from './LiveWeatherModal';
 import StreetView360Modal from './StreetView360Modal';
+import LiveWebcamModal from './LiveWebcamModal';
+import MeteoNavigazioneModal from './MeteoNavigazioneModal';
 import SpacecraftInspectorModal from './SpacecraftInspectorModal';
 import { ExternalListings } from './ExternalListings';
 import { COUNTRIES } from '@/data/countries';

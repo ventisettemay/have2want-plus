@@ -492,31 +492,8 @@ export async function getRealtimeWeather(lat, lng) {
     weatherCache.set(cacheKey, { timestamp: now, data: weatherData });
     return weatherData;
   } catch (err) {
-    console.warn('[WeatherService] Impossibile recuperare dati meteo online, uso fallback controllato:', err);
-    return {
-      temperature: 21,
-      temperatureExact: 21.0,
-      apparentTemperature: 21,
-      humidity: 55,
-      pressure: 1015,
-      windSpeed: 8,
-      windDirectionDeg: 90,
-      windDirection: 'Est (E)',
-      cloudCover: 15,
-      precipitation: 0,
-      rain: 0,
-      snowfall: 0,
-      isDay: true,
-      weatherCode: 0,
-      timezone: 'Europe/Rome',
-      condition: interpretWmoCode(0, 1),
-      units: { temperature: '°C', windSpeed: 'km/h', humidity: '%', precipitation: 'mm', pressure: 'hPa' },
-      hourlyForecast: [],
-      dailyForecast: [],
-      dataSource: 'Stazione di Riferimento Locale (Offline)',
-      radarSource: 'RainViewer',
-      lastUpdated: new Date().toISOString(),
-      isRealData: false,
-    };
+    console.warn('[WeatherService] Impossibile recuperare dati meteo online:', err);
+    // Nessun dato simulato: la rete non è disponibile, la UI deve mostrare l'errore
+    return null;
   }
 }

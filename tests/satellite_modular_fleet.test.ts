@@ -17,8 +17,8 @@ describe('Satellite Modular Fleet Engine – HAVE2WANT PLUS', () => {
     satelliteEngine.applyPreset('RIPRISTINA_TUTTI');
   });
 
-  it('Dovrebbe contenere esattamente gli 8 identificativi satellite ufficiali', () => {
-    const EXPECTED_8_IDS: SatelliteId[] = [
+  it('Dovrebbe contenere esattamente i 10 identificativi satellite ufficiali (8 originali + 2 estensioni VIEW)', () => {
+    const EXPECTED_10_IDS: SatelliteId[] = [
       'METEO_SAT',
       'KM0_SAT',
       'STREET_360_SAT',
@@ -27,12 +27,14 @@ describe('Satellite Modular Fleet Engine – HAVE2WANT PLUS', () => {
       'EXTERNAL_MARKET_SAT',
       'COMMUNITY_RESCUE_SAT',
       'BUSINESS_ADS_SAT',
+      'WEBCAM',
+      'METEO_ROUTE',
     ];
 
-    expect(INITIAL_SATELLITES_CATALOG).toHaveLength(8);
+    expect(INITIAL_SATELLITES_CATALOG).toHaveLength(10);
     const catalogIds = INITIAL_SATELLITES_CATALOG.map((s) => s.id);
 
-    EXPECTED_8_IDS.forEach((expectedId) => {
+    EXPECTED_10_IDS.forEach((expectedId) => {
       expect(catalogIds).toContain(expectedId);
     });
   });
@@ -79,7 +81,7 @@ describe('Satellite Modular Fleet Engine – HAVE2WANT PLUS', () => {
     INITIAL_SATELLITES_CATALOG.forEach((sat) => {
       expect(satelliteEngine.isSatelliteActive(sat.id)).toBe(true);
     });
-    expect(satelliteEngine.getActiveCount()).toBe(8);
+    expect(satelliteEngine.getActiveCount()).toBe(10);
   });
 
   it('Dovrebbe applicare il preset SOLO_METEO (lasciando acceso solo METEO_SAT)', () => {
@@ -130,18 +132,20 @@ describe('Satellite Modular Fleet Engine – HAVE2WANT PLUS', () => {
     expect(satelliteEngine.isSatelliteActive('COMMUNITY_RESCUE_SAT')).toBe(false);
   });
 
-  it('Dovrebbe applicare il preset SOLO_TERRITORIO (3 satelliti di prossimità)', () => {
+  it('Dovrebbe applicare il preset SOLO_TERRITORIO (5 satelliti di prossimità e navigazione)', () => {
     satelliteEngine.applyPreset('SOLO_TERRITORIO');
     const expectedTerritory: SatelliteId[] = [
       'KM0_SAT',
       'STREET_360_SAT',
       'BUSINESS_ADS_SAT',
+      'WEBCAM',
+      'METEO_ROUTE',
     ];
 
     expectedTerritory.forEach((id) => {
       expect(satelliteEngine.isSatelliteActive(id)).toBe(true);
     });
-    expect(satelliteEngine.getActiveCount()).toBe(3);
+    expect(satelliteEngine.getActiveCount()).toBe(5);
 
     expect(satelliteEngine.isSatelliteActive('GLOBAL_MARKET_SAT')).toBe(false);
   });

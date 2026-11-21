@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   REWARDS_CONFIG,
   getPioneerRewardsState,
@@ -104,16 +104,44 @@ describe('Ricompense Comunitarie Pi & Logica Geospaziale Annunci', () => {
     expect(failWallet.success).toBe(false);
     expect(failWallet.error).toContain('indirizzo Pi Wallet');
 
-    // 3. Prelievo valido con successo
+    // 3. Prelievo valido: il server conferma l'operazione
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        txHash: 'pi_live_tx_confirmed_123',
+        netPiSent: 0.49,
+        feeDeducted: 0.01,
+        mode: 'live_pi_api',
+      }),
+    }));
     const success = await executePiWithdrawal(0.5, 'pi_wallet_address_valid_123', '@Pioneer_Tester');
     expect(success.success).toBe(true);
     expect(success.netPiSent).toBe(0.49); // 0.5 - 0.01 fee
-    expect(success.txHash).toMatch(/^pi_testnet_tx_/);
+    expect(success.txHash).toMatch(/^pi_live_tx_/);
+    vi.unstubAllGlobals();
 
     // 4. Errore punti insufficienti dopo aver svuotato il saldo
     const failPoints = await executePiWithdrawal(50.0, 'pi_wallet_address_valid_123');
     expect(failPoints.success).toBe(false);
     expect(failPoints.error).toContain('Punti insufficienti');
+  });
+
+  it('Non deve dichiarare un prelievo riuscito senza conferma del server Pi', async () => {
+    const { executePiWithdrawal, awardPoints, getPioneerRewardsState } = await import('../src/lib/communityRewardsService');
+    awardPoints('REAL_EXCHANGE_CONCLUDED');
+    const before = getPioneerRewardsState().pointsBalance;
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: 'PI_API_KEY non configurata' }),
+    }));
+
+    const result = await executePiWithdrawal(0.5, 'pi_wallet_address_valid_123', '@Pioneer_Tester');
+    vi.unstubAllGlobals();
+
+    expect(result.success).toBe(false);
+    expect(result.txHash).toBeUndefined();
+    expect(getPioneerRewardsState().pointsBalance).toBe(before);
   });
 
   it('Dovrebbe scalare 2 o 4 punti con spendPoints e bloccare se saldo insufficiente', async () => {

@@ -14,7 +14,9 @@ import {
   Calendar, 
   Tag, 
   UserCheck, 
-  AlertCircle 
+  AlertCircle,
+  Gift,
+  ShoppingBag,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getCachedPiRealPrice } from '@/lib/piRealPriceService';

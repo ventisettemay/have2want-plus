@@ -30,7 +30,7 @@ import {
 import { REAL_CATEGORIES_MATRIX } from "../categories";
 import { toast } from "sonner";
 import { publishProductApi } from "../lib/testnetEngine";
-import { spendPoints } from "../lib/communityRewardsService";
+import { spendPoints, awardPoints } from "../lib/communityRewardsService";
 import {
   getCachedPiMarketData,
   PI_COMMUNITY_BASELINE_EUR,
@@ -314,12 +314,15 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({
       createdAt: new Date().toISOString(),
       tags: [newCategory, newIntent, newSubcategory],
       status: "active",
-      planetId: "planet-possibilita",
-      satelliteId: "sat-scambi",
       isDemo: isDemoListing
     };
 
     onAddListing(newListing);
+
+    // Premio per pubblicazione di un annuncio reale (solo annunci non demo)
+    if (!isDemoListing) {
+      awardPoints('REAL_LISTING_BASIC', `Pubblicazione annuncio: "${newTitle.trim()}"`);
+    }
 
     // Sincronizzazione con il Flat DB / Backend API REST Testnet
     publishProductApi({

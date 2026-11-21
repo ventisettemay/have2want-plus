@@ -124,15 +124,73 @@ describe('Servizio Routing Reale OSRM & Meteorologia Avanzata', () => {
       expect(radar?.host).toBe('https://tilecache.rainviewer.com');
     });
 
-    it('getRealtimeWeather genera dati meteo e fallback coerente', async () => {
+    it('getRealtimeWeather restituisce null quando la rete non è disponibile (nessun dato simulato)', async () => {
       vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new Error('Open-Meteo unreachable'));
 
       const weather = await getRealtimeWeather(41.9028, 12.4964);
-      expect(weather).toBeDefined();
-      expect(weather.temperature).toBeDefined();
-      expect(weather.pressure).toBeGreaterThan(950);
-      expect(weather.windDirection).toBeDefined();
-      expect(weather.units.temperature).toBe('°C');
+      expect(weather).toBeNull();
+    });
+
+    it('getRealtimeWeather decodifica i dati reali restituiti da Open-Meteo', async () => {
+      const mockOpenMeteo = {
+        timezone: 'Europe/Rome',
+        current_units: {
+          temperature_2m: '°C',
+          wind_speed_10m: 'km/h',
+          relative_humidity_2m: '%',
+          precipitation: 'mm',
+          surface_pressure: 'hPa',
+        },
+        current: {
+          temperature_2m: 23.4,
+          relative_humidity_2m: 61,
+          apparent_temperature: 24.1,
+          is_day: 1,
+          precipitation: 0,
+          rain: 0,
+          showers: 0,
+          snowfall: 0,
+          weather_code: 1,
+          cloud_cover: 22,
+          wind_speed_10m: 11,
+          wind_direction_10m: 180,
+          surface_pressure: 1014.2,
+        },
+        hourly: {
+          time: ['2026-11-21T10:00', '2026-11-21T11:00'],
+          temperature_2m: [22.5, 23.0],
+          precipitation_probability: [10, 20],
+          wind_speed_10m: [9, 12],
+          cloud_cover: [20, 25],
+          weather_code: [1, 2],
+        },
+        daily: {
+          time: ['2026-11-21', '2026-11-22'],
+          temperature_2m_max: [24, 22],
+          temperature_2m_min: [14, 13],
+          precipitation_sum: [0, 2],
+          precipitation_probability_max: [10, 40],
+          wind_speed_10m_max: [15, 18],
+          weather_code: [1, 3],
+        },
+      };
+
+      // Coordinate diverse per non usare la cache del test precedente
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockOpenMeteo,
+      } as unknown as Response);
+
+      const weather = await getRealtimeWeather(45.0, 7.0);
+      expect(weather).not.toBeNull();
+      expect(weather?.temperature).toBe(23);
+      expect(weather?.pressure).toBe(1014);
+      expect(weather?.windDirection).toBe('Sud (S)');
+      expect(weather?.units.temperature).toBe('°C');
+      expect(weather?.isRealData).toBe(true);
+      expect(weather?.hourlyForecast).toHaveLength(2);
+      expect(weather?.dailyForecast).toHaveLength(2);
+      expect(weather?.dataSource).toContain('ECMWF');
     });
   });
 });

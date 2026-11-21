@@ -1,38 +1,69 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { CloudSun, Store, ShoppingBag, Briefcase, X, ChevronRight, Sparkles, ShieldCheck, MapPin, Truck, Satellite } from 'lucide-react';
 import VetrinaKmZero from './VetrinaKmZero';
 import { GlobalMarketplaceView } from './GlobalMarketplaceView';
 import BachecaLavoroP2P from './BachecaLavoroP2P';
+import VetrinaAgenziePaywall from './VetrinaAgenziePaywall';
 import LiveWeatherModal from './LiveWeatherModal';
 import SpacecraftInspectorModal from './SpacecraftInspectorModal';
-import { SatelliteId } from '@/lib/satelliteModularEngine';
+import { SatelliteId, satelliteEngine } from '@/lib/satelliteModularEngine';
+
+const SATELLITE_TO_CHANNEL: Record<SatelliteId, string> = {
+  METEO_SAT: 'WEATHER',
+  KM0_SAT: 'KMZERO',
+  STREET_360_SAT: 'STRADARIO',
+  PI_CHAT_SAT: 'CHAT',
+  GLOBAL_MARKET_SAT: 'SUPERMARKET',
+  EXTERNAL_MARKET_SAT: 'EXTERNAL',
+  COMMUNITY_RESCUE_SAT: 'COMUNITA',
+  BUSINESS_ADS_SAT: 'BUSINESS_ADS',
+  WEBCAM: 'WEBCAM',
+  METEO_ROUTE: 'METEO_ROUTE',
+};
 
 interface OrbitalSatellitesHubProps {
   currentUser?: any;
+  country?: any;
   onOpenChat?: (merchantId: string) => void;
   onTogglePolitical?: () => void;
   isPoliticalActive?: boolean;
   onToggleWeather?: () => void;
   isWeatherActive?: boolean;
+  onOpenSatelliteChannel?: (channel: string) => void;
 }
 
 export default function OrbitalSatellitesHub({
   currentUser,
+  country,
   onOpenChat,
   onTogglePolitical,
   isPoliticalActive = false,
   onToggleWeather,
-  isWeatherActive = true,
+  isWeatherActive: isWeatherActiveProp = true,
+  onOpenSatelliteChannel,
 }: OrbitalSatellitesHubProps) {
-  const [activeChannel, setActiveChannel] = useState<'METEO' | 'KMZERO' | 'SUPERMARKET' | 'LAVORO' | null>(null);
+  const [activeChannel, setActiveChannel] = useState<'METEO' | 'KMZERO' | 'SUPERMARKET' | 'LAVORO' | 'AGENZIE' | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isFleetModalOpen, setIsFleetModalOpen] = useState(false);
   const [selectedSatForFleet, setSelectedSatForFleet] = useState<SatelliteId | null>(null);
   const [fleetTab, setFleetTab] = useState<'INSPECTOR' | 'CONTROLS'>('CONTROLS');
+  const [satelliteStates, setSatelliteStates] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const unsubscribe = satelliteEngine.subscribe((states) => {
+      setSatelliteStates(states as Record<string, boolean>);
+    });
+    return unsubscribe;
+  }, []);
+
+  const isSatelliteOn = (satId?: SatelliteId) => !satId || satelliteStates[satId] !== false;
+
+  const isWeatherActive = satelliteStates['METEO_SAT'] ?? isWeatherActiveProp;
 
   const channels = [
     {
       id: 'METEO' as const,
+      satId: 'METEO_SAT' as SatelliteId,
       name: 'Meteo & Radar Territorio',
       desc: 'Nuvole, pioggia dinamica 3D, radar live e dissolvenza geopolitica',
       icon: CloudSun,
@@ -42,6 +73,7 @@ export default function OrbitalSatellitesHub({
     },
     {
       id: 'KMZERO' as const,
+      satId: 'KM0_SAT' as SatelliteId,
       name: 'Produttori a Km Zero',
       desc: 'Agricoltori locali, ortofrutta fresca, negozi del territorio e ritiro sul posto',
       icon: Store,
@@ -51,6 +83,7 @@ export default function OrbitalSatellitesHub({
     },
     {
       id: 'SUPERMARKET' as const,
+      satId: 'GLOBAL_MARKET_SAT' as SatelliteId,
       name: 'Supermarket dal Mondo',
       desc: 'Marketplace mondiale, negozi internazionali e spedizioni tracciate',
       icon: ShoppingBag,
@@ -60,12 +93,22 @@ export default function OrbitalSatellitesHub({
     },
     {
       id: 'LAVORO' as const,
+      satId: undefined as SatelliteId | undefined,
       name: 'Lavoro & Servizi Diretti',
       desc: 'Annunci di lavoro, servizi di prossimità e collaborazioni senza agenzie',
       icon: Briefcase,
       color: 'from-purple-500 to-indigo-600',
       badge: 'LAVORO & SERVIZI',
       badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
+    },
+    {
+      id: 'AGENZIE' as const,
+      name: 'Agenzie & Interinali',
+      desc: 'Vetrina a pagamento per agenzie, con le stesse tariffe dei commercianti',
+      icon: ShieldCheck,
+      color: 'from-rose-500 to-pink-600',
+      badge: 'ABBONAMENTO',
+      badgeColor: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
     },
   ];
 
@@ -111,7 +154,7 @@ export default function OrbitalSatellitesHub({
               </button>
             </div>
 
-            {/* 🛰️ Centro Controllo Flotta 14 Satelliti H2W */}
+            {/* 🛰️ Centro Controllo Flotta 8 Satelliti H2W */}
             <div className="mb-2.5">
               <button
                 type="button"
@@ -128,7 +171,7 @@ export default function OrbitalSatellitesHub({
                   </div>
                   <div>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-black text-white">CONTROLLO FLOTTA 14 SATELLITI</span>
+                      <span className="text-xs font-black text-white">CONTROLLO FLOTTA 8 SATELLITI</span>
                       <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-emerald-400 text-black">7 PRESET</span>
                     </div>
                     <p className="text-[10px] text-zinc-300">Interruttori ON/OFF, Ispezione 3D, orbite ed azionamenti</p>
@@ -158,8 +201,8 @@ export default function OrbitalSatellitesHub({
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-black text-white truncate">{idx + 1}. {chan.name}</span>
-                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${chan.badgeColor} shrink-0`}>
-                            {chan.badge}
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${isSatelliteOn(chan.satId) ? chan.badgeColor : 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>
+                            {isSatelliteOn(chan.satId) ? chan.badge : 'SPENTO'}
                           </span>
                         </div>
                         <p className="text-[10px] text-zinc-400 line-clamp-1">{chan.desc}</p>
@@ -171,6 +214,35 @@ export default function OrbitalSatellitesHub({
               })}
             </div>
 
+            {/* Interruttori diretti degli 8 satelliti */}
+            <div className="mt-3 pt-2.5 border-t border-zinc-800/80">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-black text-zinc-300 uppercase tracking-wider">Satelliti · ON/OFF</span>
+                <span className="text-[9px] font-black text-[#00ff66]">
+                  {satelliteEngine.getActiveCount()}/{satelliteEngine.getTotalCount()} ATTIVI
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {satelliteEngine.getAllSatellites().map((sat) => (
+                  <button
+                    key={sat.id}
+                    type="button"
+                    onClick={() => satelliteEngine.toggleSatellite(sat.id)}
+                    className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg border text-[10px] font-bold transition-all cursor-pointer ${
+                      satelliteStates[sat.id]
+                        ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-200'
+                        : 'bg-zinc-900/60 border-zinc-800 text-zinc-500'
+                    }`}
+                    title={`${sat.name} · ${sat.codeName}`}
+                  >
+                    <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${satelliteStates[sat.id] ? 'bg-[#00ff66]' : 'bg-zinc-600'}`} />
+                    <span className="truncate">{sat.name}</span>
+                    <span className="ml-auto text-[8px] font-black">{satelliteStates[sat.id] ? 'ON' : 'OFF'}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Quick Controls Section inside the menu */}
             <div className="mt-3 pt-2.5 border-t border-zinc-800/80 flex items-center justify-between text-[11px] text-zinc-400">
               <span className="text-[10px]">Piattaforma P2P Senza Intermediari</span>
@@ -180,90 +252,20 @@ export default function OrbitalSatellitesHub({
         )}
       </div>
 
-      {/* CANALE 1: METEO & RADAR TERRITORIO */}
+      {/* CANALE 1: METEO & RADAR TERRITORIO (dati reali Open-Meteo + RainViewer) */}
       {activeChannel === 'METEO' && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 animate-in fade-in duration-200">
-          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5 text-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-3 mb-4">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center">
-                  <CloudSun className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-black text-white">METEO LIVE & RADAR TERRITORIALE</h3>
-                  <p className="text-[11px] text-zinc-400">Stato atmosfera 3D, precipitazioni, stazioni locali e mappa geopolitica</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setActiveChannel(null)}
-                className="p-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Controls */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
-              <div className="p-3.5 rounded-xl bg-zinc-900/70 border border-zinc-800 flex items-center justify-between">
-                <div>
-                  <div className="text-xs font-bold text-white">⛅ Nuvole & Pioggia 3D</div>
-                  <div className="text-[10px] text-zinc-400">Atmosfera dinamica su mappa e globo</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (onToggleWeather) onToggleWeather();
-                  }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black cursor-pointer transition-all ${
-                    isWeatherActive
-                      ? 'bg-sky-500 text-white shadow-md shadow-sky-500/20'
-                      : 'bg-zinc-800 text-zinc-400'
-                  }`}
-                >
-                  {isWeatherActive ? 'ATTIVO' : 'DISATTIVATO'}
-                </button>
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-zinc-900/70 border border-zinc-800 flex items-center justify-between">
-                <div>
-                  <div className="text-xs font-bold text-white">🗺️ Dissolvenza Geopolitica</div>
-                  <div className="text-[10px] text-zinc-400">Confini di Stato e territori</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (onTogglePolitical) onTogglePolitical();
-                  }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black cursor-pointer transition-all ${
-                    isPoliticalActive
-                      ? 'bg-emerald-500 text-black shadow-md shadow-emerald-500/20'
-                      : 'bg-zinc-800 text-zinc-400'
-                  }`}
-                >
-                  {isPoliticalActive ? 'POLITICA' : 'FOTOGRAFICA'}
-                </button>
-              </div>
-            </div>
-
-            {/* Embedded Live Weather Modal Component view */}
-            <div className="border border-zinc-800/80 rounded-xl overflow-hidden bg-black/40 p-4">
-              <h4 className="text-xs font-black text-sky-400 uppercase tracking-wider mb-2">Radar Live Territoriale</h4>
-              <p className="text-xs text-zinc-300 mb-4">
-                I dati meteorologici integrano precipitazioni, venti e copertura nuvolosa in tempo reale. Puoi disabilitare l'effetto visivo in qualsiasi momento dalla barra 3D.
-              </p>
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setActiveChannel(null)}
-                  className="px-4 py-2 rounded-xl bg-[#00ff66] text-black font-black text-xs cursor-pointer hover:bg-[#00e65c]"
-                >
-                  Torna alla Mappa 3D
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <LiveWeatherModal
+          isOpen={true}
+          onClose={() => setActiveChannel(null)}
+          weather={null}
+          place={null}
+          country={country || null}
+          weatherEffectsEnabled={isWeatherActive}
+          onToggleWeatherEffects={() => {
+            satelliteEngine.setSatelliteActive('METEO_SAT', !isWeatherActive);
+            if (onToggleWeather) onToggleWeather();
+          }}
+        />
       )}
 
       {/* CANALE 2: VETRINA KM ZERO */}
@@ -326,6 +328,29 @@ export default function OrbitalSatellitesHub({
         </div>
       )}
 
+      {/* CANALE 5: VETRINA AGENZIE A PAGAMENTO */}
+      {activeChannel === 'AGENZIE' && (
+        <div className="fixed inset-0 z-50 bg-slate-950 overflow-y-auto animate-in fade-in duration-200">
+          <div className="sticky top-0 z-40 bg-slate-900/95 border-b border-slate-800 px-4 py-3 flex items-center justify-between backdrop-blur-md">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🏢</span>
+              <span className="text-xs font-black text-rose-400 uppercase tracking-wider">
+                VETRINA AGENZIE & INTERINALI (ABBONAMENTO)
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveChannel(null)}
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+              <span>Chiudi</span>
+            </button>
+          </div>
+          <VetrinaAgenziePaywall currentUser={currentUser} />
+        </div>
+      )}
+
       {/* 🛰️ MODALE CONTROLLO FLOTTA 8 SATELLITI & ISPEZIONE 3D */}
       <SpacecraftInspectorModal
         isOpen={isFleetModalOpen}
@@ -334,9 +359,17 @@ export default function OrbitalSatellitesHub({
         onClose={() => setIsFleetModalOpen(false)}
         onLaunchChannel={(satId) => {
           setIsFleetModalOpen(false);
+          // L'apertura di un canale attiva anche il relativo satellite
+          satelliteEngine.setSatelliteActive(satId, true);
+          if (onOpenSatelliteChannel) {
+            // Delega al contenitore territoriale: un solo livello di modali e servizio corretto
+            onOpenSatelliteChannel(SATELLITE_TO_CHANNEL[satId]);
+            return;
+          }
+          // Fallback locale solo se l'hub è usato senza il contenitore della mappa
           if (satId === 'METEO_SAT') setActiveChannel('METEO');
           else if (satId === 'KM0_SAT') setActiveChannel('KMZERO');
-          else setActiveChannel('SUPERMARKET');
+          else if (satId === 'GLOBAL_MARKET_SAT') setActiveChannel('SUPERMARKET');
         }}
         onSelectSatellite={(satId) => setSelectedSatForFleet(satId)}
       />

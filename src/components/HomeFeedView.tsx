@@ -51,6 +51,8 @@ import { TerritorialAdBanner } from "@/components/have2want/TerritorialAdBanner"
 import { ListingDetailModal } from "@/components/have2want/ListingDetailModal";
 import { DedicatedCategoryPage } from "@/components/DedicatedCategoryPage";
 import { GlobalMarketplaceView } from "@/components/have2want/GlobalMarketplaceView";
+import MarketplaceOrderModal from "@/components/have2want/MarketplaceOrderModal";
+import MarketplaceOrdersModal from "@/components/have2want/MarketplaceOrdersModal";
 import { ListingExpiryManager } from "@/components/have2want/ListingExpiryManager";
 import { GlobalSearchBar } from "@/components/GlobalSearchBar";
 import { CommerceShop } from "@/types";

@@ -10,6 +10,7 @@ interface VetrinaKmZeroProps {
   isOpen?: boolean;
   onClose?: () => void;
   onTriggerHandshake?: (listing: any) => void;
+  onNavigateToProduct?: (product: any) => void;
 }
 
 export default function VetrinaKmZero({
@@ -17,11 +18,12 @@ export default function VetrinaKmZero({
   onOpenChat,
   isOpen = true,
   onClose,
-  onTriggerHandshake
+  onTriggerHandshake,
+  onNavigateToProduct
 }: VetrinaKmZeroProps) {
   if (!isOpen) return null;
 
-  const { merchantPiBalance, deductMerchantSubscription } = useH2W();
+  const { deductMerchantSubscription } = useH2W();
   const [acceptsPi, setAcceptsPi] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [shareLocation, setShareLocation] = useState(() => localStorage.getItem('h2w_share_location') === 'true');
@@ -37,7 +39,7 @@ export default function VetrinaKmZero({
     pricePi: ''
   });
 
-  const [products, setProducts] = useState([
+  const [products, setProducts] = useState<any[]>([
     {
       id: 1,
       name: "Arance Rosse di Sicilia IGP",
@@ -45,6 +47,8 @@ export default function VetrinaKmZero({
       imageUrl: "https://images.unsplash.com/photo-1611080626919-7cf5a9dbab5b?w=600&auto=format&fit=crop&q=80",
       category: "ORTOFRUTTA",
       location: "Lentini (SR)",
+      lat: 37.2841,
+      lng: 15.0003,
       pricePi: 0.8,
       merchantId: "m_orto",
       isDemo: true,
@@ -56,6 +60,8 @@ export default function VetrinaKmZero({
       imageUrl: "https://images.unsplash.com/photo-1534948216015-843149f72be3?w=600&auto=format&fit=crop&q=80",
       category: "PESCHERIA",
       location: "Porto di Mazara del Vallo",
+      lat: 37.6500,
+      lng: 12.5900,
       pricePi: 2.5,
       merchantId: "m_porto",
       isDemo: true,
@@ -67,6 +73,8 @@ export default function VetrinaKmZero({
       imageUrl: "https://images.unsplash.com/photo-1486297678162-eb2a19b0a32d?w=600&auto=format&fit=crop&q=80",
       category: "CASEIFICIO",
       location: "Ragusa",
+      lat: 36.9269,
+      lng: 14.7255,
       pricePi: 1.8,
       merchantId: "m_casaro",
       isDemo: true,
@@ -79,9 +87,8 @@ export default function VetrinaKmZero({
 
   const handlePayAndPublish = (e: React.FormEvent) => {
     e.preventDefault();
-    const cost = acceptsPi ? 10 : 20;
     const success = deductMerchantSubscription(acceptsPi ? "DAILY_SCONTO" : "DAILY");
-    if (!success && merchantPiBalance < cost) {
+    if (!success) {
       toast.error("Saldo Pi insufficiente per pubblicare la locandina aziendale.");
       return;
     }
@@ -274,7 +281,20 @@ export default function VetrinaKmZero({
                     </button>
                     <button
                       onClick={() => {
-                        toast.info(`Coordinate di ritiro individuate per ${product.name} a ${product.location}`);
+                        if (typeof product.lat === 'number' && typeof product.lng === 'number') {
+                          if (onNavigateToProduct) {
+                            onNavigateToProduct(product);
+                          } else {
+                            window.open(
+                              `https://www.openstreetmap.org/directions?to=${product.lat},${product.lng}`,
+                              '_blank',
+                              'noopener,noreferrer'
+                            );
+                          }
+                          toast.info(`Percorso per il ritiro di ${product.name} a ${product.location}`);
+                        } else {
+                          toast.info(`Coordinate non disponibili per ${product.name}: contatta il produttore per il ritiro.`);
+                        }
                       }}
                       className="px-2.5 py-1.5 rounded-lg bg-[#00ff66] hover:bg-[#00e65c] text-black text-xs font-black cursor-pointer flex items-center gap-1"
                       title="Calcola percorso per il ritiro diretto sul posto"
