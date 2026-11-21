@@ -4,34 +4,37 @@
 import { buildApiUrl } from './apiConfig';
 import { signInWithFirebaseCustomToken, signOutFirebase } from './firebase';
 
+// Pi Ads SDK Types - defined in src/types/global.d.ts
+interface PiAdsInterface {
+  showRewardedVideo: (options: {
+    onReward: () => void;
+    onError: (error: Error) => void;
+    onClose: () => void;
+  }) => Promise<void>;
+  showInterstitial: (options: {
+    onClose: () => void;
+    onError: (error: Error) => void;
+  }) => Promise<void>;
+  isRewardedVideoAvailable: () => Promise<boolean>;
+  isInterstitialAvailable: () => Promise<boolean>;
+}
+
+interface PiNetworkSDK {
+  init: (options: { version: string; sandbox?: boolean }) => void;
+  authenticate: (
+    scopes: string[],
+    onIncompletePaymentFound?: (payment: any) => void
+  ) => Promise<{
+    accessToken: string;
+    user: { uid: string; username: string };
+  }>;
+  createPayment: (paymentData: any, callbacks?: any) => Promise<any>;
+  Ads?: PiAdsInterface;
+}
+
 declare global {
   interface Window {
-    Pi?: {
-      init: (options: { version: string; sandbox?: boolean }) => void;
-      authenticate: (
-        scopes: string[],
-        onIncompletePaymentFound?: (payment: any) => void
-      ) => Promise<{
-        accessToken: string;
-        user: {
-          uid: string;
-          username: string;
-        };
-      }>;
-      createPayment: (
-        paymentData: {
-          amount: number;
-          memo: string;
-          metadata?: Record<string, any>;
-        },
-        callbacks?: {
-          onReadyForServerApproval?: (paymentId: string) => void;
-          onReadyForServerCompletion?: (paymentId: string, txid: string) => void;
-          onCancel?: (paymentId: string) => void;
-          onError?: (error: Error, payment?: any) => void;
-        }
-      ) => Promise<any>;
-    };
+    Pi?: PiNetworkSDK;
   }
 }
 
