@@ -153,29 +153,31 @@ export async function authenticateWithPiPortal(sandboxOverride?: boolean): Promi
   }
 }
 
-async function notifyServerApproval(paymentId: string): Promise<void> {
-  if (typeof fetch !== 'function') return;
+async function notifyServerApproval(paymentId: string): Promise<boolean> {
+  if (typeof fetch !== 'function') return false;
   try {
-    await fetch('/api/pi/approve', {
+    const response = await fetch('/api/pi/approve', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ paymentId }),
     });
+    return Boolean(response.ok);
   } catch {
-    // Non bloccare il callback client se il server non è raggiungibile in preview/test offline
+    return false;
   }
 }
 
-async function notifyServerCompletion(paymentId: string, txid: string): Promise<void> {
-  if (typeof fetch !== 'function') return;
+async function notifyServerCompletion(paymentId: string, txid: string): Promise<boolean> {
+  if (typeof fetch !== 'function') return false;
   try {
-    await fetch('/api/pi/complete', {
+    const response = await fetch('/api/pi/complete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ paymentId, txid }),
     });
+    return Boolean(response.ok);
   } catch {
-    // Non bloccare in offline/test runner
+    return false;
   }
 }
 
@@ -210,13 +212,21 @@ export async function executePiSdkPayment(options: {
               void notifyServerApproval(paymentId);
             },
             onReadyForServerCompletion: (paymentId: string, txid: string) => {
-              void notifyServerCompletion(paymentId, txid).finally(() => {
-                resolve({
-                  success: true,
-                  txId: txid,
-                  isSimulated: false,
-                  sandbox: isSandbox,
-                });
+              void notifyServerCompletion(paymentId, txid).then((confirmed) => {
+                if (confirmed) {
+                  resolve({
+                    success: true,
+                    txId: txid,
+                    isSimulated: false,
+                    sandbox: isSandbox,
+                  });
+                } else {
+                  resolve({
+                    success: false,
+                    error: 'Il server non ha confermato il completamento del pagamento.',
+                    sandbox: isSandbox,
+                  });
+                }
               });
             },
             onCancel: () => {
@@ -235,17 +245,12 @@ export async function executePiSdkPayment(options: {
         );
       });
     } else {
-      // Preview web senza Pi Browser: flusso strutturato con registrazione su backend
-      const simulatedPaymentId = 'pi_pay_' + Math.random().toString(36).substring(2, 10);
-      await notifyServerApproval(simulatedPaymentId);
-      await new Promise((r) => setTimeout(r, 600));
-      const simulatedTxId = 'pi_tx_' + Math.random().toString(36).substring(2, 12) + '_verified';
-      await notifyServerCompletion(simulatedPaymentId, simulatedTxId);
+      // Senza Pi Browser non è possibile eseguire un pagamento reale: nessun fallback simulato
       return {
-        success: true,
-        txId: simulatedTxId,
-        isSimulated: true,
+        success: false,
+        isSimulated: false,
         sandbox: isSandbox,
+        error: 'Pi Browser non disponibile: il pagamento reale non può essere completato.',
       };
     }
   } catch (err: any) {

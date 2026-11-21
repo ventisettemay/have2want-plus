@@ -73,6 +73,8 @@ describe('Pi Network SDK 2.0 - Autenticazione Pioneer & Pagamenti Blockchain', (
       createPayment: mockCreatePayment,
     };
 
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));
+
     const paymentResult = await executePiSdkPayment({
       amount: 3.14,
       memo: 'Acquisto annuncio Have2Want',
@@ -82,6 +84,7 @@ describe('Pi Network SDK 2.0 - Autenticazione Pioneer & Pagamenti Blockchain', (
     expect(paymentResult.success).toBe(true);
     expect(paymentResult.txId).toBe('txid_blockchain_abc');
     expect(paymentResult.isSimulated).toBe(false);
+    vi.unstubAllGlobals();
   });
 
   it('Dovrebbe gestire l\'annullamento del pagamento Pi da parte dell\'utente', async () => {
@@ -122,7 +125,7 @@ describe('Pi Network SDK 2.0 - Autenticazione Pioneer & Pagamenti Blockchain', (
     expect(paymentResult.error).toContain('Fondi non sufficienti');
   });
 
-  it('Dovrebbe gestire la simulazione del pagamento quando window.Pi non è presente', async () => {
+  it('Dovrebbe rifiutare il pagamento quando window.Pi non è presente (nessuna simulazione)', async () => {
     delete (window as any).Pi;
 
     const result = await executePiSdkPayment({
@@ -130,13 +133,14 @@ describe('Pi Network SDK 2.0 - Autenticazione Pioneer & Pagamenti Blockchain', (
       memo: 'Simulated Payment Test',
     });
 
-    expect(result.success).toBe(true);
-    expect(result.isSimulated).toBe(true);
-    expect(result.txId).toMatch(/^pi_tx_/);
+    expect(result.success).toBe(false);
+    expect(result.isSimulated).toBe(false);
+    expect(result.error).toContain('Pi Browser');
   });
 
   it('Dovrebbe invocare onReadyForServerApproval durante il flusso di pagamento Pi', async () => {
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));
 
     const mockCreatePayment = vi.fn().mockImplementation((paymentData, callbacks) => {
       callbacks.onReadyForServerApproval('pay_approval_456');
@@ -155,6 +159,7 @@ describe('Pi Network SDK 2.0 - Autenticazione Pioneer & Pagamenti Blockchain', (
 
     expect(res.success).toBe(true);
     expect(consoleSpy).toHaveBeenCalledWith('Pi Payment Pronto per Approvazione:', 'pay_approval_456');
+    vi.unstubAllGlobals();
     consoleSpy.mockRestore();
   });
 

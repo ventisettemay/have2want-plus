@@ -102,7 +102,7 @@ async function startServer() {
     res.json({
       sandbox: process.env.VITE_PI_SANDBOX === 'true',
       serverConfigured: Boolean(apiKey),
-      mode: apiKey ? 'live_pi_api' : 'structured_fallback',
+      mode: apiKey ? 'live_pi_api' : 'unavailable',
     });
   });
 
@@ -115,12 +115,11 @@ async function startServer() {
 
     const apiKey = getConfiguredPiApiKey();
     if (!apiKey) {
-      return res.status(200).json({
-        approved: true,
+      return res.status(503).json({
+        approved: false,
         paymentId,
-        mode: 'structured_fallback',
-        message: 'PI_API_KEY non configurata: approvazione strutturata Testnet/Preview completata.',
-        timestamp: new Date().toISOString(),
+        mode: 'unavailable',
+        error: 'PI_API_KEY non configurata: il pagamento non può essere approvato e verificato.',
       });
     }
 
@@ -168,13 +167,12 @@ async function startServer() {
 
     const apiKey = getConfiguredPiApiKey();
     if (!apiKey) {
-      return res.status(200).json({
-        completed: true,
+      return res.status(503).json({
+        completed: false,
         paymentId,
         txid,
-        mode: 'structured_fallback',
-        message: 'PI_API_KEY non configurata: completamento strutturato Testnet/Preview registrato.',
-        timestamp: new Date().toISOString(),
+        mode: 'unavailable',
+        error: 'PI_API_KEY non configurata: il pagamento non può essere completato e verificato.',
       });
     }
 
@@ -238,6 +236,21 @@ async function startServer() {
     const netPiSent = Number((amountNum - feeDeducted).toFixed(4));
     const apiKey = getConfiguredPiApiKey();
 
+    if (!apiKey) {
+      return res.status(503).json({
+        success: false,
+        mode: 'unavailable',
+        error: 'PI_API_KEY non configurata: il prelievo non può essere eseguito.',
+      });
+    }
+    if (!uid || typeof uid !== 'string') {
+      return res.status(401).json({
+        success: false,
+        mode: 'live_pi_api',
+        error: 'uid del pioniere mancante: autenticazione Pi richiesta.',
+      });
+    }
+
     if (apiKey && uid) {
       try {
         const upstream = await fetch(`${PI_API_BASE}/payments`, {
@@ -287,18 +300,11 @@ async function startServer() {
       }
     }
 
-    // Structured fallback when PI_API_KEY is absent in .env
-    const txHash = `pi_testnet_tx_${Math.random().toString(36).substring(2, 12)}_a2u`;
-    return res.status(200).json({
-      success: true,
-      mode: 'structured_fallback',
-      txHash,
-      netPiSent,
-      feeDeducted,
-      walletAddress: walletAddress.trim(),
-      pioneerUsername: pioneerUsername || '@pioneer_user',
-      message: 'PI_API_KEY assente in .env: prelievo A2U registrato in modalità fallback strutturato.',
-      timestamp: new Date().toISOString(),
+    // Fallback non consentito: senza verifica del server non si dichiara alcun prelievo riuscito
+    return res.status(500).json({
+      success: false,
+      mode: 'live_pi_api',
+      error: 'Prelievo non completato: risposta non valida dal server Pi Network.',
     });
   });
 

@@ -466,10 +466,11 @@ export async function executePiWithdrawal(
     };
   }
 
-  let txHash = 'pi_testnet_tx_' + Math.random().toString(36).substring(2, 12) + '_a2u';
-  let mode = 'structured_fallback';
+  let txHash = '';
+  let mode = 'live_pi_api';
   let netPiSent = breakdown.netReceivedPi;
   let feeDeducted = breakdown.feePi;
+  let confirmed = false;
 
   if (typeof fetch === 'function') {
     try {
@@ -495,10 +496,19 @@ export async function executePiWithdrawal(
         mode = payload.mode || mode;
         netPiSent = typeof payload.netPiSent === 'number' ? payload.netPiSent : netPiSent;
         feeDeducted = typeof payload.feeDeducted === 'number' ? payload.feeDeducted : feeDeducted;
+        confirmed = true;
       }
     } catch {
-      // Fallback strutturato offline/test runner se endpoint relativo non raggiungibile
+      confirmed = false;
     }
+  }
+
+  // Senza conferma del server non si scala alcun punto e non si dichiara un prelievo riuscito
+  if (!confirmed) {
+    return {
+      success: false,
+      error: 'Prelievo non confermato dal server Pi Network: nessun punto è stato addebitato.',
+    };
   }
 
   state.pointsBalance -= breakdown.requiredPoints;
