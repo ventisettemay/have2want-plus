@@ -248,92 +248,20 @@ export default function OrbitalSatellitesHub({
         )}
       </div>
 
-      {/* CANALE 1: METEO & RADAR TERRITORIO */}
+      {/* CANALE 1: METEO & RADAR TERRITORIO (dati reali Open-Meteo + RainViewer) */}
       {activeChannel === 'METEO' && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 animate-in fade-in duration-200">
-          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5 text-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-3 mb-4">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center">
-                  <CloudSun className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-black text-white">METEO LIVE & RADAR TERRITORIALE</h3>
-                  <p className="text-[11px] text-zinc-400">Stato atmosfera 3D, precipitazioni, stazioni locali e mappa geopolitica</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setActiveChannel(null)}
-                className="p-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Controls */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
-              <div className="p-3.5 rounded-xl bg-zinc-900/70 border border-zinc-800 flex items-center justify-between">
-                <div>
-                  <div className="text-xs font-bold text-white">⛅ Nuvole & Pioggia 3D</div>
-                  <div className="text-[10px] text-zinc-400">Atmosfera dinamica su mappa e globo</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const next = !isSatelliteOn('METEO_SAT');
-                    satelliteEngine.setSatelliteActive('METEO_SAT', next);
-                    if (onToggleWeather) onToggleWeather();
-                  }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black cursor-pointer transition-all ${
-                    isSatelliteOn('METEO_SAT')
-                      ? 'bg-sky-500 text-white shadow-md shadow-sky-500/20'
-                      : 'bg-zinc-800 text-zinc-400'
-                  }`}
-                >
-                  {isSatelliteOn('METEO_SAT') ? 'ATTIVO' : 'DISATTIVATO'}
-                </button>
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-zinc-900/70 border border-zinc-800 flex items-center justify-between">
-                <div>
-                  <div className="text-xs font-bold text-white">🗺️ Dissolvenza Geopolitica</div>
-                  <div className="text-[10px] text-zinc-400">Confini di Stato e territori</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (onTogglePolitical) onTogglePolitical();
-                  }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black cursor-pointer transition-all ${
-                    isPoliticalActive
-                      ? 'bg-emerald-500 text-black shadow-md shadow-emerald-500/20'
-                      : 'bg-zinc-800 text-zinc-400'
-                  }`}
-                >
-                  {isPoliticalActive ? 'POLITICA' : 'FOTOGRAFICA'}
-                </button>
-              </div>
-            </div>
-
-            {/* Embedded Live Weather Modal Component view */}
-            <div className="border border-zinc-800/80 rounded-xl overflow-hidden bg-black/40 p-4">
-              <h4 className="text-xs font-black text-sky-400 uppercase tracking-wider mb-2">Radar Live Territoriale</h4>
-              <p className="text-xs text-zinc-300 mb-4">
-                I dati meteorologici integrano precipitazioni, venti e copertura nuvolosa in tempo reale. Puoi disabilitare l'effetto visivo in qualsiasi momento dalla barra 3D.
-              </p>
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setActiveChannel(null)}
-                  className="px-4 py-2 rounded-xl bg-[#00ff66] text-black font-black text-xs cursor-pointer hover:bg-[#00e65c]"
-                >
-                  Torna alla Mappa 3D
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <LiveWeatherModal
+          isOpen={true}
+          onClose={() => setActiveChannel(null)}
+          weather={null}
+          place={null}
+          country={null}
+          weatherEffectsEnabled={isWeatherActive}
+          onToggleWeatherEffects={() => {
+            satelliteEngine.setSatelliteActive('METEO_SAT', !isWeatherActive);
+            if (onToggleWeather) onToggleWeather();
+          }}
+        />
       )}
 
       {/* CANALE 2: VETRINA KM ZERO */}
