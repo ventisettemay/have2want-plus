@@ -3,6 +3,7 @@
  * Riutilizza gli endpoint backend esistenti (/api/calls, /api/calls/:callId/signal).
  */
 import { buildApiUrl } from './apiConfig';
+import { getDynamicIceServers } from './turnService';
 
 export type SignalType = 'offer' | 'answer' | 'ice-candidate';
 

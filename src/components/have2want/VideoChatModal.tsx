@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { X, Video, Mic, MicOff, Settings, Minimize, Maximize2, Volume2, VolumeX, Users, MoreHorizontal, Monitor, PhoneOff } from "lucide-react";
-import { createCall, sendSignal, getSignals, updateCallStatus, getPiAccessToken } from '@/lib/signalingService';
 
 interface VideoChatModalProps {
   isOpen?: boolean;
@@ -27,10 +26,6 @@ export function VideoChatModal({
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [connectionState, setConnectionState] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   const [peerConnection, setPeerConnection] = useState<RTCPeerConnection | null>(null);
-  const [callId, setCallId] = useState<string | null>(null);
-  const [isCaller, setIsCaller] = useState(false);
-  const [signalsPolling, setSignalsPolling] = useState(false);
-  const [piAccessToken, setPiAccessToken] = useState<string | null>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
 
@@ -42,12 +37,6 @@ export function VideoChatModal({
   };
 
   useEffect(() => {
-    // Recupera token Pi dal localStorage
-    const token = getPiAccessToken();
-    if (token) {
-      setPiAccessToken(token);
-    }
-
     if (isOpen) {
       initializeMedia();
       initializePeerConnection();
@@ -78,10 +67,6 @@ export function VideoChatModal({
     pc.onicecandidate = (event) => {
       if (event.candidate) {
         console.log('ICE candidate:', event.candidate);
-        // Invia ICE candidate al server
-        if (callId && piAccessToken) {
-          sendSignal(piAccessToken, callId, 'ice-candidate', event.candidate.toJSON());
-        }
       }
     };
 
@@ -89,108 +74,7 @@ export function VideoChatModal({
       setRemoteStream(event.streams[0]);
     };
 
-    pc.onconnectionstatechange = () => {
-      console.log('Connection state:', pc.connectionState);
-      setConnectionState(pc.connectionState === 'connected' ? 'connected' : 
-                         pc.connectionState === 'connecting' ? 'connecting' : 'disconnected');
-      if (pc.connectionState === 'connected') {
-        setConnectionState('connected');
-        if (callId) updateCallStatus(piAccessToken, callId, 'connected');
-      } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-        setConnectionState('disconnected');
-      }
-    };
-
     setPeerConnection(pc);
-  };
-
-
-
-  const pollSignals = async () => {
-    if (!signalsPolling || !callId || !piAccessToken) return;
-
-    try {
-      const result = await getSignals(piAccessToken, callId);
-      if (!result.success) {
-        console.error('Errore polling segnali:', result.error);
-        return;
-      }
-
-      for (const signal of result.signals) {
-        // Processa solo segnali non inviati da noi
-        if (signal.senderUid !== getPiAccessToken()) {
-          await handleSignal(signal);
-        }
-      }
-    } catch (err) {
-      console.error('Errore polling segnali:', err);
-    }
-
-    // Continua polling
-    if (signalsPolling) {
-      setTimeout(pollSignals, 2000);
-    }
-  };
-
-  const handleSignal = async (signal: any) => {
-    const pc = peerConnection.current;
-    if (!pc) return;
-
-    try {
-      switch (signal.type) {
-        case 'offer':
-          await pc.setRemoteDescription(new RTCSessionDescription(signal.payload));
-          const answer = await pc.createAnswer();
-          await pc.setLocalDescription(answer);
-          await sendSignal(piAccessToken, callId, 'answer', pc.localDescription);
-          break;
-        case 'answer':
-          await pc.setRemoteDescription(new RTCSessionDescription(signal.payload));
-          break;
-        case 'ice-candidate':
-          if (signal.payload) {
-            await pc.addIceCandidate(new RTCIceCandidate(signal.payload));
-          }
-          break;
-      }
-    } catch (err) {
-      console.error('Errore gestione segnale:', err);
-    }
-  };
-
-  const startCall = async (calleeUid: string) => {
-    if (!piAccessToken) {
-      console.error('Pi access token non disponibile');
-      return;
-    }
-
-    setIsCaller(true);
-    try {
-      const result = await createCall(piAccessToken, calleeUid, listingId);
-      if (!result.success) {
-        console.error('Errore creazione chiamata:', result.error);
-        return;
-      }
-
-      const callId = result.callId;
-      setCallId(callId);
-
-      // Crea offer SDP
-      const pc = peerConnection.current;
-      if (!pc) return;
-
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-
-      // Invia offer al server
-      await sendSignal(piAccessToken, callId, 'offer', pc.localDescription);
-
-      // Avvia polling per i segnali
-      setSignalsPolling(true);
-      pollSignals();
-    } catch (err) {
-      console.error('Errore avvio chiamata:', err);
-    }
   };
 
   const cleanup = () => {
