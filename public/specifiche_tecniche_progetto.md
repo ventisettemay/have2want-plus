@@ -128,29 +128,21 @@ L'interfaccia utente è articolata in una suite modulare di viste reattive, coll
 * **Modale di Pubblicazione Rapida (`+ Pubblica Annuncio`):** Interfaccia guidata con calcolo del prezzo in Pi Coin, specifiche di scambio materiale e geolocalizzazione fuzzy.
 * **Chat P2P Diretta:** Finestra di dialogo istantanea per accordarsi sui dettagli dell'incontro.
 
-### 4.2 La Città Viva & Mappa 3D Geospaziale (`LivingCityExplorer.tsx` & `GeographicMapBridge.tsx`)
-* **Google 3D Tiles / WebGL Engine:** Visualizzazione tridimensionale interattiva della terra reale con render fotorealistico degli edifici e degli spazi urbani.
-* **Pin Georeferenziati:** Nodi territoriali che mostrano visivamente le inserzioni e gli specialisti attivi nel raggio d'interesse.
-* **Bacheca Urbana del Quartiere:** Finestra per consultare gli scambi attivi via per via, proteggendo la privacy dell'utente tramite raggio fuzzy (offset centroidale).
+### 4.2 Interfaccia Territoriale 3D (`Globo3D.jsx`, `Urbano3D.jsx`, `MapView3DContainer.jsx`)
+* **Globo 3D (Three.js):** Vista macroscopica della Terra con orbite satelliti operative, geo-privacy basata su centroide comunale (raggio 2–2,5 km), rendering 60fps ottimizzato per mobile.
+* **Mappa Urbano 3D (MapLibre GL + OSRM):** Navigazione territoriale stradale, routing reale, pin georeferenziati annunci e specialisti, layer satelliti toggle ON/OFF.
+* **Bacheca Territoriale Integrata:** HomeFeedView sincronizzata con vista mappa, filtro raggio 1–50 km, clustering annunci per performance.
 
-### 4.3 Universo Cosmico & Albero della Vita (`RealisticCosmicUniverse.tsx` & `TreeOfLifeExplorer.tsx`)
-* Rappresentazione visuale delle relazioni umane e dei nodi di conoscenza sotto forma di rami e costellazioni.
-* Ogni ramo rappresenta un ambito vitale (Possibilità, Vita Comunitaria, Memoria).
+### 4.3 11 Satelliti Operativi (`OrbitalSatellitesHub.tsx`, `satelliteModularEngine.ts`)
+* Canali territoriali con toggle persistente, preset (SOLO_TERRITORIO, ESPLORAZIONE, LAVORO, EMERGENZA), filtro raggio dinamico.
+* Satelliti: METEO (Open-Meteo), KM0 (produttori locali), WEBCAM (traffico/meteo), METEO_NAV (meteo lungo percorso), CHAT (stanze territoriali), MARKETPLACE (vetrine), CONOSCENZE_MESTIERI (archivio guide), BUSINESS_ADS (vetrine professionali), ACTION_FLOW (patto/mano), PI_ADS (circuito ufficiale), REWARDS (punti fedeltà).
 
-### 4.4 Guide e Memoria Collettiva (`SalvavatuttoPlanet.tsx`)
-* Archivio permanente di guide pratiche, manuali fai-da-te, riparazioni artigianali e soluzioni collaudate dalla comunità per combattere l'obsolescenza programmata e valorizzare i saperi locali.
-
-### 4.5 Assistente AI Discreto (`DiscreetAIAssistant.tsx`)
+### 4.4 Assistente AI Discreto (`DiscreetAIAssistant.tsx`)
 * Integrazione con `@google/genai` (SDK Gemini 2.5 Flash server-side).
-* Supporto intelligente per la formulazione di scambi equi, suggerimento di categorie e supporto linguistico.
+* Correlazione semantica discreta tra dialoghi, annunci HAVE/WANT e archivio Conoscenze & Mestieri.
+* Indicatori contestuali non invasivi, zero "Stella delle Possibilità".
 
-### 4.6 Blindatura Legale & Moderazione (`LegalShieldAndModeration.tsx` & `LegalWelcomeShield.tsx`)
-* **Termini di Servizio P2P:** Esonero esplicito di responsabilità per la piattaforma (ruolo di mero bacheca/facilitatore tecnologico).
-* **Scudo Sanitario:** Divieto tassativo di compravendita o prescrizione di farmaci, terapie o diagnosi mediche non autorizzate.
-* **Protezione Privacy GDPR:** Nessun dato sensibile memorizzato senza consenso; anonimizzazione geografica.
-* **Sistema Anti-Abuso:** Segnalazione immediata per comportamenti scorretti, violazioni deontologiche o tentativi di truffa.
-
-### 4.7 Backup e Sincronizzazione Google Drive (`DriveExporter.tsx`)
+### 4.5 Backup e Sincronizzazione Google Drive (`DriveExporter.tsx`)
 * Possibilità per il titolare e gli utenti di esportare in qualsiasi momento il backup strutturato JSON e Markdown dei propri dati direttamente su Google Drive.
 
 ---
@@ -200,13 +192,12 @@ Di seguito l'elenco analitico delle dipendenze presenti in `package.json`:
 
 ### Fase 2: Consolidamento del Brand e Transizione in HAVE2WANT (H2W)
 * Ridenominazione ufficiale in HAVE2WANT con tagline "Simply Discreet".
-* Strutturazione dell'Albero della Vita e dei Pianeti della Conoscenza (Possibilità, Vita, Salvavatutto).
 * Redazione e pubblicazione del documento maestro *HAVE2WANT Master Specification v1.0*.
 
-### Fase 3: Architettura Geospaziale e Mappe 3D
-* Implementazione del motore WebGL Three.js e del ponte con Google Earth 3D Tiles (`GeographicMapBridge.tsx`).
-* Creazione del sistema di georeferenziazione fuzzy con protezione della privacy dell'indirizzo privato dei pionieri.
-* Implementazione del modulo "Città Viva" (`LivingCityExplorer.tsx`) per visualizzare la bacheca integrata nello spazio urbano.
+### Fase 3: Architettura Territoriale 3D e Satelliti Operativi
+* Implementazione del motore WebGL Three.js (Globo 3D) e integrazione MapLibre GL (Urbano 3D) con routing OSRM reale.
+* Creazione del sistema di geo-privacy (centroide comunale, raggio 2–2,5 km) e bacheca territoriale integrata.
+* Implementazione dei 11 Satelliti Operativi con canali territoriali, toggle persistente e preset contestuali.
 
 ### Fase 4: Integrazione Pi Network e Blindatura Giuridica
 * Creazione dell'infrastruttura Pi Official Bridge e dei modelli per pagamenti peer-to-peer in sole unità Pi ($\pi$).

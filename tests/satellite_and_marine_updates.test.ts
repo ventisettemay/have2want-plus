@@ -15,7 +15,7 @@ describe('Satellite Light Modes, Scale 0.50 & Specs', () => {
     expect(getSatelliteLightMode('GLOBAL_MARKET_SAT')).toBe('BRIGHT');
     expect(getSatelliteLightMode('BUSINESS_ADS_SAT')).toBe('BRIGHT');
     expect(getSatelliteLightMode('PI_CHAT_SAT')).toBe('BRIGHT');
-    expect(getSatelliteLightMode('COMMUNITY_RESCUE_SAT')).toBe('BRIGHT');
+    expect(getSatelliteLightMode('CONOSCENZE_MESTIERI_SAT')).toBe('BRIGHT');
   });
 
   it('Costruisce tutti gli 8 satelliti con scala 0.50 e strobeBeacons solo per BLINKING', () => {

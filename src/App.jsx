@@ -9,7 +9,7 @@ import { ClassicEssentialView } from '@/components/have2want/ClassicEssentialVie
 import { CreateListingModal } from '@/components/CreateListingModal';
 import { CertifiedMeetingPointsModal } from '@/components/CertifiedMeetingPointsModal';
 import { DiscreetAIAssistant } from '@/components/DiscreetAIAssistant';
-import { SalvavatuttoArchive } from '@/components/SalvavatuttoArchive';
+import { ConoscenzeMestieriArchive } from '@/components/SalvavatuttoArchive';
 import { DriveExporter } from '@/components/DriveExporter';
 import { LegalWelcomeShield } from '@/components/LegalWelcomeShield';
 import { AuthorshipCertificateModal } from '@/components/AuthorshipCertificateModal';
@@ -1594,11 +1594,11 @@ function Have2WantPlusMain() {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto pt-3">
-              <SalvavatuttoArchive
+              <ConoscenzeMestieriArchive
                 guides={guides}
                 onAddGuide={(newGuide) => {
                   setGuides((prev) => [newGuide, ...prev]);
-                  toast.success("Guida aggiunta a Salvavatutto!");
+                  toast.success("Conoscenza aggiunta in Conoscenze & Mestieri!");
                 }}
                 onSelectListingForTrade={(item) => handleTriggerHandshake(item)}
               />

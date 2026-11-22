@@ -50,8 +50,8 @@ L'applicazione è strutturata secondo una solida architettura **Single Page Appl
 * **Build Tool & Bundler:** Vite 6.2+ con Hot Module Replacement controllato
 * **Styling & Design System:** Tailwind CSS v4 (Design Tokens, Palette Neutri Caldi e Freddi, Micro-Interazioni)
 * **Animation & Transition Engine:** Motion (motion/react v12) con transizioni layout fluide
-* **3D Visual Engine:** Three.js (WebGL Canvas rendering per Città 3D, Orbit Controls, Shader e particellari)
-* **Data Visualization & GIS:** Integrazione con Google Earth 3D Tiles, mappe geospaziali e bacheche radar georeferenziate
+* **3D Visual Engine:** Three.js (WebGL Canvas rendering per Globo 3D, Urbano 3D, Orbit Controls, Shader e particellari)
+* **Data Visualization & GIS:** Integrazione con MapLibre GL, OSRM routing, mappe geospaziali e bacheche radar georeferenziate
 
 ---
 
@@ -143,29 +143,21 @@ L'interfaccia utente è articolata in una suite modulare di viste reattive, coll
 * **Modale di Pubblicazione Rapida (`+ Pubblica Annuncio`):** Interfaccia guidata con calcolo del prezzo in Pi Coin, specifiche di scambio materiale e geolocalizzazione fuzzy.
 * **Chat P2P Diretta:** Finestra di dialogo istantanea per accordarsi sui dettagli dell'incontro.
 
-### 4.2 La Città Viva & Mappa 3D Geospaziale (`LivingCityExplorer.tsx` & `GeographicMapBridge.tsx`)
-* **Google 3D Tiles / WebGL Engine:** Visualizzazione tridimensionale interattiva della terra reale con render fotorealistico degli edifici e degli spazi urbani.
-* **Pin Georeferenziati:** Nodi territoriali che mostrano visivamente le inserzioni e gli specialisti attivi nel raggio d'interesse.
-* **Bacheca Urbana del Quartiere:** Finestra per consultare gli scambi attivi via per via, proteggendo la privacy dell'utente tramite raggio fuzzy (offset centroidale).
+### 4.2 Interfaccia Territoriale 3D (`Globo3D.jsx`, `Urbano3D.jsx`, `MapView3DContainer.jsx`)
+* **Globo 3D (Three.js):** Vista macroscopica della Terra con orbite satelliti operative, geo-privacy basata su centroide comunale (raggio 2–2,5 km), rendering 60fps ottimizzato per mobile.
+* **Mappa Urbano 3D (MapLibre GL + OSRM):** Navigazione territoriale stradale, routing reale, pin georeferenziati annunci e specialisti, layer satelliti toggle ON/OFF.
+* **Bacheca Territoriale Integrata:** HomeFeedView sincronizzata con vista mappa, filtro raggio 1–50 km, clustering annunci per performance.
 
-### 4.3 Universo Cosmico & Albero della Vita (`RealisticCosmicUniverse.tsx` & `TreeOfLifeExplorer.tsx`)
-* Rappresentazione visuale delle relazioni umane e dei nodi di conoscenza sotto forma di rami e costellazioni.
-* Ogni ramo rappresenta un ambito vitale (Possibilità, Vita Comunitaria, Memoria).
+### 4.3 11 Satelliti Operativi (`OrbitalSatellitesHub.tsx`, `satelliteModularEngine.ts`)
+* Canali territoriali con toggle persistente, preset (SOLO_TERRITORIO, ESPLORAZIONE, LAVORO, EMERGENZA), filtro raggio dinamico.
+* Satelliti: METEO (Open-Meteo), KM0 (produttori locali), WEBCAM (traffico/meteo), METEO_NAV (meteo lungo percorso), CHAT (stanze territoriali), MARKETPLACE (vetrine), CONOSCENZE_MESTIERI (archivio guide), BUSINESS_ADS (vetrine professionali), ACTION_FLOW (patto/mano), PI_ADS (circuito ufficiale), REWARDS (punti fedeltà).
 
-### 4.4 Guide e Memoria Collettiva (`SalvavatuttoPlanet.tsx`)
-* Archivio permanente di guide pratiche, manuali fai-da-te, riparazioni artigianali e soluzioni collaudate dalla comunità per combattere l'obsolescenza programmata e valorizzare i saperi locali.
-
-### 4.5 Assistente AI Discreto (`DiscreetAIAssistant.tsx`)
+### 4.4 Assistente AI Discreto (`DiscreetAIAssistant.tsx`)
 * Integrazione con `@google/genai` (SDK Gemini 2.5 Flash server-side).
-* Supporto intelligente per la formulazione di scambi equi, suggerimento di categorie e supporto linguistico.
+* Correlazione semantica discreta tra dialoghi, annunci HAVE/WANT e archivio Conoscenze & Mestieri.
+* Indicatori contestuali non invasivi, zero "Stella delle Possibilità".
 
-### 4.6 Blindatura Legale & Moderazione (`LegalShieldAndModeration.tsx` & `LegalWelcomeShield.tsx`)
-* **Termini di Servizio P2P:** Esonero esplicito di responsabilità per la piattaforma (ruolo di mero bacheca/facilitatore tecnologico).
-* **Scudo Sanitario:** Divieto tassativo di compravendita o prescrizione di farmaci, terapie o diagnosi mediche non autorizzate.
-* **Protezione Privacy GDPR:** Nessun dato sensibile memorizzato senza consenso; anonimizzazione geografica.
-* **Sistema Anti-Abuso:** Segnalazione immediata per comportamenti scorretti, violazioni deontologiche o tentativi di truffa.
-
-### 4.7 Backup e Sincronizzazione Google Drive (`DriveExporter.tsx`)
+### 4.5 Backup e Sincronizzazione Google Drive (`DriveExporter.tsx`)
 * Possibilità per il titolare e gli utenti di esportare in qualsiasi momento il backup strutturato JSON e Markdown dei propri dati direttamente su Google Drive.
 
 ---
@@ -194,7 +186,7 @@ Di seguito l'elenco analitico delle dipendenze presenti in `package.json`:
 | `tailwindcss` | `^4.1.14` | Styling | Framework CSS atomico per interfaccia responsive e pulita |
 | `@tailwindcss/vite` | `^4.1.14` | Styling Plugin | Integrazione diretta di Tailwind v4 in Vite |
 | `motion` | `^12.23.24` | Animazioni | Motore di transizioni layout fluide e modali |
-| `three` | `^0.185.1` | 3D Engine | Rendering WebGL per Città Viva e Mappa 3D |
+| `three` | `^0.185.1` | 3D Engine | Rendering WebGL per Globo 3D, Urbano 3D |
 | `@types/three` | `^0.185.4` | Tipi 3D | Definizioni TypeScript per Three.js |
 | `lucide-react` | `^0.546.0` | Icone | Libreria iconografica coerente |
 | `express` | `^4.21.2` | Backend Server | Gateway API, proxy per chiavi e static serving |
@@ -215,13 +207,12 @@ Di seguito l'elenco analitico delle dipendenze presenti in `package.json`:
 
 ### Fase 2: Consolidamento del Brand e Transizione in HAVE2WANT (H2W)
 * Ridenominazione ufficiale in HAVE2WANT con tagline "Simply Discreet".
-* Strutturazione dell'Albero della Vita e dei Pianeti della Conoscenza (Possibilità, Vita, Salvavatutto).
 * Redazione e pubblicazione del documento maestro *HAVE2WANT Master Specification v1.0*.
 
-### Fase 3: Architettura Geospaziale e Mappe 3D
-* Implementazione del motore WebGL Three.js e del ponte con Google Earth 3D Tiles (`GeographicMapBridge.tsx`).
-* Creazione del sistema di georeferenziazione fuzzy con protezione della privacy dell'indirizzo privato dei pionieri.
-* Implementazione del modulo "Città Viva" (`LivingCityExplorer.tsx`) per visualizzare la bacheca integrata nello spazio urbano.
+### Fase 3: Architettura Territoriale 3D e Satelliti Operativi
+* Implementazione del motore WebGL Three.js (Globo 3D) e integrazione MapLibre GL (Urbano 3D) con routing OSRM reale.
+* Creazione del sistema di geo-privacy (centroide comunale, raggio 2–2,5 km) e bacheca territoriale integrata.
+* Implementazione dei 11 Satelliti Operativi con canali territoriali, toggle persistente e preset contestuali.
 
 ### Fase 4: Integrazione Pi Network e Blindatura Giuridica
 * Creazione dell'infrastruttura Pi Official Bridge e dei modelli per pagamenti peer-to-peer in sole unità Pi ($\pi$).
@@ -614,24 +605,24 @@ def main():
     La nuova vista principale offre una bacheca pulita, ordinata e fruibile su qualsiasi dispositivo: griglia prodotti responsive, visualizzazione immediata dei prezzi in Pi Coin (<span class="badge badge-vendo">VENDO</span>), delle proposte di baratto (<span class="badge badge-baratto">BARATTO</span>) e delle ricerche (<span class="badge badge-cerco">CERCO</span>). Include filtri territoriali per provincia, categorie e modale di pubblicazione annunci rapida.
   </p>
 
-  <h3>4.2 La Città Viva & Mappa 3D Geospaziale (<code>LivingCityExplorer.tsx</code> & <code>GeographicMapBridge.tsx</code>)</h3>
+  <h3>4.2 Interfaccia Territoriale 3D (<code>Globo3D.jsx</code>, <code>Urbano3D.jsx</code>, <code>MapView3DContainer.jsx</code>)</h3>
   <p>
-    Visualizzazione tridimensionale interattiva basata su Google Earth 3D Tiles e Three.js, con pin georeferenziati degli scambi e degli specialisti solidali attivi nel raggio urbano, protetti da raggio fuzzy privacy.
+    Globo 3D (Three.js) con vista macroscopica, orbite satelliti e geo-privacy (centroide comunale). Mappa Urbano 3D (MapLibre GL + OSRM) con routing reale, pin georeferenziati, layer satelliti toggle ON/OFF. Bacheca territoriale integrata con filtro raggio 1–50 km.
   </p>
 
-  <h3>4.3 Universo Cosmico & Albero della Vita (<code>RealisticCosmicUniverse.tsx</code> & <code>TreeOfLifeExplorer.tsx</code>)</h3>
+  <h3>4.3 11 Satelliti Operativi (<code>OrbitalSatellitesHub.tsx</code>, <code>satelliteModularEngine.ts</code>)</h3>
   <p>
-    Rappresentazione cosmica e biologica delle relazioni comunitarie, dove ogni nodo corrisponde a un ambito vitale (Possibilità, Vita Comunitaria, Memoria).
+    Canali territoriali con toggle persistente, preset (SOLO_TERRITORIO, ESPLORAZIONE, LAVORO, EMERGENZA). Satelliti: METEO, KM0, WEBCAM, METEO_NAV, CHAT, MARKETPLACE, CONOSCENZE_MESTIERI, BUSINESS_ADS, ACTION_FLOW, PI_ADS, REWARDS.
   </p>
 
-  <h3>4.4 Memoria Collettiva (<code>SalvavatuttoPlanet.tsx</code>)</h3>
+  <h3>4.4 Assistente AI Discreto (<code>DiscreetAIAssistant.tsx</code>)</h3>
   <p>
-    Archivio permanente di guide pratiche, manuali fai-da-te e riparazioni artigianali per combattere l'obsolescenza programmata.
+    Correlazione semantica discreta tra dialoghi, annunci HAVE/WANT e archivio Conoscenze & Mestieri. Indicatori contestuali non invasivi, zero "Stella delle Possibilità".
   </p>
 
-  <h3>4.5 Blindatura Legale & Moderazione (<code>LegalShieldAndModeration.tsx</code> & <code>LegalWelcomeShield.tsx</code>)</h3>
+  <h3>4.5 Backup e Sincronizzazione Google Drive (<code>DriveExporter.tsx</code>)</h3>
   <p>
-    Esonero di responsabilità P2P, Scudo Sanitario preventivo (divieto di commercio farmaci o prescrizioni non autorizzate), conformità GDPR e segnalazione abusi istantanea.
+    Esportazione backup strutturato JSON e Markdown dei propri dati direttamente su Google Drive.
   </p>
 
   <h1>5. Modello Economico e Integrazione Pi Network</h1>
@@ -719,9 +710,9 @@ def main():
   <h1>7. Evoluzione Cronologica del Codice e Changelog</h1>
   <ul>
     <li><strong>Fase 1 (Progetto BIS):</strong> Genesi concettuale, definizione delle 9 forme di interazione libera e modello ontologico HAVE/WANT.</li>
-    <li><strong>Fase 2 (Transizione HAVE2WANT):</strong> Consolidamento brand, Albero della Vita e redazione Master Specification v1.0.</li>
-    <li><strong>Fase 3 (Mappa 3D & Google Earth):</strong> Motore Three.js WebGL, Google 3D Tiles e Città Viva con geolocalizzazione fuzzy.</li>
-    <li><strong>Fase 4 (Pi Network & Blindatura Legale):</strong> Integrazione Pi Official Bridge, Esonero P2P, Scudo Sanitario e Welcome Shield.</li>
+    <li><strong>Fase 2 (Transizione HAVE2WANT):</strong> Consolidamento brand e redazione Master Specification v1.0.</li>
+    <li><strong>Fase 3 (Architettura Territoriale 3D & Satelliti):</strong> Motore Three.js (Globo 3D), MapLibre GL (Urbano 3D) con OSRM, geo-privacy centroide comunale, 11 Satelliti Operativi con canali territoriali.</li>
+    <li><strong>Fase 4 (Pi Network & Blindatura Giuridica):</strong> Integrazione Pi Official Bridge, Esonero P2P, Scudo Sanitario e Welcome Shield.</li>
     <li><strong>Fase 5 (Epurazione Tipi e Normalizzazione):</strong> Rimozione modalità astratte e consolidamento nei 3 intenti rigidi (VENDO, BARATTO_SCAMBIO, ACQUISTO_CERCO).</li>
     <li><strong>Fase 6 (Bacheca Home P2P & Release Consolidata):</strong> Nuova interfaccia HomeFeedView con griglia prodotti responsive, filtri territoriali e generatore PDF delle specifiche tecniche.</li>
   </ul>
@@ -922,17 +913,17 @@ addSectionTitle("4. FRONTEND, COMPONENTI E MODULI FUNZIONALI");
 addSubSectionTitle("4.1 Bacheca Home P2P (HomeFeedView.tsx)");
 addParagraph("La nuova vista principale offre una bacheca pulita e reattiva: griglia prodotti responsive, visualizzazione immediata dei prezzi in Pi Coin (VENDO), delle proposte di baratto (BARATTO) e delle ricerche (CERCO). Include filtri territoriali per provincia, categorie e modale di pubblicazione annunci rapida.");
 
-addSubSectionTitle("4.2 La Citta Viva & Mappa 3D Geospaziale (LivingCityExplorer.tsx & GeographicMapBridge.tsx)");
-addParagraph("Visualizzazione tridimensionale interattiva basata su Google Earth 3D Tiles e Three.js, con pin georeferenziati degli scambi e degli specialisti solidali attivi nel raggio urbano, protetti da raggio fuzzy privacy.");
+addSubSectionTitle("4.2 Interfaccia Territoriale 3D (Globo3D.jsx, Urbano3D.jsx, MapView3DContainer.jsx)");
+addParagraph("Globo 3D (Three.js) con vista macroscopica, orbite satelliti e geo-privacy (centroide comunale). Mappa Urbano 3D (MapLibre GL + OSRM) con routing reale, pin georeferenziati, layer satelliti toggle ON/OFF. Bacheca territoriale integrata con filtro raggio 1-50 km.");
 
-addSubSectionTitle("4.3 Universo Cosmico & Albero della Vita (RealisticCosmicUniverse.tsx & TreeOfLifeExplorer.tsx)");
-addParagraph("Rappresentazione cosmica e biologica delle relazioni comunitarie, dove ogni nodo corrisponde a un ambito vitale (Possibilita, Vita Comunitaria, Memoria).");
+addSubSectionTitle("4.3 11 Satelliti Operativi (OrbitalSatellitesHub.tsx, satelliteModularEngine.ts)");
+addParagraph("Canali territoriali con toggle persistente, preset (SOLO_TERRITORIO, ESPLORAZIONE, LAVORO, EMERGENZA). Satelliti: METEO, KM0, WEBCAM, METEO_NAV, CHAT, MARKETPLACE, CONOSCENZE_MESTIERI, BUSINESS_ADS, ACTION_FLOW, PI_ADS, REWARDS.");
 
-addSubSectionTitle("4.4 Memoria Collettiva (SalvavatuttoPlanet.tsx)");
-addParagraph("Archivio permanente di guide pratiche, manuali fai-da-te e riparazioni artigianali per combattere l'obsolescenza programmata e preservare il sapere.");
+addSubSectionTitle("4.4 Assistente AI Discreto (DiscreetAIAssistant.tsx)");
+addParagraph("Correlazione semantica discreta tra dialoghi, annunci HAVE/WANT e archivio Conoscenze & Mestieri. Indicatori contestuali non invasivi, zero Stella delle Possibilita.");
 
-addSubSectionTitle("4.5 Blindatura Legale & Moderazione (LegalShieldAndModeration.tsx & LegalWelcomeShield.tsx)");
-addParagraph("Esonero di responsabilita P2P, Scudo Sanitario preventivo (divieto di commercio farmaci o prescrizioni non autorizzate), conformita GDPR e segnalazione abusi istantanea.");
+addSubSectionTitle("4.5 Backup e Sincronizzazione Google Drive (DriveExporter.tsx)");
+addParagraph("Esportazione backup strutturato JSON e Markdown dei propri dati direttamente su Google Drive.");
 
 // 5. MODELLO ECONOMICO PI NETWORK
 addSectionTitle("5. MODELLO ECONOMICO E INTEGRAZIONE PI NETWORK");
@@ -957,9 +948,9 @@ addBullet("jspdf (^4.2.1)", "Generazione dinamica e download di documenti PDF.")
 // 7. EVOLUZIONE CRONOLOGICA E CHANGELOG
 addSectionTitle("7. EVOLUZIONE CRONOLOGICA DEL CODICE E CHANGELOG");
 addBullet("Fase 1 (Progetto BIS)", "Genesi concettuale, definizione delle 9 forme di interazione libera e modello ontologico HAVE/WANT.");
-addBullet("Fase 2 (Transizione HAVE2WANT)", "Consolidamento brand, Albero della Vita e redazione Master Specification v1.0.");
-addBullet("Fase 3 (Mappa 3D & Google Earth)", "Motore Three.js WebGL, Google 3D Tiles e Citta Viva con geolocalizzazione fuzzy.");
-addBullet("Fase 4 (Pi Network & Blindatura Legale)", "Integrazione Pi Official Bridge, Esonero P2P, Scudo Sanitario e Welcome Shield.");
+addBullet("Fase 2 (Transizione HAVE2WANT)", "Consolidamento brand e redazione Master Specification v1.0.");
+addBullet("Fase 3 (Architettura Territoriale 3D & Satelliti)", "Motore Three.js (Globo 3D), MapLibre GL (Urbano 3D) con OSRM, geo-privacy centroide comunale, 11 Satelliti Operativi con canali territoriali.");
+addBullet("Fase 4 (Pi Network & Blindatura Giuridica)", "Integrazione Pi Official Bridge, Esonero P2P, Scudo Sanitario e Welcome Shield.");
 addBullet("Fase 5 (Epurazione Tipi e Normalizzazione)", "Rimozione modalita astratte e consolidamento nei 3 intenti rigidi (VENDO, BARATTO_SCAMBIO, ACQUISTO_CERCO).");
 addBullet("Fase 6 (Bacheca Home P2P & Release Consolidata)", "Nuova interfaccia HomeFeedView con griglia prodotti responsive, filtri territoriali e generatore PDF delle specifiche tecniche.");
 

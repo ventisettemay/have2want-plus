@@ -25,7 +25,7 @@ describe('Satellite Modular Fleet Engine – HAVE2WANT PLUS', () => {
       'PI_CHAT_SAT',
       'GLOBAL_MARKET_SAT',
       'EXTERNAL_MARKET_SAT',
-      'COMMUNITY_RESCUE_SAT',
+      'CONOSCENZE_MESTIERI_SAT',
       'BUSINESS_ADS_SAT',
       'WEBCAM',
       'METEO_ROUTE',
@@ -130,10 +130,10 @@ describe('Satellite Modular Fleet Engine – HAVE2WANT PLUS', () => {
     expect(satelliteEngine.getActiveCount()).toBe(2);
 
     expect(satelliteEngine.isSatelliteActive('METEO_SAT')).toBe(false);
-    expect(satelliteEngine.isSatelliteActive('COMMUNITY_RESCUE_SAT')).toBe(false);
+    expect(satelliteEngine.isSatelliteActive('CONOSCENZE_MESTIERI_SAT')).toBe(false);
   });
 
-  it('Dovrebbe applicare il preset SOLO_TERRITORIO (5 satelliti di prossimità e navigazione)', () => {
+  it('Dovrebbe applicare il preset SOLO_TERRITORIO (6 satelliti di prossimità, navigazione e conoscenze)', () => {
     satelliteEngine.applyPreset('SOLO_TERRITORIO');
     const expectedTerritory: SatelliteId[] = [
       'KM0_SAT',
@@ -141,12 +141,13 @@ describe('Satellite Modular Fleet Engine – HAVE2WANT PLUS', () => {
       'BUSINESS_ADS_SAT',
       'WEBCAM',
       'METEO_ROUTE',
+      'CONOSCENZE_MESTIERI_SAT',
     ];
 
     expectedTerritory.forEach((id) => {
       expect(satelliteEngine.isSatelliteActive(id)).toBe(true);
     });
-    expect(satelliteEngine.getActiveCount()).toBe(5);
+    expect(satelliteEngine.getActiveCount()).toBe(6);
 
     expect(satelliteEngine.isSatelliteActive('GLOBAL_MARKET_SAT')).toBe(false);
   });
@@ -164,13 +165,13 @@ describe('Satellite Modular Fleet Engine – HAVE2WANT PLUS', () => {
     expect(callCount).toBe(1);
 
     // Cambia stato
-    satelliteEngine.toggleSatellite('COMMUNITY_RESCUE_SAT');
+    satelliteEngine.toggleSatellite('CONOSCENZE_MESTIERI_SAT');
     expect(callCount).toBe(2);
-    expect(notifiedStates!['COMMUNITY_RESCUE_SAT']).toBe(false);
+    expect(notifiedStates!['CONOSCENZE_MESTIERI_SAT']).toBe(false);
 
     // Disiscrizione
     unsubscribe();
-    satelliteEngine.toggleSatellite('COMMUNITY_RESCUE_SAT');
+    satelliteEngine.toggleSatellite('CONOSCENZE_MESTIERI_SAT');
     // Non deve essere più chiamato
     expect(callCount).toBe(2);
   });

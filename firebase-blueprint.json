@@ -67,7 +67,7 @@
     },
     "SalvavatuttoGuide": {
       "title": "SalvavatuttoGuide",
-      "description": "Guida pratica di riparazione, autoproduzione o riuso pubblicata sul Pianeta Salvavatutto.",
+      "description": "Guida pratica di riparazione, autoproduzione o riuso pubblicata nell'Archivio Conoscenze & Mestieri.",
       "type": "object",
       "properties": {
         "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
@@ -201,7 +201,7 @@
     },
     "/guides/{guideId}": {
       "schema": { "$ref": "#/entities/SalvavatuttoGuide" },
-      "description": "Guide pratiche comunitarie del Pianeta Salvavatutto."
+      "description": "Guide pratiche comunitarie dell'Archivio Conoscenze & Mestieri."
     },
     "/abuse_reports/{reportId}": {
       "schema": { "$ref": "#/entities/AbuseReport" },

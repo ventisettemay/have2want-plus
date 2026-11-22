@@ -167,14 +167,13 @@ Questi elementi facevano parte del vecchio sistema cosmologico o di moduli mai c
 | 2 | **Verifica pagamenti server-side** con autenticazione e chiave API | endpoint fail-closed (503 senza `PI_API_KEY`, 401 senza `uid`); manca solo `PI_API_KEY` per la verifica end-to-end | `server.ts`, `src/lib/piSdkService.ts` |
 | 3 | **Firebase Auth e regole per-utente** | regole aperte in lettura | `firestore.rules`, `src/lib/firebase.ts` |
 | 4 | **Gemini server-side** | 0 import di `@google/genai` | `metadata.json`, `src/lib/testnetEngine.ts` |
-| 5 | **Stella delle Possibilità** | assente | `src/components/DiscreetAIAssistant.tsx` |
-| 6 | **Salvavatutto con ricerca semantica** | presente solo `SalvavatuttoArchive` con ricerca testuale | `src/components/SalvavatuttoArchive.tsx` |
-| 7 | **Scadenza annunci 30 giorni** | `ListingExpiryManager` 0 importatori, lifecycle simulato | `src/components/ListingExpiryManager.tsx` |
-| 8 | **Ricerca globale unificata** | `GlobalSearchBar.tsx` 0 importatori | `src/components/GlobalSearchBar.tsx` |
-| 9 | **Traffico e ricalcolo percorso** | routing base, nessun traffico reale | `src/lib/routingService.ts` |
-| 10 | **Eco-fee / Pro-Tools / badge** | assenti | `HAVE2WANT_MASTER_SPECIFICATION_v1.0.md:202–219` |
-| 11 | **Donazioni "Pasto Sospeso"** | assente | `HAVE2WANT_MASTER_SPECIFICATION_v1.0.md:216` |
-| 12 | **Contabilità commissioni USDT** | assente | `src/lib/globalProductsCatalog.ts` |
+| 5 | **Conoscenze & Mestieri con ricerca semantica** | presente solo `SalvavatuttoArchive` con ricerca testuale | `src/components/SalvavatuttoArchive.tsx` |
+| 6 | **Scadenza annunci 30 giorni** | `ListingExpiryManager` 0 importatori, lifecycle simulato | `src/components/ListingExpiryManager.tsx` |
+| 7 | **Ricerca globale unificata** | `GlobalSearchBar.tsx` 0 importatori | `src/components/GlobalSearchBar.tsx` |
+| 8 | **Traffico e ricalcolo percorso** | routing base, nessun traffico reale | `src/lib/routingService.ts` |
+| 9 | **Eco-fee / Pro-Tools / badge** | assenti | `HAVE2WANT_MASTER_SPECIFICATION_v1.0.md:202–219` |
+| 10 | **Donazioni "Pasto Sospeso"** | assente | `HAVE2WANT_MASTER_SPECIFICATION_v1.0.md:216` |
+| 11 | **Contabilità commissioni USDT** | assente | `src/lib/globalProductsCatalog.ts` |
 
 ---
 
@@ -243,8 +242,7 @@ firestore.rules                       (regole Firestore)
    - Pi Ads reali e verifica pagamenti;
    - Firebase Auth + regole;
    - Gemini server-side;
-   - Stella delle Possibilità;
-   - Salvavatutto semantico;
+   - Conoscenze & Mestieri semantico;
    - scadenza annunci;
    - traffico reale;
    - eco-fee / Pro-Tools / badge / donazioni;

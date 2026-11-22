@@ -184,17 +184,17 @@ addSectionTitle("4. FRONTEND, COMPONENTI E MODULI FUNZIONALI");
 addSubSectionTitle("4.1 Bacheca Home P2P (HomeFeedView.tsx)");
 addParagraph("La nuova vista principale offre una bacheca pulita e reattiva: griglia prodotti responsive, visualizzazione immediata dei prezzi in Pi Coin (VENDO), delle proposte di baratto (BARATTO) e delle ricerche (CERCO). Include filtri territoriali per provincia, categorie e modale di pubblicazione annunci rapida.");
 
-addSubSectionTitle("4.2 La Citta Viva & Mappa 3D Geospaziale (LivingCityExplorer.tsx & GeographicMapBridge.tsx)");
-addParagraph("Visualizzazione tridimensionale interattiva basata su Google Earth 3D Tiles e Three.js, con pin georeferenziati degli scambi e degli specialisti solidali attivi nel raggio urbano, protetti da raggio fuzzy privacy.");
+addSubSectionTitle("4.2 Interfaccia Territoriale 3D (Globo3D.jsx, Urbano3D.jsx, MapView3DContainer.jsx)");
+addParagraph("Globo 3D (Three.js) con vista macroscopica, orbite satelliti e geo-privacy (centroide comunale). Mappa Urbano 3D (MapLibre GL + OSRM) con routing reale, pin georeferenziati, layer satelliti toggle ON/OFF. Bacheca territoriale integrata con filtro raggio 1-50 km.");
 
-addSubSectionTitle("4.3 Universo Cosmico & Albero della Vita (RealisticCosmicUniverse.tsx & TreeOfLifeExplorer.tsx)");
-addParagraph("Rappresentazione cosmica e biologica delle relazioni comunitarie, dove ogni nodo corrisponde a un ambito vitale (Possibilita, Vita Comunitaria, Memoria).");
+addSubSectionTitle("4.3 11 Satelliti Operativi (OrbitalSatellitesHub.tsx, satelliteModularEngine.ts)");
+addParagraph("Canali territoriali con toggle persistente, preset (SOLO_TERRITORIO, ESPLORAZIONE, LAVORO, EMERGENZA). Satelliti: METEO, KM0, WEBCAM, METEO_NAV, CHAT, MARKETPLACE, CONOSCENZE_MESTIERI, BUSINESS_ADS, ACTION_FLOW, PI_ADS, REWARDS.");
 
-addSubSectionTitle("4.4 Memoria Collettiva (SalvavatuttoPlanet.tsx)");
-addParagraph("Archivio permanente di guide pratiche, manuali fai-da-te e riparazioni artigianali per combattere l'obsolescenza programmata e preservare il sapere.");
+addSubSectionTitle("4.4 Assistente AI Discreto (DiscreetAIAssistant.tsx)");
+addParagraph("Correlazione semantica discreta tra dialoghi, annunci HAVE/WANT e archivio Conoscenze & Mestieri. Indicatori contestuali non invasivi, zero Stella delle Possibilita.");
 
-addSubSectionTitle("4.5 Blindatura Legale & Moderazione (LegalShieldAndModeration.tsx & LegalWelcomeShield.tsx)");
-addParagraph("Esonero di responsabilita P2P, Scudo Sanitario preventivo (divieto di commercio farmaci o prescrizioni non autorizzate), conformita GDPR e segnalazione abusi istantanea.");
+addSubSectionTitle("4.5 Backup e Sincronizzazione Google Drive (DriveExporter.tsx)");
+addParagraph("Esportazione backup strutturato JSON e Markdown dei propri dati direttamente su Google Drive.");
 
 // 5. MODELLO ECONOMICO PI NETWORK
 addSectionTitle("5. MODELLO ECONOMICO E INTEGRAZIONE PI NETWORK");
@@ -219,9 +219,9 @@ addBullet("jspdf (^4.2.1)", "Generazione dinamica e download di documenti PDF.")
 // 7. EVOLUZIONE CRONOLOGICA E CHANGELOG
 addSectionTitle("7. EVOLUZIONE CRONOLOGICA DEL CODICE E CHANGELOG");
 addBullet("Fase 1 (Progetto BIS)", "Genesi concettuale, definizione delle 9 forme di interazione libera e modello ontologico HAVE/WANT.");
-addBullet("Fase 2 (Transizione HAVE2WANT)", "Consolidamento brand, Albero della Vita e redazione Master Specification v1.0.");
-addBullet("Fase 3 (Mappa 3D & Google Earth)", "Motore Three.js WebGL, Google 3D Tiles e Citta Viva con geolocalizzazione fuzzy.");
-addBullet("Fase 4 (Pi Network & Blindatura Legale)", "Integrazione Pi Official Bridge, Esonero P2P, Scudo Sanitario e Welcome Shield.");
+addBullet("Fase 2 (Transizione HAVE2WANT)", "Consolidamento brand e redazione Master Specification v1.0.");
+addBullet("Fase 3 (Architettura Territoriale 3D & Satelliti)", "Motore Three.js (Globo 3D), MapLibre GL (Urbano 3D) con OSRM, geo-privacy centroide comunale, 11 Satelliti Operativi con canali territoriali.");
+addBullet("Fase 4 (Pi Network & Blindatura Giuridica)", "Integrazione Pi Official Bridge, Esonero P2P, Scudo Sanitario e Welcome Shield.");
 addBullet("Fase 5 (Epurazione Tipi e Normalizzazione)", "Rimozione modalita astratte e consolidamento nei 3 intenti rigidi (VENDO, BARATTO_SCAMBIO, ACQUISTO_CERCO).");
 addBullet("Fase 6 (Bacheca Home P2P & Release Consolidata)", "Nuova interfaccia HomeFeedView con griglia prodotti responsive, filtri territoriali e generatore PDF delle specifiche tecniche.");
 

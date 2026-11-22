@@ -448,15 +448,10 @@ export default function MapView3DContainer({
       setActiveSatellite(activeSatelliteChannel);
       if (activeSatelliteChannel === 'CHAT') {
         setIsVoiceChatOpen(true);
-      } else if (activeSatelliteChannel === 'COMUNITA') {
-        if (communityModalMode === 'CARPOOL') {
-          setIsEmergencyModalOpen(false);
-          setIsCarpoolModalOpen(true);
-        } else {
-          setCommunityModalMode('EMERGENCY');
-          setIsEmergencyModalOpen(true);
-          setIsCarpoolModalOpen(false);
-        }
+      } else if (activeSatelliteChannel === 'CONOSCENZE_MESTIERI') {
+        setIsEmergencyModalOpen(false);
+        setIsCarpoolModalOpen(false);
+        // Conoscenze & Mestieri apre l'archivio guide, non la modalità emergenza
       }
     }
   }, [activeSatelliteChannel]);
@@ -568,10 +563,10 @@ export default function MapView3DContainer({
         const txt = ((item.source || '') + ' ' + (item.category || '') + ' ' + (item.title || '')).toLowerCase();
         return Boolean(item.isExternal) || txt.includes('external') || txt.includes('ebay') || txt.includes('amazon') || txt.includes('tecnolog') || txt.includes('elettronic');
       });
-    } else if (activeSatellite === 'COMUNITA') {
+    } else if (activeSatellite === 'CONOSCENZE_MESTIERI') {
       result = result.filter((item) => {
         const txt = ((item.category || '') + ' ' + (item.subcategory || '') + ' ' + (item.title || '')).toLowerCase();
-        return txt.includes('carpool') || txt.includes('trasfert') || txt.includes('passagg') || txt.includes('emergenz') || txt.includes('soccors') || txt.includes('aiuto') || txt.includes('comunit');
+        return txt.includes('guida') || txt.includes('riparaz') || txt.includes('artigian') || txt.includes('fai.da.te') || txt.includes('manual') || txt.includes('saper') || txt.includes('conoscenz') || txt.includes('mestier');
       });
     } else if (activeSatellite === 'BARATTO') {
       result = result.filter((item) => {
@@ -938,26 +933,20 @@ export default function MapView3DContainer({
                   }
                   break;
 
-                case 'COMMUNITY_RESCUE_SAT':
-                case 'COMUNITA':
-                  if (activeSatellite === 'COMUNITA') {
+                case 'CONOSCENZE_MESTIERI_SAT':
+                case 'CONOSCENZE_MESTIERI':
+                  if (activeSatellite === 'CONOSCENZE_MESTIERI') {
                     setActiveSatellite(null);
                     setIsEmergencyModalOpen(false);
                     setIsCarpoolModalOpen(false);
                     if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
-                    toast.info('🤝 COSPAS-SARSAT: Canale Comunità Chiuso', { duration: 1800 });
+                    toast.info('📚 ARCHIVE-SAT: Conoscenze & Mestieri Disattivato', { duration: 1800 });
                   } else {
-                    setActiveSatellite('COMUNITA');
-                    if (communityModalMode === 'CARPOOL') {
-                      setIsEmergencyModalOpen(false);
-                      setIsCarpoolModalOpen(true);
-                    } else {
-                      setCommunityModalMode('EMERGENCY');
-                      setIsEmergencyModalOpen(true);
-                      setIsCarpoolModalOpen(false);
-                    }
-                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('COMUNITA');
-                    toast.success('🤝 COSPAS-SARSAT: Canale Comunità Attivo');
+                    setActiveSatellite('CONOSCENZE_MESTIERI');
+                    setIsEmergencyModalOpen(false);
+                    setIsCarpoolModalOpen(false);
+                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('CONOSCENZE_MESTIERI');
+                    toast.success('📚 ARCHIVE-SAT: Archivio Conoscenze & Mestieri Attivo');
                   }
                   break;
 

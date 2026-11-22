@@ -11,7 +11,7 @@ export type SatelliteId =
   | 'PI_CHAT_SAT'
   | 'GLOBAL_MARKET_SAT'
   | 'EXTERNAL_MARKET_SAT'
-  | 'COMMUNITY_RESCUE_SAT'
+  | 'CONOSCENZE_MESTIERI_SAT'
   | 'BUSINESS_ADS_SAT'
   | 'WEBCAM'
   | 'METEO_ROUTE';
@@ -149,20 +149,20 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
     isActive: true,
   },
   {
-    id: 'COMMUNITY_RESCUE_SAT',
-    name: 'Comunità & Soccorso',
-    codeName: 'COSPAS-SARSAT',
-    category: 'COMUNITA',
-    icon: '🤝',
-    color: '#ef4444',
-    foilColor: 0xe2e8f0,
-    altitudeKm: 19000,
-    orbitMultiplier: 1.52,
-    speed: 0.0007,
-    inclination: 1.10,
+    id: 'CONOSCENZE_MESTIERI_SAT',
+    name: 'Conoscenze & Mestieri',
+    codeName: 'ARCHIVE-SAT',
+    category: 'TERRITORIO',
+    icon: '📚',
+    color: '#f59e0b',
+    foilColor: 0xd4af37,
+    altitudeKm: 850,
+    orbitMultiplier: 1.30,
+    speed: 0.0008,
+    inclination: 0.40,
     startAngle: 4.712,
-    h2wRole: 'Numeri di emergenza civica mondiali, carpooling solidale e mutuo aiuto',
-    targetComponent: 'WorldEmergencyModal',
+    h2wRole: 'Archivio guide pratiche, saperi artigianali, riparazioni ed esperienze di vita condivise',
+    targetComponent: 'ConoscenzeMestieriArchive',
     isActive: true,
   },
   {
@@ -378,7 +378,8 @@ class SatelliteModularEngine {
             sat.id === 'STREET_360_SAT' ||
             sat.id === 'BUSINESS_ADS_SAT' ||
             sat.id === 'WEBCAM' ||
-            sat.id === 'METEO_ROUTE';
+            sat.id === 'METEO_ROUTE' ||
+            sat.id === 'CONOSCENZE_MESTIERI_SAT';
         });
         break;
 

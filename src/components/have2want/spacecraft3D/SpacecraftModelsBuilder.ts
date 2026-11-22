@@ -184,6 +184,14 @@ export function createSharedAerospaceMaterials() {
     roughness: 0.35,
   });
 
+  const amberAccentMat = new THREE.MeshStandardMaterial({
+    color: 0xf59e0b,
+    metalness: 0.75,
+    roughness: 0.25,
+    emissive: 0x7c4d06,
+    emissiveIntensity: 0.3,
+  });
+
   const dishMeshMat = new THREE.MeshStandardMaterial({
     color: 0x94a3b8,
     metalness: 0.92,
@@ -206,6 +214,7 @@ export function createSharedAerospaceMaterials() {
     solarCellMat,
     rescueRedMat,
     whiteRadiatorMat,
+    amberAccentMat,
     dishMeshMat,
     ionPlasmaMat,
   };
@@ -260,6 +269,7 @@ export function buildEngineeredSpacecraft(
     solarCellMat,
     rescueRedMat,
     whiteRadiatorMat,
+    amberAccentMat,
     dishMeshMat,
     ionPlasmaMat,
   } = materials;
@@ -535,39 +545,44 @@ export function buildEngineeredSpacecraft(
     }
 
     // -------------------------------------------------------------------------
-    // 13. COMMUNITY_RESCUE_SAT: COSPAS-SARSAT MEOSAR – Soccorso & Emergenza
+    // 13. CONOSCENZE_MESTIERI_SAT: ARCHIVE-SAT – Archivio Guide & Saperi
     // -------------------------------------------------------------------------
-    case 'COMMUNITY_RESCUE_SAT': {
-      // Chassis ad alta visibilità con bande alternate bianche e rosso soccorso (#dc2626)
-      const busWhite = new THREE.Mesh(new THREE.BoxGeometry(3.2, 3.2, 3.4), whiteRadiatorMat);
-      const busRedStripe = new THREE.Mesh(new THREE.BoxGeometry(3.3, 1.4, 3.5), rescueRedMat);
-      group.add(busWhite, busRedStripe);
-      clickables.push(busWhite, busRedStripe);
+    case 'CONOSCENZE_MESTIERI_SAT': {
+      // Chassis in lamina oro simbolo di valore e conservazione della conoscenza
+      const busGold = new THREE.Mesh(new THREE.BoxGeometry(3.0, 3.0, 3.2), goldFoilMat);
+      const busAmberStripe = new THREE.Mesh(new THREE.BoxGeometry(3.1, 1.2, 3.3), amberAccentMat);
+      group.add(busGold, busAmberStripe);
+      clickables.push(busGold, busAmberStripe);
 
-      // Antenna SAR elicoidale spirale a 406 MHz per localizzazione beacon di soccorso
-      const spiralMast = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 3.4, 12), titaniumMat);
-      spiralMast.rotation.x = Math.PI / 2;
-      spiralMast.position.set(0, 0, 3.2);
-      const helixRing1 = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.12, 8, 24), neonMat);
-      helixRing1.position.set(0, 0, 2.4);
-      const helixRing2 = new THREE.Mesh(new THREE.TorusGeometry(0.65, 0.12, 8, 24), neonMat);
-      helixRing2.position.set(0, 0, 3.4);
-      const helixRing3 = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.12, 8, 24), neonMat);
-      helixRing3.position.set(0, 0, 4.4);
-      group.add(spiralMast, helixRing1, helixRing2, helixRing3);
-      clickables.push(spiralMast, helixRing1, helixRing2, helixRing3);
+      // Antenna a libro aperto (simbolo di conoscenza condivisa)
+      const bookSpine = new THREE.Mesh(new THREE.BoxGeometry(0.15, 2.0, 2.0), titaniumMat);
+      bookSpine.position.set(0, 0, 2.8);
+      const bookPageL = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.2, 0.1), whiteRadiatorMat);
+      bookPageL.position.set(-0.65, 0, 2.8);
+      bookPageL.rotation.y = -0.2;
+      const bookPageR = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.2, 0.1), whiteRadiatorMat);
+      bookPageR.position.set(0.65, 0, 2.8);
+      bookPageR.rotation.y = 0.2;
+      group.add(bookSpine, bookPageL, bookPageR);
+      clickables.push(bookSpine, bookPageL, bookPageR);
 
-      // Ali solari rinforzate con cerniere in lamina dorata
-      const wingL = new THREE.Mesh(new THREE.BoxGeometry(5.2, 2.4, 0.18), solarCellMat);
-      wingL.position.set(-5.4, 0, 0);
-      const wingR = new THREE.Mesh(new THREE.BoxGeometry(5.2, 2.4, 0.18), solarCellMat);
-      wingR.position.set(5.4, 0, 0);
+      // Anello di dati orbitale (raccolta distribuita)
+      const dataRing = new THREE.Mesh(new THREE.TorusGeometry(1.8, 0.1, 8, 32), neonMat);
+      dataRing.rotation.x = Math.PI / 2;
+      dataRing.position.set(0, 0, 2.0);
+      group.add(dataRing);
+      clickables.push(dataRing);
+
+      // Ali solari a forma di pagina (simbolo di archivio)
+      const wingL = new THREE.Mesh(new THREE.BoxGeometry(5.0, 2.8, 0.15), solarCellMat);
+      wingL.position.set(-5.5, 0, 0);
+      const wingR = new THREE.Mesh(new THREE.BoxGeometry(5.0, 2.8, 0.15), solarCellMat);
+      wingR.position.set(5.5, 0, 0);
       group.add(wingL, wingR);
       clickables.push(wingL, wingR);
 
-      // Fari stroboscopici di soccorso ad alta intensità
-      leftBeaconPos.set(-8.2, 0, 0);
-      rightBeaconPos.set(8.2, 0, 0);
+      leftBeaconPos.set(-8.5, 0, 0);
+      rightBeaconPos.set(8.5, 0, 0);
       break;
     }
 
@@ -623,7 +638,7 @@ export function buildEngineeredSpacecraft(
   // Fari differenziati in base alla missione del satellite:
   // - BLINKING (METEO_SAT, STREET_360_SAT): Luce lampeggiante (ON/OFF)
   // - NORMAL (EXTERNAL_MARKET_SAT): Luce normale continua a bassa intensità
-  // - BRIGHT (KM0_SAT, GLOBAL_MARKET_SAT, BUSINESS_ADS_SAT, PI_CHAT_SAT, COMMUNITY_RESCUE_SAT): Luce brillante continua ad alta intensità
+  // - BRIGHT (KM0_SAT, GLOBAL_MARKET_SAT, BUSINESS_ADS_SAT, PI_CHAT_SAT, CONOSCENZE_MESTIERI_SAT): Luce brillante continua ad alta intensità
   const isBlinking = lightMode === 'BLINKING';
   const isBright = lightMode === 'BRIGHT';
 

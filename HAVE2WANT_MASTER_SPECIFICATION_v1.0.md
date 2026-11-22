@@ -100,72 +100,22 @@ La connessione tra un HAVE e un WANT può formalizzarsi liberamente in una delle
 L'Intelligenza Artificiale in HAVE2WANT è concepita come un **mediatore discreto**, non come un venditore invasivo o un algoritmo di remarketing aggressivo:
 
 1. **Ascolto e Non Invasività:** Non interrompe le conversazioni private e non popola lo schermo di pubblicità o notifiche push forzate.
-2. **La "Stella delle Possibilità":** Quando rileva nel testo di una richiesta o di un dialogo pubblico una correlazione con un HAVE disponibile, con un professionista affine o con una guida in Salvavatutto, accende un indicatore visivo discreto.
-3. **Autonomia Totale della Persona:** L'utente decide liberamente se toccare l'indicatore per esplorare le possibilità suggerite o proseguire la conversazione senza alcuna interferenza.
+2. **Autonomia Totale della Persona:** L'utente decide liberamente se esplorare le correlazioni suggerite o proseguire la conversazione senza alcuna interferenza.
 
 ---
+ 
+## 8. Il Modello di Evoluzione ed Emergenza Controllata
 
-## 7. L'Universo HAVE2WANT: Struttura Cosmologica a 4 Livelli
-
-L'interfaccia adotta una rappresentazione visiva ispirata a un Universo cosmologico per evitare il sovraccarico cognitivo e garantire eleganza e scalabilità:
-
-```
-                              ┌───────────────────────────────┐
-                              │            IL SOLE            │
-                              │ (Il Tutto: La Vita di H2W,    │
-                              │  Persone, Energia Relazionale)│
-                              └───────────────┬───────────────┘
-                                              │
-                                      Orbita Primaria
-                                              │
-                     ┌────────────────────────┴────────────────────────┐
-                     ▼                                                 ▼
-        ┌─────────────────────────┐                       ┌─────────────────────────┐
-        │        PIANETA          │                       │        PIANETA          │
-        │   (Macro-Dimensione)    │                       │   (Macro-Dimensione)    │
-        └────────────┬────────────┘                       └────────────┬────────────┘
-                     │                                                 │
-               Orbita Locale                                     Orbita Locale
-                     │                                                 │
-          ┌──────────┴──────────┐                           ┌──────────┴──────────┐
-          ▼                     ▼                           ▼                     ▼
-   ┌──────────────┐      ┌──────────────┐            ┌──────────────┐      ┌──────────────┐
-   │  SATELLITE   │      │  SATELLITE   │            │  SATELLITE   │      │  SATELLITE   │
-   │(Sotto-dimens)│      │ (Strumento)  │            │(Sotto-dimens)│      │ (Strumento)  │
-   └──────┬───────┘      └──────┬───────┘            └──────┬───────┘      └──────┬───────┘
-          │                     │                           │                     │
-          └─────────────────────┼───────────────────────────┴─────────────────────┘
-                                │
-                                ▼
-                   ┌─────────────────────────┐
-                   │   SPAZIO OPERATIVO      │
-                   │ (Chat, Bacheca, Azione) │
-                   └─────────────────────────┘
-```
-
-1. **Il Sole (Centro Cosmologico):** Rappresenta HAVE2WANT nel suo insieme (la vita dell'ecosistema, la presenza attiva, il battito della comunità). Non è un semplice pulsante home né un profilo utente.
-2. **I Pianeti (Macro-Dimensioni):** Le grandi sfere della vita comunitaria. I primi 3 pianeti fondamentali dell'MVP sono:
-   * **Pianeta 1: VITA & RELAZIONI** (Chat libera, stanze di dialogo, profili People).
-   * **Pianeta 2: POSSIBILITÀ** (Spazio integrato HAVE & WANT).
-   * **Pianeta 3: SALVAVATUTTO** (Memoria condivisa, guide ed esperienze).
-3. **I Satelliti (Sotto-Dimensioni e Strumenti):** Servizi e funzioni specialistiche collegate a un determinato pianeta (es. stanze di quartiere, banca del tempo, strumenti professionali). Non affollano la Home: compaiono solo al cambio di livello di zoom sul rispettivo pianeta.
-4. **Gli Spazi Operativi (Livello Micro):** I luoghi concreti in cui le persone interagiscono, parlano, concordano un patto o consultano una guida.
-5. **Vista Alternativa Accessibile:** Interruttore istantaneo per passare a una visualizzazione lineare strutturata a elenco/grafo, garantendo massima usabilità e accessibilità universale.
-
----
-
-## 8. Il Modello di Evoluzione ed Emergenza Controllata dell'Universo
-
-HAVE2WANT è un universo aperto, progettato per non presumere oggi ciò che potrà diventare domani:
+HAVE2WANT è un ecosistema aperto, progettato per non presumere oggi ciò che potrà diventare domani:
 
 ### La Matrice di Emergenza a 3 Casi:
 Quando nella comunità emergono nuovi bisogni ricorrenti, l'AI analizza i cluster semantici anonimizzati e classifica la situazione:
 * **Caso A (Funzione già esistente):** Il bisogno appartiene a una funzione attiva $\rightarrow$ *Nessuna modifica strutturale*.
-* **Caso B (Nuova Sotto-Dimensione):** Il bisogno è ricorrente e affine a un pianeta esistente $\rightarrow$ *L'AI formula la proposta per un nuovo **Satellite***.
-* **Caso C (Nuova Macro-Dimensione):** Il bisogno rappresenta un dominio inedito $\rightarrow$ *L'AI formula la proposta per un nuovo **Pianeta***.
+* **Caso B (Nuovo Canale Territoriale):** Il bisogno è ricorrente e affine a un satellite esistente $\rightarrow$ *L'AI formula la proposta per un nuovo **Canale***.
+* **Caso C (Nuova Macro-Dimensione):** Il bisogno rappresenta un dominio inedito $\rightarrow$ *L'AI formula la proposta per un nuovo **Satellite Operativo***.
 
 ### Regola Fondamentale di Governance dell'Emergenza:
-L'AI non crea strutture in modo arbitrario o automatico. L'AI osserva e propone; la comunità manifesta interesse; **la governance di HAVE2WANT (il Creatore) mantiene la titolarità della decisione finale di approvazione**, che inserisce dinamicamente il nuovo nodo nel registro cosmologico senza toccare il codice sorgente.
+L'AI non crea strutture in modo arbitrario o automatico. L'AI osserva e propone; la comunità manifesta interesse; **la governance di HAVE2WANT (il Creatore) mantiene la titolarità della decisione finale di approvazione**, che inserisce dinamicamente il nuovo nodo nel registro satellitare senza toccare il codice sorgente.
 
 ---
 
@@ -186,10 +136,10 @@ L'AI non crea strutture in modo arbitrario o automatico. L'AI osserva e propone;
                                          ▼
 ┌──────────────────────────────────────────────────────────────────────────────────┐
 │                           HAVE2WANT (Universo Sovrano)                           │
-│  • Universo Cosmologico Dinamico (Sole, Pianeti, Satelliti)                      │
+│  • Globo 3D Territoriale + 11 Satelliti Operativi + Canali Territoriali          │
 │  • Spazio Relazioni, Chat Realtime e Profili People                              │
 │  • Motore HAVE & WANT con le 9 forme di interazione                              │
-│  • Archivio Salvavatutto & Assistente AI Discreto di Correlazione                │
+│  • Archivio Conoscenze & Mestieri & Assistente AI Discreto di Correlazione       │
 │  • Registro Dinamico per l'evoluzione infinita dell'Universo                     │
 └──────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -233,7 +183,7 @@ HAVE2WANT adotta un'architettura pragmatica che bilancia sovranità, velocità e
 │ • Regolamento transazioni Pi │ • Identità & Sovranità (Pi Auth) │ • Motore di ricerca vettoriale│
 │ • Notarizzazione patti       │ • Storage documentale e media    │ • Server WebSocket Realtime   │
 │   e reputazione completata   │   (IPFS + CDN cifrata)           │ • Elaborazione LLM & Semantic │
-│ • Smart contracts escrow     │ • Salvavatutto / Memoria storica │ • Database relazionale veloce │
+│ • Smart contracts escrow     │ • Conoscenze & Mestieri / Memoria storica │ • Database relazionale veloce │
 │   (fasi evolutive successive)│   (indicizzata + snapshot audit) │   (PostgreSQL + PostGIS)      │
 └──────────────────────────────┴──────────────────────────────────┴───────────────────────────────┘
 ```
@@ -250,7 +200,7 @@ HAVE2WANT adotta un'architettura pragmatica che bilancia sovranità, velocità e
 * **Backend:** Architettura modulare a micro-servizi logici (Node.js/Express) con API Gateway unificato e sistema a eventi asincrono.
 * **Database & Vector Engine:** PostgreSQL con estensioni `PostGIS` (perimetri di prossimità geografica a tutela della privacy) e `pgvector` (indicizzazione vettoriale per il matching semantico discreto).
 * **Realtime & Messaging:** WebSockets ad alte prestazioni con cifratura applicativa end-to-end per la messaggistica istantanea.
-* **Dynamic Cosmological Registry:** Catalogo su database (`universe_nodes`) da cui il frontend carica dinamicamente i pianeti e i satelliti attivi.
+* **Dynamic Satellite Registry:** Catalogo su database (`universe_nodes`) da cui il frontend carica dinamicamente i satelliti operativi e i canali territoriali attivi.
 
 ---
 
@@ -258,27 +208,35 @@ HAVE2WANT adotta un'architettura pragmatica che bilancia sovranità, velocità e
 
 L'MVP di HAVE2WANT racchiude l'intera catena di valore fondamentale in forma snella e pienamente funzionante:
 
-1. **The HAVE2WANT Universe UI:**
-   * Sole centrale interattivo (energia vitale dell'ecosistema).
-   * 3 Pianeti iniziali: *Vita & Relazioni*, *Possibilità*, *Salvavatutto*.
-   * Switch immediato "Universo $\leftrightarrow$ Vista Lineare Accessibile".
-2. **Connettore Pi SDK v2.0:**
+1. **Interfaccia Territoriale HAVE2WANT:**
+   * Globo 3D (Three.js) — vista macroscopica con orbite satelliti e geo-privacy (centroide comunale).
+   * Mappa Urbano 3D (MapLibre GL + OSRM) — navigazione territoriale, routing reale, pin georeferenziati.
+   * Bacheca P2P (HomeFeedView) — griglia annunci, filtri territoriali, modalità pubblicazione, chat diretta.
+   * Switch vista: GLOBO / URBANO_3D / BACHECA (accessibilità universale).
+2. **11 Satelliti Operativi:**
+   * Canali territoriali con toggle ON/OFF persistente, preset (SOLO_TERRITORIO, ESPLORAZIONE, LAVORO, EMERGENZA), filtro raggio 1–50 km.
+   * Satelliti: METEO, KM0, WEBCAM, METEO_NAV, CHAT, MARKETPLACE, CONOSCENZE_MESTIERI, BUSINESS_ADS, ACTION_FLOW, PI_ADS, REWARDS.
+3. **Connettore Pi SDK v2.0 (Fail-Closed):**
    * Rilevamento automatico Pi Browser.
    * Autenticazione Pioneer nativa (`Pi.authenticate`) con fallback/sandbox.
-   * Predisposizione pagamenti Pi (`Pi.createPayment`) per il ramo vendita.
-   * Predisposizione annunci ufficiali (`Pi.Ads`).
-3. **Pianeta Vita & Relazioni:**
-   * Chat comunitaria e messaggistica diretta tra utenti.
-   * Profili People con reputazione di reciprocità.
-4. **Pianeta Possibilità (HAVE & WANT):**
-   * Pubblicazione di risorse offerte e necessità cercate.
-   * Selettore delle 9 forme di interazione (dono, prestito, aiuto, scambio, vendita, ecc.).
-5. **Pianeta Salvavatutto:**
-   * Raccolta e consultazione delle memorie e guide pratiche condivise.
-6. **Assistente AI Discreto:**
-   * Rilevamento semantico che accende la "Stella delle Possibilità".
-7. **Registro Cosmologico Dinamico:**
-   * Struttura a database pronta per l'espansione e la nascita di nuovi Satelliti e Pianeti.
+   * Pagamenti Pi (`Pi.createPayment`) per vendite e servizi.
+   * Annunci ufficiali (`Pi.Ads`) — interstitial, rewarded, loading banners.
+4. **Chat P2P + Videochiamate 1:1:**
+   * WebRTC mesh, signaling serverless, cifratura end-to-end.
+   * Stanze comunitarie, messaggistica diretta, reputazione reciprocità.
+5. **Marketplace Interno/Esterno:**
+   * Annunci HAVE/WANT con 9 forme di interazione (aiuto, dono, prestito, condivisione, collaborazione, conoscenza, scambio, servizio, vendita).
+   * Ordini Pi, regali, affiliati esterni, eco-fee 1.5–2.5% (cap 15π).
+6. **Assistente AI Discreto (Locale, On-Device First):**
+   * Correlazione semantica discreta tra dialoghi, HAVE/WANT e Conoscenze & Mestieri.
+   * Nessuna "Stella delle Possibilità" — indicatori contestuali non invasivi.
+7. **Archivio Conoscenze & Mestieri:**
+   * Ricerca testuale, upvote comunitario, distillazione consensuale da conversazioni.
+   * Categorie: riparazione, autoproduzione, riuso, saperi artigianali, esperienze di vita.
+8. **Economia Pi & Sostenibilità:**
+   * Punti fedeltà (1.000 pts = 1π), prelievo min 0.50π, fee 0.01π.
+   * Quota X 0.15π, credito esercente, listino Pro-Tools 20/120/475π.
+   * Advertising Pi Ads + donazioni comunitarie (Pasto Sospeso).
 
 ---
 
@@ -301,7 +259,7 @@ Ambiente: The HAVE2WANT Universe
 1. DICHIARAZIONE DI CREAZIONE E PATERNITÀ
 Con la presente si attesta che HAVE2WANT, originariamente concepito e denominato BIS, 
 è il progetto ideato, sviluppato concettualmente e strutturato nella sua visione, 
-filosofia, ontologia del valore, architettura cosmologica, modulo Salvavatutto, 
+filosofia, ontologia del valore, architettura territoriale (Globo 3D + Satelliti + Canali), modulo Conoscenze & Mestieri, 
 assistente discreto, integrazione con Pi Network e modello economico dal suo Creatore originario.
 
 2. CONTINUITÀ STORICA E GIURIDICA TRA BIS E HAVE2WANT
@@ -342,9 +300,8 @@ HAVE2WANT | Simply Discreet | What you have → What you want | The HAVE2WANT Un
 
 Perimetro Master:
 La Master Specification v1.0 costituisce il riferimento documentale fondamentale 
-per gli aspetti di visione, filosofia relazionale, architettura cosmologica 
-(Sole → Pianeti → Satelliti → Spazi Operativi), ontologia del valore 
-(HAVE / WANT / Salvavatutto), integrazione con Pi Network, modello economico in Pi, 
+per gli aspetti di visione, filosofia relazionale, architettura territoriale (Globo 3D + Satelliti + Canali), 
+ontologia del valore (HAVE / WANT / Conoscenze & Mestieri), integrazione con Pi Network, modello economico in Pi, 
 governance dell'evoluzione e titolarità originaria del progetto.
 
 Stato della Documentazione:

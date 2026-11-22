@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { hybridSearch } from "@/lib/semanticSearch";
 
-interface SalvavatuttoArchiveProps {
+interface ConoscenzeMestieriArchiveProps {
   guides: SalvavatuttoGuide[];
   onAddGuide: (guide: SalvavatuttoGuide) => void;
 }
@@ -116,7 +116,7 @@ const GuideCard = ({
   );
 };
 
-export const SalvavatuttoArchive: React.FC<SalvavatuttoArchiveProps> = ({
+export const ConoscenzeMestieriArchive: React.FC<ConoscenzeMestieriArchiveProps> = ({
   guides,
   onAddGuide,
 }) => {
@@ -231,39 +231,39 @@ export const SalvavatuttoArchive: React.FC<SalvavatuttoArchiveProps> = ({
   return (
     <div className="space-y-6">
       {/* Luminous Banner */}
-      <div className="p-6 sm:p-7 rounded-3xl bg-gradient-to-r from-sky-950/70 via-slate-900/90 to-sky-900/40 border border-sky-400/40 shadow-[0_0_40px_rgba(56,189,248,0.15)]">
+      <div className="p-6 sm:p-7 rounded-3xl bg-gradient-to-r from-amber-950/70 via-slate-900/90 to-amber-900/40 border border-amber-400/40 shadow-[0_0_40px_rgba(245,158,11,0.15)]">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
           <div>
-            <div className="flex items-center gap-2 text-sky-300 text-xs sm:text-sm font-bold uppercase tracking-wider mb-1.5">
+            <div className="flex items-center gap-2 text-amber-300 text-xs sm:text-sm font-bold uppercase tracking-wider mb-1.5">
               <Archive className="w-4 h-4" />
-              GUIDE PRATICHE & RISPARMIO
+              CONOSCENZE & MESTIERI
             </div>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">Riparazioni, Fai-da-Te e Consigli Utili</h2>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">Guide Pratiche, Saperi Artigianali ed Esperienze di Vita</h2>
             <p className="text-sm sm:text-base text-slate-300 mt-2 max-w-2xl leading-relaxed">
-              Consigli pratici su come riparare oggetti invece di buttarli, risparmiare risorse e condividere le tue abilità con la comunità locale.
+              Archivio comunitario di guide per riparazioni, autoproduzione, riuso e saperi tramandati. Condividi le tue conoscenze pratiche con chi ne ha bisogno.
             </p>
           </div>
 
           <button
             onClick={() => setIsModalOpen(true)}
             id="open-add-guide-modal-btn"
-            className="inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-sky-400 to-blue-500 hover:from-sky-300 hover:to-blue-400 text-slate-950 font-black text-sm sm:text-base shadow-xl shadow-sky-500/25 transition-all cursor-pointer shrink-0"
+            className="inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 font-black text-sm sm:text-base shadow-xl shadow-amber-500/25 transition-all cursor-pointer shrink-0"
           >
             <Plus className="w-5 h-5 stroke-[3]" />
-            <span>Aggiungi una Guida</span>
+            <span>Aggiungi una Conoscenza</span>
           </button>
         </div>
 
         {/* Search & Filter */}
-        <div className="mt-6 pt-5 border-t border-sky-500/20 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <div className="mt-6 pt-5 border-t border-amber-500/20 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Cerca guida: riparare biciclette, conservare cibi, orto, risparmio energetico..."
+              placeholder="Cerca: riparare gomma, conservare cibi, orto, energia solare, bricolage, artigianato..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-11 pr-4 py-2.5 bg-slate-950 border border-slate-700 rounded-2xl text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-sky-400"
+              className="w-full pl-11 pr-4 py-2.5 bg-slate-950 border border-slate-700 rounded-2xl text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
             />
           </div>
 
@@ -272,7 +272,7 @@ export const SalvavatuttoArchive: React.FC<SalvavatuttoArchiveProps> = ({
             <select
               value={searchMode}
               onChange={(e) => setSearchMode(e.target.value as any)}
-              className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white font-medium focus:outline-none focus:border-sky-400 shrink-0"
+              className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white font-medium focus:outline-none focus:border-amber-400 shrink-0"
               title="Modalità di ricerca"
             >
               <option value="hybrid">🔀 Ibrida (Exact + Semantica)</option>
@@ -288,17 +288,17 @@ export const SalvavatuttoArchive: React.FC<SalvavatuttoArchiveProps> = ({
               onTouchEnd={() => setTimeout(() => setIsCatHovered(false), 2000)}
               className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 scrollbar-none touch-pan-x"
             >
-              {["ALL", "Autonomia & Alimentazione", "Riparazione & Meccanica", "Salute & Sicurezza"].map((cat) => (
+              {["ALL", "Riparazione & Meccanica", "Autoproduzione & Alimentazione", "Costruzioni & Bricolage", "Energia & Sostenibilità", "Salute & Sicurezza", "Saperi & Tradizioni"].map((cat) => (
                 <button
                   key={cat}
                   onClick={() => setSelectedCategory(cat)}
                   className={`px-3.5 py-2 rounded-xl border text-xs sm:text-sm whitespace-nowrap transition-all font-semibold cursor-pointer ${
                     selectedCategory === cat
-                      ? "bg-sky-400 text-slate-950 font-extrabold shadow-md border-sky-300"
+                      ? "bg-amber-400 text-slate-950 font-extrabold shadow-md border-amber-300"
                       : "bg-slate-950 border-slate-800 text-slate-300 hover:text-white hover:bg-slate-900"
                   }`}
                 >
-                  {cat === "ALL" ? "Tutte le Guide" : cat}
+                  {cat === "ALL" ? "Tutte le Conoscenze" : cat}
                 </button>
               ))}
             </div>
@@ -343,11 +343,11 @@ export const SalvavatuttoArchive: React.FC<SalvavatuttoArchiveProps> = ({
           <div className="w-full max-w-xl bg-slate-900 border border-slate-700 rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <div className="px-6 py-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-sky-300">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-300">
                   <Archive className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-extrabold text-white">Aggiungi Conoscenza in Salvavatutto</h3>
+                  <h3 className="text-base font-extrabold text-white">Aggiungi Conoscenza in Conoscenze & Mestieri</h3>
                   <p className="text-xs text-slate-400">Preserva un sapere pratico utile a tutta la comunità</p>
                 </div>
               </div>
@@ -378,13 +378,14 @@ export const SalvavatuttoArchive: React.FC<SalvavatuttoArchiveProps> = ({
                   <select
                     value={newCategory}
                     onChange={(e) => setNewCategory(e.target.value)}
-                    className="w-full px-3.5 py-3 bg-slate-950 border border-slate-700 rounded-2xl text-sm text-white focus:outline-none focus:border-sky-400"
+                    className="w-full px-3.5 py-3 bg-slate-950 border border-slate-700 rounded-2xl text-sm text-white focus:outline-none focus:border-amber-400"
                   >
-                    <option value="Autonomia & Alimentazione">Autonomia & Alimentazione</option>
                     <option value="Riparazione & Meccanica">Riparazione & Meccanica</option>
-                    <option value="Salute & Sicurezza">Salute & Sicurezza</option>
+                    <option value="Autoproduzione & Alimentazione">Autoproduzione & Alimentazione</option>
                     <option value="Costruzioni & Bricolage">Costruzioni & Bricolage</option>
                     <option value="Energia & Sostenibilità">Energia & Sostenibilità</option>
+                    <option value="Salute & Sicurezza">Salute & Sicurezza</option>
+                    <option value="Saperi & Tradizioni">Saperi & Tradizioni</option>
                   </select>
                 </div>
 
@@ -447,9 +448,9 @@ export const SalvavatuttoArchive: React.FC<SalvavatuttoArchiveProps> = ({
                 <button
                   type="submit"
                   id="confirm-add-guide-btn"
-                  className="px-6 py-3 rounded-xl bg-sky-400 hover:bg-sky-300 text-slate-950 text-xs sm:text-sm font-black shadow-lg"
+                  className="px-6 py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs sm:text-sm font-black shadow-lg"
                 >
-                  Salva in Salvavatutto
+                  Salva in Conoscenze & Mestieri
                 </button>
               </div>
             </form>

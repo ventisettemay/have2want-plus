@@ -302,7 +302,7 @@ endobj
 endobj
 6 0 obj
 <<
-/Length 9611
+/Length 9641
 >>
 stream
 4.2519685039370083 w
@@ -474,85 +474,86 @@ BT
 11.5 TL
 0.118 0.161 0.231 rg
 42.5196850393700814 347.5277952755904494 Td
-(4.2 La Citta Viva & Mappa 3D Geospaziale \(LivingCityExplorer.tsx & GeographicMapBridge.tsx\)) Tj
+(4.2 Interfaccia Territoriale 3D \(Globo3D.jsx, Urbano3D.jsx, MapView3DContainer.jsx\)) Tj
 ET
 BT
 /F1 9 Tf
 10.3499999999999996 TL
 0.2 0.255 0.333 rg
 42.5196850393700814 333.3545669291337958 Td
-(Visualizzazione tridimensionale interattiva basata su Google Earth 3D Tiles e Three.js, con pin georeferenziati degli scambi e) Tj
-T* (degli specialisti solidali attivi nel raggio urbano, protetti da raggio fuzzy privacy.) Tj
+(Globo 3D \(Three.js\) con vista macroscopica, orbite satelliti e geo-privacy \(centroide comunale\). Mappa Urbano 3D \(MapLibre GL) Tj
+T* (+ OSRM\) con routing reale, pin georeferenziati, layer satelliti toggle ON/OFF. Bacheca territoriale integrata con filtro raggio 1-50) Tj
+T* (km.) Tj
 ET
 BT
 /F2 10 Tf
 11.5 TL
 0.118 0.161 0.231 rg
-42.5196850393700814 301.0396062992125508 Td
-(4.3 Universo Cosmico & Albero della Vita \(RealisticCosmicUniverse.tsx & TreeOfLifeExplorer.tsx\)) Tj
+42.5196850393700814 289.1340944881889072 Td
+(4.3 11 Satelliti Operativi \(OrbitalSatellitesHub.tsx, satelliteModularEngine.ts\)) Tj
 ET
 BT
 /F1 9 Tf
 10.3499999999999996 TL
 0.2 0.255 0.333 rg
-42.5196850393700814 286.8663779527557836 Td
-(Rappresentazione cosmica e biologica delle relazioni comunitarie, dove ogni nodo corrisponde a un ambito vitale \(Possibilita,) Tj
-T* (Vita Comunitaria, Memoria\).) Tj
+42.5196850393700814 274.9608661417322537 Td
+(Canali territoriali con toggle persistente, preset \(SOLO_TERRITORIO, ESPLORAZIONE, LAVORO, EMERGENZA\). Satelliti:) Tj
+T* (METEO, KM0, WEBCAM, METEO_NAV, CHAT, MARKETPLACE, CONOSCENZE_MESTIERI, BUSINESS_ADS,) Tj
+T* (ACTION_FLOW, PI_ADS, REWARDS.) Tj
 ET
 BT
 /F2 10 Tf
 11.5 TL
 0.118 0.161 0.231 rg
-42.5196850393700814 254.5514173228344816 Td
-(4.4 Memoria Collettiva \(SalvavatuttoPlanet.tsx\)) Tj
+42.5196850393700814 230.7403937007873083 Td
+(4.4 Assistente AI Discreto \(DiscreetAIAssistant.tsx\)) Tj
 ET
 BT
 /F1 9 Tf
 10.3499999999999996 TL
 0.2 0.255 0.333 rg
-42.5196850393700814 240.3781889763778281 Td
-(Archivio permanente di guide pratiche, manuali fai-da-te e riparazioni artigianali per combattere l'obsolescenza programmata e) Tj
-T* (preservare il sapere.) Tj
+42.5196850393700814 216.5671653543306547 Td
+(Correlazione semantica discreta tra dialoghi, annunci HAVE/WANT e archivio Conoscenze & Mestieri. Indicatori contestuali non) Tj
+T* (invasivi, zero Stella delle Possibilita.) Tj
 ET
 BT
 /F2 10 Tf
 11.5 TL
 0.118 0.161 0.231 rg
-42.5196850393700814 208.0632283464565262 Td
-(4.5 Blindatura Legale & Moderazione \(LegalShieldAndModeration.tsx & LegalWelcomeShield.tsx\)) Tj
+42.5196850393700814 184.2522047244093528 Td
+(4.5 Backup e Sincronizzazione Google Drive \(DriveExporter.tsx\)) Tj
 ET
 BT
 /F1 9 Tf
 10.3499999999999996 TL
 0.2 0.255 0.333 rg
-42.5196850393700814 193.8899999999998727 Td
-(Esonero di responsabilita P2P, Scudo Sanitario preventivo \(divieto di commercio farmaci o prescrizioni non autorizzate\),) Tj
-T* (conformita GDPR e segnalazione abusi istantanea.) Tj
+42.5196850393700814 170.0789763779526993 Td
+(Esportazione backup strutturato JSON e Markdown dei propri dati direttamente su Google Drive.) Tj
 ET
 0.96 0.97 0.98 rg
-46.7716535433070888 150.2364566929132081 m
-548.5039370078741285 150.2364566929132081 l
-550.8522343693592802 150.2364566929132081 552.7559055118110791 148.3327855504614377 552.7559055118110791 145.9844881889762007 c
-552.7559055118110791 131.8112598425195188 l
-552.7559055118110791 129.4629624810342534 550.4076081503258138 127.5592913385824971 548.5039370078741285 127.5592913385824971 c
-46.7716535433070888 127.5592913385824971 l
-44.4233561818218305 127.5592913385824971 42.5196850393700814 129.9075887000677483 42.5196850393700814 131.8112598425195188 c
-42.5196850393700814 145.9844881889762007 l
-42.5196850393700814 148.3327855504614377 44.8679824008553467 150.2364566929132081 46.7716535433070888 150.2364566929132081 c
+46.7716535433070888 138.3309448818897067 m
+548.5039370078741285 138.3309448818897067 l
+550.8522343693592802 138.3309448818897067 552.7559055118110791 136.4272737394379362 552.7559055118110791 134.0789763779526993 c
+552.7559055118110791 119.9057480314959889 l
+552.7559055118110791 117.557450670010752 550.4076081503258138 115.6537795275589815 548.5039370078741285 115.6537795275589815 c
+46.7716535433070888 115.6537795275589815 l
+44.4233561818218305 115.6537795275589815 42.5196850393700814 118.0020768890442326 42.5196850393700814 119.9057480314959889 c
+42.5196850393700814 134.0789763779526993 l
+42.5196850393700814 136.4272737394379362 44.8679824008553467 138.3309448818897067 46.7716535433070888 138.3309448818897067 c
 h
 f
 BT
 /F2 12 Tf
 13.7999999999999989 TL
 0.059 0.09 0.165 rg
-51.0236220472441033 134.6459055118108381 Td
+51.0236220472441033 122.7403937007873083 Td
 (5. MODELLO ECONOMICO E INTEGRAZIONE PI NETWORK) Tj
 ET
 BT
 /F2 8.5 Tf
 9.7749999999999986 TL
 0.059 0.09 0.165 rg
-48.1889763779527627 116.220708661417234 Td
+48.1889763779527627 104.3151968503935905 Td
 (• Valuta Nativa Pi Network \(pi\): Regolamento delle transazioni monetarie esclusivamente in Pi Coin, senza commissioni) Tj
 T* (bancarie ne percentuali di piattaforma.) Tj
 ET
@@ -560,7 +561,7 @@ BT
 /F2 8.5 Tf
 9.7749999999999986 TL
 0.059 0.09 0.165 rg
-48.1889763779527627 87.8742519685038133 Td
+48.1889763779527627 75.9687401574802834 Td
 (• Baratto Gratuito: Scambio merceologico e banca del tempo 100% liberi e gratuiti.) Tj
 ET
 BT
@@ -604,7 +605,7 @@ endobj
 endobj
 8 0 obj
 <<
-/Length 7077
+/Length 7159
 >>
 stream
 0.8503937007874016 w
@@ -775,27 +776,29 @@ BT
 9.7749999999999986 TL
 0.059 0.09 0.165 rg
 48.1889763779527627 445.0396062992125508 Td
-(• Fase 2 \(Transizione HAVE2WANT\): Consolidamento brand, Albero della Vita e redazione Master Specification v1.0.) Tj
+(• Fase 2 \(Transizione HAVE2WANT\): Consolidamento brand e redazione Master Specification v1.0.) Tj
 ET
 BT
 /F2 8.5 Tf
 9.7749999999999986 TL
 0.059 0.09 0.165 rg
 48.1889763779527627 428.0317322834645211 Td
-(• Fase 3 \(Mappa 3D & Google Earth\): Motore Three.js WebGL, Google 3D Tiles e Citta Viva con geolocalizzazione fuzzy.) Tj
+(• Fase 3 \(Architettura Territoriale 3D & Satelliti\): Motore Three.js \(Globo 3D\), MapLibre GL \(Urbano 3D\) con OSRM,) Tj
+T* (geo-privacy centroide comunale, 11 Satelliti Operativi con canali territoriali.) Tj
 ET
 BT
 /F2 8.5 Tf
 9.7749999999999986 TL
 0.059 0.09 0.165 rg
-48.1889763779527627 411.0238582677164914 Td
-(• Fase 4 \(Pi Network & Blindatura Legale\): Integrazione Pi Official Bridge, Esonero P2P, Scudo Sanitario e Welcome Shield.) Tj
+48.1889763779527627 399.6852755905511003 Td
+(• Fase 4 \(Pi Network & Blindatura Giuridica\): Integrazione Pi Official Bridge, Esonero P2P, Scudo Sanitario e Welcome) Tj
+T* (Shield.) Tj
 ET
 BT
 /F2 8.5 Tf
 9.7749999999999986 TL
 0.059 0.09 0.165 rg
-48.1889763779527627 394.0159842519684616 Td
+48.1889763779527627 371.3388188976377364 Td
 (• Fase 5 \(Epurazione Tipi e Normalizzazione\): Rimozione modalita astratte e consolidamento nei 3 intenti rigidi \(VENDO,) Tj
 T* (BARATTO_SCAMBIO, ACQUISTO_CERCO\).) Tj
 ET
@@ -803,7 +806,7 @@ BT
 /F2 8.5 Tf
 9.7749999999999986 TL
 0.059 0.09 0.165 rg
-48.1889763779527627 365.6695275590550409 Td
+48.1889763779527627 342.9923622047243725 Td
 (• Fase 6 \(Bacheca Home P2P & Release Consolidata\): Nuova interfaccia HomeFeedView con griglia prodotti responsive,) Tj
 T* (filtri territoriali e generatore PDF delle specifiche tecniche.) Tj
 ET
@@ -1008,7 +1011,7 @@ endobj
 23 0 obj
 <<
 /Producer (jsPDF 4.2.1)
-/CreationDate (D:20260902100520-00'00')
+/CreationDate (D:20261122185618-00'00')
 >>
 endobj
 24 0 obj
@@ -1022,37 +1025,37 @@ endobj
 xref
 0 25
 0000000000 65535 f 
-0000027612 00000 n 
-0000029445 00000 n 
+0000027724 00000 n 
+0000029557 00000 n 
 0000000015 00000 n 
 0000000152 00000 n 
 0000010546 00000 n 
 0000010683 00000 n 
-0000020346 00000 n 
-0000020483 00000 n 
-0000027681 00000 n 
-0000027806 00000 n 
-0000027937 00000 n 
-0000028071 00000 n 
-0000028209 00000 n 
-0000028333 00000 n 
-0000028462 00000 n 
-0000028594 00000 n 
-0000028730 00000 n 
-0000028858 00000 n 
-0000028985 00000 n 
-0000029114 00000 n 
-0000029247 00000 n 
-0000029349 00000 n 
-0000029697 00000 n 
-0000029783 00000 n 
+0000020376 00000 n 
+0000020513 00000 n 
+0000027793 00000 n 
+0000027918 00000 n 
+0000028049 00000 n 
+0000028183 00000 n 
+0000028321 00000 n 
+0000028445 00000 n 
+0000028574 00000 n 
+0000028706 00000 n 
+0000028842 00000 n 
+0000028970 00000 n 
+0000029097 00000 n 
+0000029226 00000 n 
+0000029359 00000 n 
+0000029461 00000 n 
+0000029809 00000 n 
+0000029895 00000 n 
 trailer
 <<
 /Size 25
 /Root 24 0 R
 /Info 23 0 R
-/ID [ <0005A67619909B07789F77D0585552BB> <0005A67619909B07789F77D0585552BB> ]
+/ID [ <57CA0699218E81CA2672D2015A4EC349> <57CA0699218E81CA2672D2015A4EC349> ]
 >>
 startxref
-29887
+29999
 %%EOF

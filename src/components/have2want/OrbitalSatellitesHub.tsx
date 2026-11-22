@@ -15,7 +15,7 @@ const SATELLITE_TO_CHANNEL: Record<SatelliteId, string> = {
   PI_CHAT_SAT: 'CHAT',
   GLOBAL_MARKET_SAT: 'SUPERMARKET',
   EXTERNAL_MARKET_SAT: 'EXTERNAL',
-  COMMUNITY_RESCUE_SAT: 'COMUNITA',
+  CONOSCENZE_MESTIERI_SAT: 'CONOSCENZE_MESTIERI',
   BUSINESS_ADS_SAT: 'BUSINESS_ADS',
   WEBCAM: 'WEBCAM',
   METEO_ROUTE: 'METEO_ROUTE',
@@ -43,7 +43,7 @@ export default function OrbitalSatellitesHub({
   isWeatherActive: isWeatherActiveProp = true,
   onOpenSatelliteChannel,
 }: OrbitalSatellitesHubProps) {
-  const [activeChannel, setActiveChannel] = useState<'METEO' | 'KMZERO' | 'SUPERMARKET' | 'LAVORO' | 'AGENZIE' | 'WEBCAM' | 'METEO_ROUTE' | 'PI_CHAT' | 'EXTERNAL' | 'COMMUNITY' | 'BUSINESS_ADS' | 'ACTIONFLOW' | null>(null);
+  const [activeChannel, setActiveChannel] = useState<'METEO' | 'KMZERO' | 'SUPERMARKET' | 'LAVORO' | 'AGENZIE' | 'WEBCAM' | 'METEO_ROUTE' | 'PI_CHAT' | 'EXTERNAL' | 'CONOSCENZE_MESTIERI' | 'BUSINESS_ADS' | 'ACTIONFLOW' | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isFleetModalOpen, setIsFleetModalOpen] = useState(false);
   const [selectedSatForFleet, setSelectedSatForFleet] = useState<SatelliteId | null>(null);
@@ -133,14 +133,14 @@ export default function OrbitalSatellitesHub({
       badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
     },
     {
-      id: 'COMMUNITY' as const,
-      satId: 'COMMUNITY_RESCUE_SAT' as SatelliteId,
-      name: 'Comunità & Soccorso',
-      desc: 'Reti di mutuo soccorso, pasti sospesi, volontariato e coordinamento emergenze',
+      id: 'CONOSCENZE_MESTIERI' as const,
+      satId: 'CONOSCENZE_MESTIERI_SAT' as SatelliteId,
+      name: 'Conoscenze & Mestieri',
+      desc: 'Archivio guide pratiche, saperi artigianali, riparazioni e esperienze di vita condivise',
       icon: LifeBuoy,
-      color: 'from-red-500 to-rose-600',
-      badge: 'COMUNITÀ ATTIVA',
-      badgeColor: 'bg-red-500/20 text-red-300 border-red-500/40',
+      color: 'from-amber-500 to-orange-600',
+      badge: 'ARCHIVIO ATTIVO',
+      badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
     },
     {
       id: 'BUSINESS_ADS' as const,
@@ -446,7 +446,7 @@ export default function OrbitalSatellitesHub({
             METEO_ROUTE: 'METEO_ROUTE',
             PI_CHAT_SAT: 'PI_CHAT',
             EXTERNAL_MARKET_SAT: 'EXTERNAL',
-            COMMUNITY_RESCUE_SAT: 'COMMUNITY',
+            CONOSCENZE_MESTIERI_SAT: 'CONOSCENZE_MESTIERI',
             BUSINESS_ADS_SAT: 'BUSINESS_ADS',
             ACTIONFLOW_SAT: 'ACTIONFLOW',
           };
