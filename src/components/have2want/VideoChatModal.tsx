@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { X, Video, Mic, MicOff, Settings, Minimize, Maximize2, Volume2, VolumeX, Users, MoreHorizontal, Monitor, PhoneOff } from "lucide-react";
+import { getDynamicIceServers } from '@/lib/turnService';
 
 interface VideoChatModalProps {
   isOpen?: boolean;
@@ -29,12 +30,18 @@ export function VideoChatModal({
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
 
-  const ICE_SERVERS = {
-    iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
-    ]
-  };
+  const [iceServers, setIceServers] = useState<RTCIceServer[]>([
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+  ]);
+
+  useEffect(() => {
+    const loadIceServers = async () => {
+      const servers = await getDynamicIceServers();
+      setIceServers(servers);
+    };
+    loadIceServers();
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -62,7 +69,7 @@ export function VideoChatModal({
   };
 
   const initializePeerConnection = () => {
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS.iceServers });
+    const pc = new RTCPeerConnection({ iceServers });
     
     pc.onicecandidate = (event) => {
       if (event.candidate) {

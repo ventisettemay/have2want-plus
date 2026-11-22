@@ -351,6 +351,246 @@ paths:
               schema:
                 $ref: '#/components/schemas/TestnetQueryResponse'
 
+
+  # ==========================================
+  # WEBRTC CALLS
+  # ==========================================
+  /api/calls:
+    post:
+      tags: [WebRTC]
+      summary: Crea una nuova chiamata WebRTC
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCallRequest'
+      responses:
+        '201':
+          description: Chiamata creata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateCallResponse'
+        '400':
+          description: Parametri mancanti o non validi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token Pi Pioneer obbligatorio o non valido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Errore Firestore
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servizio non disponibile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/calls/{callId}/signal:
+    post:
+      tags: [WebRTC]
+      summary: Invia un segnale di signaling (offer, answer, ice-candidate)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: callId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignalRequest'
+      responses:
+        '201':
+          description: Segnale inviato
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignalResponse'
+        '400':
+          description: Parametri mancanti o type non valido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token Pi non valido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accesso negato
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Chiamata non trovata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Errore invio signaling
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Errore Firestore
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servizio non disponibile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/calls/{callId}/signaling:
+    get:
+      tags: [WebRTC]
+      summary: Recupera i messaggi di signaling per una chiamata (polling)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: callId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista segnali
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetSignalsResponse'
+        '400':
+          description: Parametri mancanti
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token Pi non valido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accesso negato
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Chiamata non trovata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Errore Firestore
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servizio non disponibile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/calls/{callId}:
+    patch:
+      tags: [WebRTC]
+      summary: Aggiorna lo stato di una chiamata
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: callId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCallStatusRequest'
+      responses:
+        '200':
+          description: Stato aggiornato
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CallStatusResponse'
+        '400':
+          description: Parametri mancanti o status non valido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token Pi non valido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Accesso negato
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Chiamata non trovata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Errore aggiornamento chiamata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Errore Firestore
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servizio non disponibile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 components:
   securitySchemes:
     PiBearer:
@@ -654,6 +894,99 @@ components:
           type: array
           items:
             type: object
+
+
+    # WebRTC Calls
+    CreateCallRequest:
+      type: object
+      required: [calleeUid]
+      properties:
+        calleeUid:
+          type: string
+          description: UID del destinatario
+        listingId:
+          type: string
+          description: ID annuncio opzionale
+
+    CreateCallResponse:
+      type: object
+      required: [success, callId]
+      properties:
+        success:
+          type: boolean
+        callId:
+          type: string
+        error:
+          type: string
+
+    SignalRequest:
+      type: object
+      required: [type, payload]
+      properties:
+        type:
+          type: string
+          enum: [offer, answer, ice-candidate]
+        payload:
+          type: object
+
+    SignalResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        signalId:
+          type: string
+        error:
+          type: string
+
+    GetSignalsResponse:
+      type: object
+      required: [success, signals]
+      properties:
+        success:
+          type: boolean
+        signals:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              callId:
+                type: string
+              senderUid:
+                type: string
+              type:
+                type: string
+                enum: [offer, answer, ice-candidate]
+              payload:
+                type: object
+              timestamp:
+                type: string
+                format: date-time
+        error:
+          type: string
+
+    UpdateCallStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ringing, connected, ended, rejected, missed]
+        durationSec:
+          type: integer
+          format: int64
+
+    CallStatusResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        error:
+          type: string
 
     # Error
     ErrorResponse:

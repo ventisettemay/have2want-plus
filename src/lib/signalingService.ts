@@ -96,7 +96,7 @@ export async function sendSignal(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${type}`,
+      Authorization: `Bearer ${piAccessToken}`,
     },
     body: JSON.stringify({ type, payload }),
   });
