@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CloudSun, Store, ShoppingBag, Briefcase, X, ChevronRight, Sparkles, ShieldCheck, MapPin, Truck, Satellite } from 'lucide-react';
+import { CloudSun, Store, ShoppingBag, Briefcase, X, ChevronRight, Sparkles, ShieldCheck, MapPin, Truck, Satellite, Video, Monitor, Mic, Wifi, Compass, Shield, Users, Globe, Zap, Bell, LifeBuoy, Building2, Megaphone } from 'lucide-react';
 import VetrinaKmZero from './VetrinaKmZero';
 import { GlobalMarketplaceView } from './GlobalMarketplaceView';
 import BachecaLavoroP2P from './BachecaLavoroP2P';
@@ -60,7 +60,7 @@ export default function OrbitalSatellitesHub({
 
   const isWeatherActive = satelliteStates['METEO_SAT'] ?? isWeatherActiveProp;
 
-  const channels = [
+    const channels = [
     {
       id: 'METEO' as const,
       satId: 'METEO_SAT' as SatelliteId,
@@ -70,6 +70,86 @@ export default function OrbitalSatellitesHub({
       color: 'from-sky-500 to-blue-600',
       badge: isWeatherActive ? 'LIVE 3D' : 'PAUSA',
       badgeColor: isWeatherActive ? 'bg-sky-500/20 text-sky-300 border-sky-500/40' : 'bg-zinc-800 text-zinc-400',
+    },
+    {
+      id: 'KMZERO' as const,
+      satId: 'KM0_SAT' as SatelliteId,
+      name: 'Produttori a Km Zero',
+      desc: 'Agricoltori locali, ortofrutta fresca, negozi del territorio e ritiro sul posto',
+      icon: Store,
+      color: 'from-emerald-500 to-teal-600',
+      badge: 'PRODUTTORI LOCALI',
+      badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+    },
+    {
+      id: 'SUPERMARKET' as const,
+      satId: 'GLOBAL_MARKET_SAT' as SatelliteId,
+      name: 'Supermarket dal Mondo',
+      desc: 'Marketplace mondiale, negozi internazionali e spedizioni tracciate',
+      icon: ShoppingBag,
+      color: 'from-amber-500 to-orange-600',
+      badge: 'MARKETPLACE MONDO',
+      badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+    },
+    {
+      id: 'WEBCAM' as const,
+      satId: 'WEBCAM' as SatelliteId,
+      name: 'Webcam Live Territorio',
+      desc: 'Webcam live sul territorio, traffico, meteo locale e panorami in tempo reale',
+      icon: Video,
+      color: 'from-cyan-500 to-blue-600',
+      badge: 'WEBCAM LIVE',
+      badgeColor: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40',
+    },
+    {
+      id: 'METEO_ROUTE' as const,
+      satId: 'METEO_ROUTE' as SatelliteId,
+      name: 'Meteo Navigazione',
+      desc: 'Previsioni lungo il percorso, allerte meteo stradale e condizioni visibilità',
+      icon: Compass,
+      color: 'from-indigo-500 to-purple-600',
+      badge: 'METEO PERCORSO',
+      badgeColor: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40',
+    },
+    {
+      id: 'PI_CHAT' as const,
+      satId: 'PI_CHAT_SAT' as SatelliteId,
+      name: 'Chat Vocale & Video',
+      desc: 'Messaggistica discreta, note vocali da microfono e videochiamata diretta',
+      icon: Mic,
+      color: 'from-emerald-500 to-green-600',
+      badge: 'CHAT & CALL',
+      badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+    },
+    {
+      id: 'EXTERNAL' as const,
+      satId: 'EXTERNAL_MARKET_SAT' as SatelliteId,
+      name: 'Marketplace Esterno',
+      desc: 'Cataloghi esterni aggregati, fornitori globali e link affiliati tracciati',
+      icon: Globe,
+      color: 'from-amber-500 to-yellow-600',
+      badge: 'MARKET ESTERNO',
+      badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+    },
+    {
+      id: 'COMMUNITY' as const,
+      satId: 'COMMUNITY_RESCUE_SAT' as SatelliteId,
+      name: 'Comunità & Soccorso',
+      desc: 'Reti di mutuo soccorso, pasti sospesi, volontariato e coordinamento emergenze',
+      icon: LifeBuoy,
+      color: 'from-red-500 to-rose-600',
+      badge: 'COMUNITÀ ATTIVA',
+      badgeColor: 'bg-red-500/20 text-red-300 border-red-500/40',
+    },
+    {
+      id: 'BUSINESS_ADS' as const,
+      satId: 'BUSINESS_ADS_SAT' as SatelliteId,
+      name: 'Business & Sponsor Ads',
+      desc: 'Vetrine sponsorizzate, pubblicità geolocalizzata e campagne a pagamento in Pi',
+      icon: Megaphone,
+      color: 'from-purple-500 to-fuchsia-600',
+      badge: 'ADV VIP',
+      badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
     },
     {
       id: 'KMZERO' as const,
