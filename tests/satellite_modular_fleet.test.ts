@@ -17,8 +17,8 @@ describe('Satellite Modular Fleet Engine – HAVE2WANT PLUS', () => {
     satelliteEngine.applyPreset('RIPRISTINA_TUTTI');
   });
 
-  it('Dovrebbe contenere esattamente i 10 identificativi satellite ufficiali (8 originali + 2 estensioni VIEW)', () => {
-    const EXPECTED_10_IDS: SatelliteId[] = [
+  it('Dovrebbe contenere esattamente gli 11 identificativi satellite ufficiali (8 originali + 3 estensioni VIEW)', () => {
+    const EXPECTED_11_IDS: SatelliteId[] = [
       'METEO_SAT',
       'KM0_SAT',
       'STREET_360_SAT',
@@ -29,12 +29,13 @@ describe('Satellite Modular Fleet Engine – HAVE2WANT PLUS', () => {
       'BUSINESS_ADS_SAT',
       'WEBCAM',
       'METEO_ROUTE',
+      'ACTIONFLOW_SAT',
     ];
 
-    expect(INITIAL_SATELLITES_CATALOG).toHaveLength(10);
+    expect(INITIAL_SATELLITES_CATALOG).toHaveLength(11);
     const catalogIds = INITIAL_SATELLITES_CATALOG.map((s) => s.id);
 
-    EXPECTED_10_IDS.forEach((expectedId) => {
+    EXPECTED_11_IDS.forEach((expectedId) => {
       expect(catalogIds).toContain(expectedId);
     });
   });
@@ -81,7 +82,7 @@ describe('Satellite Modular Fleet Engine – HAVE2WANT PLUS', () => {
     INITIAL_SATELLITES_CATALOG.forEach((sat) => {
       expect(satelliteEngine.isSatelliteActive(sat.id)).toBe(true);
     });
-    expect(satelliteEngine.getActiveCount()).toBe(10);
+    expect(satelliteEngine.getActiveCount()).toBe(11);
   });
 
   it('Dovrebbe applicare il preset SOLO_METEO (lasciando acceso solo METEO_SAT)', () => {

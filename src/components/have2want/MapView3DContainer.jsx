@@ -799,6 +799,42 @@ export default function MapView3DContainer({
                   }
                   break;
 
+                case 'WEBCAM':
+                  if (activeSatellite === 'WEBCAM') {
+                    setActiveSatellite(null);
+                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
+                    toast.info('📹 CAMSAT-OBS: Webcam Live Disattivate', { duration: 1800 });
+                  } else {
+                    setActiveSatellite('WEBCAM');
+                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('WEBCAM');
+                    toast.success('📹 CAMSAT-OBS: Webcam Live Attivate');
+                  }
+                  break;
+
+                case 'METEO_ROUTE':
+                  if (activeSatellite === 'METEO_ROUTE') {
+                    setActiveSatellite(null);
+                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
+                    toast.info('🧭 WX-NAV-SAT: Meteo Navigazione Disattivato', { duration: 1800 });
+                  } else {
+                    setActiveSatellite('METEO_ROUTE');
+                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('METEO_ROUTE');
+                    toast.success('🧭 WX-NAV-SAT: Meteo Navigazione Attivato');
+                  }
+                  break;
+
+                case 'ACTIONFLOW':
+                  if (activeSatellite === 'ACTIONFLOW') {
+                    setActiveSatellite(null);
+                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
+                    toast.info('🎮 ACTIONFLOW-CORE: ActionFlow Hub Disattivato', { duration: 1800 });
+                  } else {
+                    setActiveSatellite('ACTIONFLOW');
+                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('ACTIONFLOW');
+                    toast.success('🎮 ACTIONFLOW-CORE: ActionFlow Hub Attivato');
+                  }
+                  break;
+
                 case 'KM0_SAT':
                 case 'KMZERO':
                   if (activeSatellite === 'KMZERO') {

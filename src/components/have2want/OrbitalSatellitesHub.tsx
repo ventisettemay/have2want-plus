@@ -19,6 +19,7 @@ const SATELLITE_TO_CHANNEL: Record<SatelliteId, string> = {
   BUSINESS_ADS_SAT: 'BUSINESS_ADS',
   WEBCAM: 'WEBCAM',
   METEO_ROUTE: 'METEO_ROUTE',
+  ACTIONFLOW_SAT: 'ACTIONFLOW',
 };
 
 interface OrbitalSatellitesHubProps {
@@ -42,7 +43,7 @@ export default function OrbitalSatellitesHub({
   isWeatherActive: isWeatherActiveProp = true,
   onOpenSatelliteChannel,
 }: OrbitalSatellitesHubProps) {
-  const [activeChannel, setActiveChannel] = useState<'METEO' | 'KMZERO' | 'SUPERMARKET' | 'LAVORO' | 'AGENZIE' | null>(null);
+  const [activeChannel, setActiveChannel] = useState<'METEO' | 'KMZERO' | 'SUPERMARKET' | 'LAVORO' | 'AGENZIE' | 'WEBCAM' | 'METEO_ROUTE' | 'PI_CHAT' | 'EXTERNAL' | 'COMMUNITY' | 'BUSINESS_ADS' | 'ACTIONFLOW' | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isFleetModalOpen, setIsFleetModalOpen] = useState(false);
   const [selectedSatForFleet, setSelectedSatForFleet] = useState<SatelliteId | null>(null);
@@ -60,7 +61,7 @@ export default function OrbitalSatellitesHub({
 
   const isWeatherActive = satelliteStates['METEO_SAT'] ?? isWeatherActiveProp;
 
-    const channels = [
+      const channels = [
     {
       id: 'METEO' as const,
       satId: 'METEO_SAT' as SatelliteId,
@@ -152,24 +153,14 @@ export default function OrbitalSatellitesHub({
       badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
     },
     {
-      id: 'KMZERO' as const,
-      satId: 'KM0_SAT' as SatelliteId,
-      name: 'Produttori a Km Zero',
-      desc: 'Agricoltori locali, ortofrutta fresca, negozi del territorio e ritiro sul posto',
-      icon: Store,
-      color: 'from-emerald-500 to-teal-600',
-      badge: 'PRODUTTORI LOCALI',
-      badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
-    },
-    {
-      id: 'SUPERMARKET' as const,
-      satId: 'GLOBAL_MARKET_SAT' as SatelliteId,
-      name: 'Supermarket dal Mondo',
-      desc: 'Marketplace mondiale, negozi internazionali e spedizioni tracciate',
-      icon: ShoppingBag,
-      color: 'from-amber-500 to-orange-600',
-      badge: 'MARKETPLACE MONDO',
-      badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+      id: 'ACTIONFLOW' as const,
+      satId: 'ACTIONFLOW_SAT' as SatelliteId,
+      name: 'ActionFlow Hub',
+      desc: 'Centro operativo missioni, attività AI e ricompense — ActionFlow Hub',
+      icon: Zap,
+      color: 'from-violet-500 to-purple-600',
+      badge: 'ACTIONFLOW HUB',
+      badgeColor: 'bg-violet-500/20 text-violet-300 border-violet-500/40',
     },
     {
       id: 'LAVORO' as const,
@@ -447,9 +438,19 @@ export default function OrbitalSatellitesHub({
             return;
           }
           // Fallback locale solo se l'hub è usato senza il contenitore della mappa
-          if (satId === 'METEO_SAT') setActiveChannel('METEO');
-          else if (satId === 'KM0_SAT') setActiveChannel('KMZERO');
-          else if (satId === 'GLOBAL_MARKET_SAT') setActiveChannel('SUPERMARKET');
+          const fallbackMap: Record<string, string> = {
+            METEO_SAT: 'METEO',
+            KM0_SAT: 'KMZERO',
+            GLOBAL_MARKET_SAT: 'SUPERMARKET',
+            WEBCAM: 'WEBCAM',
+            METEO_ROUTE: 'METEO_ROUTE',
+            PI_CHAT_SAT: 'PI_CHAT',
+            EXTERNAL_MARKET_SAT: 'EXTERNAL',
+            COMMUNITY_RESCUE_SAT: 'COMMUNITY',
+            BUSINESS_ADS_SAT: 'BUSINESS_ADS',
+            ACTIONFLOW_SAT: 'ACTIONFLOW',
+          };
+          if (fallbackMap[satId]) setActiveChannel(fallbackMap[satId] as any);
         }}
         onSelectSatellite={(satId) => setSelectedSatForFleet(satId)}
       />

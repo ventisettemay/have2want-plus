@@ -4,6 +4,7 @@
 // e la persistenza locale/cloud, preservando l'integrità di tutti i servizi esistenti.
 
 export type SatelliteId =
+  | 'ACTIONFLOW_SAT'
   | 'METEO_SAT'
   | 'KM0_SAT'
   | 'STREET_360_SAT'
@@ -215,6 +216,23 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
     targetComponent: 'MeteoNavigazioneModal',
     isActive: true,
   },
+  {
+    id: 'ACTIONFLOW_SAT',
+    name: 'ActionFlow Hub',
+    codeName: 'ACTIONFLOW-CORE',
+    category: 'COMUNITA',
+    icon: '🎮',
+    color: '#8b5cf6',
+    foilColor: 0x7c3aed,
+    altitudeKm: 2000,
+    orbitMultiplier: 1.4,
+    speed: 0.0008,
+    inclination: 0.5,
+    startAngle: 2.5,
+    h2wRole: 'Centro operativo missioni, attività AI e ricompense — ActionFlow Hub',
+    targetComponent: 'ActionFlowHubModal',
+    isActive: false,
+  }
 ];
 
 const STORAGE_KEY = 'h2w_satellites_modular_state_v2';
