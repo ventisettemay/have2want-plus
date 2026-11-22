@@ -8,12 +8,6 @@ const OPENRELAY_SERVERS = [
   { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelay', credential: 'openrelay' },
 ];
 
-function getOpenRelayServers() {
-  return [
-    { urls: 'turn:openrelay.metered.ca:3478?transport=udp', username: 'openrelay', credential: 'openrelay' },
-    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelay', credential: 'openrelay' },
-  ];
-}
 
 let cachedCredentials = null;
 
@@ -46,7 +40,6 @@ async function fetchTurnCredentials() {
   }
 }
 
-let cachedCredentials = null;
 
 export async function getTurnCredentials() {
   if (cachedCredentials && Date.now() < cachedCredentials.expiresAt) {
