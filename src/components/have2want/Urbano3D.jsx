@@ -32,18 +32,25 @@ import {
   VolumeX,
   Play,
   Radar,
+  Mountain,
+  Camera,
+  Building2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import WorldNavigatorModal from './WorldNavigatorModal';
 import LocalCurrencyModal from './LocalCurrencyModal';
 import LiveWeatherModal from './LiveWeatherModal';
+import LiveWebcamsModal from './LiveWebcamsModal';
+import Google3DUrbanLayer, { getConfiguredGoogleMapsKey } from './Google3DUrbanLayer';
 import WeatherAtmosphereOverlay from './WeatherAtmosphereOverlay';
 import StreetView360Modal from './StreetView360Modal';
 import MerchantDetailModal from './MerchantDetailModal';
 import { getRealtimeWeather, getRainViewerRadarData, getRouteWeatherForecast } from '@/lib/weatherService';
-import { getExternalServicesForArea } from '@/lib/externalGatewayServices';
+import { getExternalServicesForArea, fetchRealExternalServicesForArea } from '@/lib/externalGatewayServices';
 import { calculateRealRoutes, distanceToRouteMeters } from '@/lib/routingService';
 import { collectRainViewerTimelineFrames, buildRainViewerMapLibreTileUrl } from '@/lib/rainViewerGlobeLayer';
+import { buildOsmBuildingLayers, TERRARIUM_DEM_SOURCE_CONFIG } from '@/lib/osmBuildingEnhancer';
+import { UrbanoThreeCustomLayer } from '@/lib/urbanoThreeLayer';
 import { SPONSORED_BUSINESSES } from '@/data/regions';
 import { subscribeToCloudShops } from '@/lib/firestoreService';
 import {
@@ -195,6 +202,8 @@ export default function Urbano3D({
   const merchantMarkersRef = useRef([]);
   const userArrowMarkerRef = useRef(null);
   const userArrowInnerRef = useRef(null);
+  const threeLayerRef = useRef(null);
+  const threeSceneEntitiesRef = useRef([]);
   const watchIdRef = useRef(null);
   const prevGpsRef = useRef(null);
   const activeRouteRef = useRef(null);
@@ -208,17 +217,20 @@ export default function Urbano3D({
   const [selectedSponsor, setSelectedSponsor] = useState(null);
   const [selectedMerchantModal, setSelectedMerchantModal] = useState(null);
   const [cloudMerchants, setCloudMerchants] = useState([]);
+  const [realExternalServices, setRealExternalServices] = useState([]);
   const [pitch, setPitch] = useState(60); // 60° = Prospettiva 3D volumetrica reale per visualizzare gli edifici che sorgono
   const [bearing, setBearing] = useState(15);
   const [is3D, setIs3D] = useState(true); // 3D attivo di default
   const [isOrbiting, setIsOrbiting] = useState(false);
   const [mapStyleMode, setMapStyleMode] = useState('vector3d'); // DEFAULT: 'vector3d' con confini nitidi
   const [showBuildings3D, setShowBuildings3D] = useState(true); // EDIFICI 3D SEMPRE ATTIVI DI DEFAULT
-  const [showTerrain3D, setShowTerrain3D] = useState(false);
+  const [showTerrain3D, setShowTerrain3D] = useState(true);
   const [selectedCity, setSelectedCity] = useState(countryName || placeData?.name || 'Territorio');
   const [showWorldModal, setShowWorldModal] = useState(false);
   const [showCurrencyModal, setShowCurrencyModal] = useState(false);
   const [showWeatherModal, setShowWeatherModal] = useState(false);
+  const [showWebcamsModal, setShowWebcamsModal] = useState(false);
+  const [useGooglePhotorealistic, setUseGooglePhotorealistic] = useState(false);
   const [showStreetView, setShowStreetView] = useState(false);
   const [weatherData, setWeatherData] = useState(null);
   const [weatherEffectsEnabled, setWeatherEffectsEnabled] = useState(true);
@@ -376,6 +388,95 @@ export default function Urbano3D({
     }
   }, [placeData, countryName]);
 
+  // Carica servizi territoriali reali da OpenStreetMap Overpass API per l'area corrente (zero coordinate inventate)
+  useEffect(() => {
+    if (!hasValidCoords) {
+      setRealExternalServices([]);
+      return;
+    }
+    let alive = true;
+    fetchRealExternalServicesForArea(
+      effectiveLat,
+      effectiveLng,
+      selectedCity,
+      currentPlace?.countryCode || ''
+    )
+      .then((res) => {
+        if (!alive) return;
+        if (Array.isArray(res?.places)) {
+          setRealExternalServices(res.places);
+        }
+      })
+      .catch(() => {
+        if (alive) setRealExternalServices([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [hasValidCoords, effectiveLat, effectiveLng, selectedCity, currentPlace?.countryCode]);
+
+  // Elenco entità 3D GLB architettoniche ancorate a coordinate reali verificabili (Zero box fittizi)
+  const threeSceneEntities = useMemo(() => {
+    const entities = [];
+    allMerchants.forEach((biz) => {
+      if (!isValidCoord(biz?.lat, biz?.lng)) return;
+      const pinVisual = classifyMerchantPin(biz);
+      const isDouble = pinVisual.type === 'DOUBLE_RING';
+      const isPi = pinVisual.type === 'PI_ACCEPTED';
+      entities.push({
+        id: `merchant_glb_${biz.id}`,
+        assetKey: isDouble ? 'commercial_hub' : 'merchant_pavilion',
+        lat: biz.lat,
+        lng: biz.lng,
+        scale: isDouble ? 12 : 9,
+        tintHex: isPi ? 0x8b5cf6 : 0xfbbf24,
+      });
+    });
+
+    let civicTreeCount = 0;
+    realExternalServices.slice(0, 14).forEach((svc) => {
+      if (!isValidCoord(svc?.lat, svc?.lng)) return;
+      if (svc.category === 'event_fair' || svc.category === 'pro_ethical') {
+        entities.push({
+          id: `civic_glb_${svc.id}`,
+          assetKey: 'civic_landmark',
+          lat: svc.lat,
+          lng: svc.lng,
+          scale: 13,
+        });
+        if (civicTreeCount < 3) {
+          civicTreeCount += 1;
+          entities.push({
+            id: `tree_glb_${svc.id}`,
+            assetKey: 'urban_tree',
+            lat: svc.lat + 0.00009,
+            lng: svc.lng + 0.00011,
+            scale: 4.5,
+          });
+        }
+      } else if (svc.category === 'supermarket_flyer' || svc.category === 'nightlife') {
+        entities.push({
+          id: `hub_glb_${svc.id}`,
+          assetKey: 'commercial_hub',
+          lat: svc.lat,
+          lng: svc.lng,
+          scale: 11,
+        });
+      } else if (svc.category === 'locker') {
+        entities.push({
+          id: `pavilion_glb_${svc.id}`,
+          assetKey: 'merchant_pavilion',
+          lat: svc.lat,
+          lng: svc.lng,
+          scale: 8.5,
+        });
+      }
+    });
+    return entities;
+  }, [allMerchants, realExternalServices]);
+
+  threeSceneEntitiesRef.current = threeSceneEntities;
+
   // Normalizza esclusivamente gli annunci reali dotati di coordinate geografiche valide
   const annunci = useMemo(() => {
     if (!hasValidCoords || !Array.isArray(filteredListings) || filteredListings.length === 0) {
@@ -466,14 +567,14 @@ export default function Urbano3D({
             type: 'raster',
             tiles: esriSatelliteTiles,
             tileSize: 256,
-            maxzoom: 20,
+            maxzoom: 18,
             attribution: '© Esri, Maxar',
           },
           'roads-overlay': {
             type: 'raster',
             tiles: esriRoadsTiles,
             tileSize: 256,
-            maxzoom: 20,
+            maxzoom: 18,
           },
           'openmaptiles': {
             type: 'vector',
@@ -483,15 +584,9 @@ export default function Urbano3D({
             type: 'raster',
             tiles: esriPlacesTiles,
             tileSize: 256,
-            maxzoom: 20,
+            maxzoom: 18,
           },
-          'terrain-dem': {
-            type: 'raster-dem',
-            tiles: ['https://demotiles.maplibre.org/terrain-tiles/{z}/{x}/{y}.png'],
-            encoding: 'mapbox',
-            tileSize: 256,
-            maxzoom: 12,
-          },
+          'terrain-dem': TERRARIUM_DEM_SOURCE_CONFIG,
         }
       : isVector3D
       ? {
@@ -506,13 +601,7 @@ export default function Urbano3D({
             type: 'vector',
             url: 'https://tiles.openfreemap.org/planet',
           },
-          'terrain-dem': {
-            type: 'raster-dem',
-            tiles: ['https://demotiles.maplibre.org/terrain-tiles/{z}/{x}/{y}.png'],
-            encoding: 'mapbox',
-            tileSize: 256,
-            maxzoom: 12,
-          },
+          'terrain-dem': TERRARIUM_DEM_SOURCE_CONFIG,
         }
       : {
           'night-base': {
@@ -532,22 +621,13 @@ export default function Urbano3D({
             type: 'vector',
             url: 'https://tiles.openfreemap.org/planet',
           },
-          'terrain-dem': {
-            type: 'raster-dem',
-            tiles: ['https://demotiles.maplibre.org/terrain-tiles/{z}/{x}/{y}.png'],
-            encoding: 'mapbox',
-            tileSize: 256,
-            maxzoom: 12,
-          },
+          'terrain-dem': TERRARIUM_DEM_SOURCE_CONFIG,
         };
 
-    const safeBaseExpr = ['max', ['coalesce', ['get', 'render_min_height'], 0], 0];
-    const safeHeightExpr = [
-      'max',
-      ['coalesce', ['get', 'render_height'], 18],
-      ['+', safeBaseExpr, 12],
-    ];
-    const safeColorHeightExpr = ['coalesce', ['get', 'render_height'], 18];
+    const osmBuildingLayers = buildOsmBuildingLayers({
+      mode: mapStyleMode,
+      showBuildings3D: showBuildings3D && activeChannel !== 'STRADARIO',
+    });
 
     const layersConfig = isSatellite
       ? [
@@ -566,40 +646,7 @@ export default function Urbano3D({
             maxzoom: 20,
             paint: { 'raster-opacity': 0.75 },
           },
-          {
-            id: '3d-buildings',
-            source: 'openmaptiles',
-            'source-layer': 'building',
-            type: 'fill-extrusion',
-            minzoom: 12,
-            filter: ['!=', ['get', 'hide_3d'], true],
-            layout: {
-              visibility: showBuildings3D ? 'visible' : 'none',
-            },
-            paint: {
-              'fill-extrusion-color': [
-                'interpolate',
-                ['linear'],
-                safeColorHeightExpr,
-                0, '#cbd5e1',
-                15, '#94a3b8',
-                35, '#0ea5e9',
-                80, '#38bdf8',
-                150, '#f8fafc',
-              ],
-              'fill-extrusion-height': [
-                'interpolate',
-                ['linear'],
-                ['zoom'],
-                12, 0,
-                13, safeHeightExpr,
-                16, safeHeightExpr,
-              ],
-              'fill-extrusion-base': safeBaseExpr,
-              'fill-extrusion-opacity': 0.88,
-              'fill-extrusion-vertical-gradient': true,
-            },
-          },
+          ...osmBuildingLayers,
           {
             id: 'places-overlay-layer',
             type: 'raster',
@@ -618,40 +665,7 @@ export default function Urbano3D({
             minzoom: 0,
             maxzoom: 20,
           },
-          {
-            id: '3d-buildings',
-            source: 'openmaptiles',
-            'source-layer': 'building',
-            type: 'fill-extrusion',
-            minzoom: 12,
-            filter: ['!=', ['get', 'hide_3d'], true],
-            layout: {
-              visibility: showBuildings3D ? 'visible' : 'none',
-            },
-            paint: {
-              'fill-extrusion-color': [
-                'interpolate',
-                ['linear'],
-                safeColorHeightExpr,
-                0, '#94a3b8',
-                15, '#64748b',
-                30, '#475569',
-                60, '#0284c7',
-                120, '#0369a1',
-              ],
-              'fill-extrusion-height': [
-                'interpolate',
-                ['linear'],
-                ['zoom'],
-                12, 0,
-                13, safeHeightExpr,
-                16, safeHeightExpr,
-              ],
-              'fill-extrusion-base': safeBaseExpr,
-              'fill-extrusion-opacity': 0.9,
-              'fill-extrusion-vertical-gradient': true,
-            },
-          },
+          ...osmBuildingLayers,
         ]
       : [
           {
@@ -661,40 +675,7 @@ export default function Urbano3D({
             minzoom: 0,
             maxzoom: 20,
           },
-          {
-            id: '3d-buildings',
-            source: 'openmaptiles',
-            'source-layer': 'building',
-            type: 'fill-extrusion',
-            minzoom: 12,
-            filter: ['!=', ['get', 'hide_3d'], true],
-            layout: {
-              visibility: showBuildings3D ? 'visible' : 'none',
-            },
-            paint: {
-              'fill-extrusion-color': [
-                'interpolate',
-                ['linear'],
-                safeColorHeightExpr,
-                0, '#1e293b',
-                15, '#334155',
-                40, '#0369a1',
-                80, '#06b6d4',
-                160, '#38bdf8',
-              ],
-              'fill-extrusion-height': [
-                'interpolate',
-                ['linear'],
-                ['zoom'],
-                12, 0,
-                13, safeHeightExpr,
-                16, safeHeightExpr,
-              ],
-              'fill-extrusion-base': safeBaseExpr,
-              'fill-extrusion-opacity': 0.92,
-              'fill-extrusion-vertical-gradient': true,
-            },
-          },
+          ...osmBuildingLayers,
           {
             id: 'night-labels-layer',
             type: 'raster',
@@ -738,20 +719,13 @@ export default function Urbano3D({
       if (envApplied) return;
       envApplied = true;
       try {
-        // Se siamo in modalità Liberty vettoriale, aggiungiamo la sorgente DEM se non presente
-        if (isVector3D && !map.getSource('terrain-dem')) {
-          map.addSource('terrain-dem', {
-            type: 'raster-dem',
-            tiles: ['https://demotiles.maplibre.org/terrain-tiles/{z}/{x}/{y}.png'],
-            encoding: 'mapbox',
-            tileSize: 256,
-            maxzoom: 12,
-          });
+        if (!map.getSource('terrain-dem')) {
+          map.addSource('terrain-dem', TERRARIUM_DEM_SOURCE_CONFIG);
         }
 
-        // 1. Rilievo Orografico 3D Reale (DEM 2.2x)
+        // 1. Rilievo Orografico 3D Reale AWS Mapzen Terrarium DEM (1.8x)
         if (showTerrain3D && map.getSource('terrain-dem')) {
-          map.setTerrain({ source: 'terrain-dem', exaggeration: 2.2 });
+          map.setTerrain({ source: 'terrain-dem', exaggeration: 1.8 });
         }
 
         // 2. Luce Direzionale 3D (Crea ombre realistiche sulle facciate e sui tetti)
@@ -773,12 +747,33 @@ export default function Urbano3D({
             'fog-ground-blend': 0.02, // Quasi zero nebbia al suolo per massima nitidezza fotografica e colori reali
           });
         }
+
+        // 4. Monta il CustomLayer Three.js GLB/PBR (pavilion, commercial hub, civic landmark, vehicle GPS)
+        if (!threeLayerRef.current) {
+          const threeLayer = new UrbanoThreeCustomLayer();
+          threeLayerRef.current = threeLayer;
+          if (!map.getLayer(threeLayer.id)) {
+            map.addLayer(threeLayer);
+          }
+          threeLayer.setEntities(threeSceneEntitiesRef.current || []);
+          threeLayer.setVisible(showBuildings3D && activeChannel !== 'STRADARIO');
+        }
+
+        // 5. Ripristina l'eventuale rotta OSRM attiva dopo cambio stile mappa
+        if (activeRouteRef.current?.coordinates?.length >= 2) {
+          renderRouteOnMap(activeRouteRef.current.coordinates);
+        }
       } catch (e) {
         console.warn('Configurazione 3D notice:', e);
       }
     };
 
     map.on('load', setup3DEnvironment);
+    map.on('moveend', () => {
+      if (threeLayerRef.current) {
+        threeLayerRef.current.setEntities(threeSceneEntitiesRef.current || []);
+      }
+    });
     map.on('error', (err) => {
       console.warn('MapLibre Urbano 3D notice:', err?.error?.message || err?.message || err);
     });
@@ -838,6 +833,16 @@ export default function Urbano3D({
         userArrowMarkerRef.current.remove();
         userArrowMarkerRef.current = null;
       }
+      if (threeLayerRef.current) {
+        try {
+          if (map.getLayer(threeLayerRef.current.id)) {
+            map.removeLayer(threeLayerRef.current.id);
+          }
+        } catch {
+          // ignore if map already removing
+        }
+        threeLayerRef.current = null;
+      }
       if (watchIdRef.current !== null && typeof navigator !== 'undefined' && navigator.geolocation?.clearWatch) {
         navigator.geolocation.clearWatch(watchIdRef.current);
         watchIdRef.current = null;
@@ -848,37 +853,82 @@ export default function Urbano3D({
     };
   }, [mapStyleMode, hasValidCoords]);
 
-  // Gestione dinamica visibilità Palazzi 3D (nascosti temporaneamente se il filtro STRADARIO mostra solo le strade)
+  // Gestione dinamica visibilità Palazzi OSM + Modelli GLB 3D (nascosti temporaneamente se il filtro STRADARIO mostra solo le strade)
   useEffect(() => {
+    const isVisible = showBuildings3D && activeChannel !== 'STRADARIO';
+    if (threeLayerRef.current) {
+      threeLayerRef.current.setVisible(isVisible);
+    }
     if (!mapRef.current) return;
     const map = mapRef.current;
-    try {
-      const isRoadsOnly = activeChannel === 'STRADARIO';
-      const visibility = showBuildings3D && !isRoadsOnly ? 'visible' : 'none';
-      if (map.getLayer('3d-buildings')) {
-        map.setLayoutProperty('3d-buildings', 'visibility', visibility);
+    const applyBuildingsVisibility = () => {
+      try {
+        if (typeof map.isStyleLoaded === 'function' && !map.isStyleLoaded()) return;
+        const visibility = isVisible ? 'visible' : 'none';
+        ['3d-buildings-plinth', '3d-buildings', '3d-buildings-roofs', 'building-3d'].forEach((layerId) => {
+          if (map.getLayer(layerId)) {
+            map.setLayoutProperty(layerId, 'visibility', visibility);
+          }
+        });
+      } catch (e) {
+        console.warn('Toggle palazzi 3D error:', e);
       }
-      if (map.getLayer('building-3d')) {
-        map.setLayoutProperty('building-3d', 'visibility', visibility);
-      }
-    } catch (e) {
-      console.warn('Toggle palazzi 3D error:', e);
+    };
+    if (typeof map.isStyleLoaded === 'function' && !map.isStyleLoaded()) {
+      map.once('load', applyBuildingsVisibility);
+      return () => {
+        map.off('load', applyBuildingsVisibility);
+      };
     }
+    applyBuildingsVisibility();
   }, [showBuildings3D, activeChannel]);
 
-  // Gestione dinamica visibilità Terreno DEM 3D
+  // Sincronizza entità GLB e veicolo di navigazione GPS con Three.js CustomLayer
+  useEffect(() => {
+    if (threeLayerRef.current) {
+      threeLayerRef.current.setEntities(threeSceneEntities);
+    }
+  }, [threeSceneEntities]);
+
+  useEffect(() => {
+    if (threeLayerRef.current) {
+      threeLayerRef.current.updateNavVehicle(
+        isNavigating,
+        userLocation?.lat,
+        userLocation?.lng,
+        userLocation?.heading ?? 0
+      );
+    }
+  }, [isNavigating, userLocation]);
+
+  // Gestione dinamica visibilità Terreno DEM 3D (attende sempre isStyleLoaded prima di setTerrain)
   useEffect(() => {
     if (!mapRef.current) return;
     const map = mapRef.current;
-    try {
-      if (showTerrain3D && map.getSource('terrain-dem')) {
-        map.setTerrain({ source: 'terrain-dem', exaggeration: 2.2 });
-      } else {
-        map.setTerrain(null);
+    const applyTerrain = () => {
+      try {
+        if (typeof map.isStyleLoaded === 'function' && !map.isStyleLoaded()) return;
+        if (showTerrain3D) {
+          if (!map.getSource('terrain-dem')) {
+            map.addSource('terrain-dem', TERRARIUM_DEM_SOURCE_CONFIG);
+          }
+          if (map.getSource('terrain-dem')) {
+            map.setTerrain({ source: 'terrain-dem', exaggeration: 1.8 });
+          }
+        } else {
+          map.setTerrain(null);
+        }
+      } catch (e) {
+        console.warn('Toggle terreno 3D error:', e);
       }
-    } catch (e) {
-      console.warn('Toggle terreno 3D error:', e);
+    };
+    if (typeof map.isStyleLoaded === 'function' && !map.isStyleLoaded()) {
+      map.once('load', applyTerrain);
+      return () => {
+        map.off('load', applyTerrain);
+      };
     }
+    applyTerrain();
   }, [showTerrain3D]);
 
   // Aggiorna posizione quando cambiano le coordinate del centro
@@ -1062,14 +1112,21 @@ export default function Urbano3D({
 
     // I commercianti sono gestiti in merchantMarkersRef dedicata (sempre visibile sopra tutto, anche in navigazione)
 
-    // RENDER PIN DIRETTO SERVIZI REALI (GATEWAY ESTERNO: SUPERMERCATI, VOLANTINI, NOTTE, LOCKER, SANITÀ)
-    // Nessun database o spesa interna: solo link e navigatore nativo
-    const externalServices = getExternalServicesForArea(
+    // RENDER PIN DIRETTO SERVIZI REALI (OPENSTREETMAP OVERPASS + LINK DIRETTI VERIFICATI, ZERO COORDINATE INVENTATE)
+    const fallbackExternalServices = getExternalServicesForArea(
       effectiveLat,
       effectiveLng,
       selectedCity,
       currentPlace?.countryCode || ''
     );
+    const mergedExternalMap = new Map();
+    fallbackExternalServices.forEach((svc) => {
+      if (svc?.id) mergedExternalMap.set(svc.id, svc);
+    });
+    realExternalServices.forEach((svc) => {
+      if (svc?.id) mergedExternalMap.set(svc.id, svc);
+    });
+    const externalServices = Array.from(mergedExternalMap.values());
     externalServices.forEach((svc) => {
       if (!isValidCoord(svc.lat, svc.lng)) return;
       const el = document.createElement('div');
@@ -1161,7 +1218,7 @@ export default function Urbano3D({
 
       markersRef.current.push(svcMarker);
     });
-  }, [annunci, onBazarSelect, onSelectListing, onSelectExternalPlace, selectedCity, effectiveLat, effectiveLng]);
+  }, [annunci, realExternalServices, mapStyleMode, onBazarSelect, onSelectListing, onSelectExternalPlace, selectedCity, effectiveLat, effectiveLng]);
 
   // 1B. RENDER SEMPRE VISIBILE DI TUTTI I COMMERCIANTI (INITIAL_PI_MERCHANTS + Firestore)
   // Rimangono visibili sia a mappa ferma che durante la navigazione a piedi/in auto e SOPRA il percorso
@@ -1509,7 +1566,7 @@ export default function Urbano3D({
 
   const renderRouteOnMap = (routeCoordinates) => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || !Array.isArray(routeCoordinates) || routeCoordinates.length < 2) return;
     const geojsonData = {
       type: 'Feature',
       properties: {},
@@ -1519,35 +1576,47 @@ export default function Urbano3D({
       },
     };
 
-    if (map.getSource('real-route-source')) {
-      map.getSource('real-route-source').setData(geojsonData);
-    } else {
-      map.addSource('real-route-source', {
-        type: 'geojson',
-        data: geojsonData,
-      });
-      map.addLayer({
-        id: 'real-route-line',
-        type: 'line',
-        source: 'real-route-source',
-        layout: {
-          'line-join': 'round',
-          'line-cap': 'round',
-        },
-        paint: {
-          'line-color': '#00ff66',
-          'line-width': 6,
-          'line-opacity': 0.9,
-        },
-      });
-    }
+    const applyRouteGeometry = () => {
+      try {
+        if (map.getSource('real-route-source')) {
+          map.getSource('real-route-source').setData(geojsonData);
+        } else {
+          map.addSource('real-route-source', {
+            type: 'geojson',
+            data: geojsonData,
+          });
+          map.addLayer({
+            id: 'real-route-line',
+            type: 'line',
+            source: 'real-route-source',
+            layout: {
+              'line-join': 'round',
+              'line-cap': 'round',
+            },
+            paint: {
+              'line-color': '#00ff66',
+              'line-width': 6,
+              'line-opacity': 0.9,
+            },
+          });
+        }
 
-    // Assicura che i marker commercianti restino sempre in primo piano sopra la linea del percorso
-    merchantMarkersRef.current.forEach((m) => {
-      if (m && typeof m.getElement === 'function' && m.getElement()) {
-        m.getElement().style.zIndex = '60';
+        // Assicura che i marker commercianti restino sempre in primo piano sopra la linea del percorso
+        merchantMarkersRef.current.forEach((m) => {
+          if (m && typeof m.getElement === 'function' && m.getElement()) {
+            m.getElement().style.zIndex = '60';
+          }
+        });
+      } catch (err) {
+        console.warn('Route render notice:', err);
       }
-    });
+    };
+
+    if (typeof map.isStyleLoaded === 'function' && !map.isStyleLoaded()) {
+      map.once('styledata', applyRouteGeometry);
+      return;
+    }
+    applyRouteGeometry();
   };
 
   const ensureBlueArrowMarker = (uLat, uLng, headingDeg = 0) => {
@@ -2097,7 +2166,7 @@ export default function Urbano3D({
               <span className="text-sky-300 font-bold">Meteo percorso:</span>
               {routeWeather.points.map((pt, i) => (
                 <span key={i} className="bg-black/40 px-1.5 py-0.5 rounded border border-white/10">
-                  {pt.label} {pt.condition.icon} {pt.temperature}°C
+                  {pt.label} {pt.icon || pt.condition?.icon || '🌤️'} {pt.temp ?? pt.temperature ?? '--'}°C
                 </span>
               ))}
               <span className="text-zinc-500 ml-auto">Traffico live: non disponibile</span>
@@ -2174,7 +2243,7 @@ export default function Urbano3D({
               <span className="text-sky-400 font-bold">Open-Meteo tratta:</span>
               {routeWeather.points.map((pt, i) => (
                 <span key={i} className="bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800">
-                  {pt.label}: {pt.condition.icon} {pt.temperature}°C ({pt.windSpeed} km/h)
+                  {pt.label}: {pt.icon || pt.condition?.icon || '🌤️'} {pt.temp ?? pt.temperature ?? '--'}°C ({pt.windSpeed ?? '--'} km/h)
                 </span>
               ))}
             </div>
@@ -2320,6 +2389,18 @@ export default function Urbano3D({
       {/* 1. LAYER MAPPA SATELLITARE WEBGL (FULL SCREEN) */}
       <div ref={mapContainerRef} className={`absolute inset-0 w-full h-full z-0 ${mapStyleMode === 'night3d' ? 'bg-[#0b1120]' : 'bg-[#e2e8f0]'}`} />
 
+      {/* 1A. MODALITÀ OPZIONALE GOOGLE PHOTOREALISTIC 3D TILES (Strict API-key gated, costo zero di default) */}
+      {useGooglePhotorealistic && hasValidCoords && (
+        <Google3DUrbanLayer
+          lat={effectiveLat}
+          lng={effectiveLng}
+          pitch={pitch}
+          bearing={bearing}
+          cityName={selectedCity}
+          onFallbackToOpenData={() => setUseGooglePhotorealistic(false)}
+        />
+      )}
+
       {!hasValidCoords && (
         <div className="absolute inset-0 z-20 bg-slate-950/92 backdrop-blur-md flex items-center justify-center p-4">
           <div className="max-w-md w-full bg-zinc-950 border border-zinc-800 rounded-3xl p-6 text-center shadow-2xl space-y-4">
@@ -2451,6 +2532,84 @@ export default function Urbano3D({
           title={isOrbiting ? 'Ferma Volo 360°' : 'Volo Panoramico Orbitale 360°'}
         >
           {isOrbiting ? <Pause className="w-4 h-4" /> : <RotateCw className="w-4 h-4" />}
+        </button>
+
+        {/* CICLO STILE CARTOGRAFICO: STRADALE 3D -> SATELLITE -> NOTTE */}
+        <button
+          id="btn-urbano-style-mode"
+          type="button"
+          onClick={() => {
+            setMapStyleMode((prev) => {
+              const next = prev === 'vector3d' ? 'satellite' : prev === 'satellite' ? 'night3d' : 'vector3d';
+              toast.info(
+                next === 'satellite'
+                  ? '🛰️ Vista Satellitare + Edifici OSM 3D'
+                  : next === 'night3d'
+                  ? '🌙 Vista Notturna Urbana 3D'
+                  : '🗺️ Vista Stradale Architettonica 3D'
+              );
+              return next;
+            });
+          }}
+          className="w-10 h-10 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/80 shadow-xl backdrop-blur-xl flex flex-col items-center justify-center cursor-pointer transition-all active:scale-90 font-black text-[8px]"
+          title="Cambia stile cartografico (Stradale 3D / Satellite / Notte)"
+        >
+          <Layers className="w-4 h-4 text-[#00ff66]" />
+          <span className="leading-none mt-0.5 uppercase">
+            {mapStyleMode === 'satellite' ? 'SAT' : mapStyleMode === 'night3d' ? 'NOTTE' : 'MAPPA'}
+          </span>
+        </button>
+
+        {/* TOGGLE RILIEVO OROGRAFICO TERRARIUM DEM 3D */}
+        <button
+          id="btn-urbano-terrain-dem"
+          type="button"
+          onClick={() => setShowTerrain3D((prev) => !prev)}
+          className={`w-10 h-10 rounded-xl shadow-xl flex flex-col items-center justify-center cursor-pointer transition-all border active:scale-90 font-black text-[8px] ${
+            showTerrain3D
+              ? 'bg-emerald-500 text-slate-950 border-emerald-300 shadow-emerald-500/30'
+              : 'bg-slate-900/90 text-emerald-300 border-slate-700/80 hover:bg-slate-800'
+          }`}
+          title="Attiva/Disattiva rilievo orografico reale DEM Terrarium"
+        >
+          <Mountain className="w-4 h-4" />
+          <span className="leading-none mt-0.5">DEM</span>
+        </button>
+
+        {/* TOGGLE GOOGLE PHOTOREALISTIC 3D TILES OPZIONALE (GATED DA CHIAVE API) */}
+        <button
+          id="btn-urbano-photorealistic"
+          type="button"
+          onClick={() => {
+            const hasKey = Boolean(getConfiguredGoogleMapsKey());
+            if (!useGooglePhotorealistic && !hasKey) {
+              toast.info('Google Photorealistic 3D Tiles richiede VITE_GOOGLE_MAPS_API_KEY', {
+                description: 'Apro l’informativa sicura a costo zero con fallback Open-Data 3D.',
+              });
+            }
+            setUseGooglePhotorealistic((prev) => !prev);
+          }}
+          className={`w-10 h-10 rounded-xl shadow-xl flex flex-col items-center justify-center cursor-pointer transition-all border active:scale-90 font-black text-[8px] ${
+            useGooglePhotorealistic
+              ? 'bg-[#00ff66] text-black border-[#00ff66] shadow-[#00ff66]/30'
+              : 'bg-slate-900/90 text-amber-300 border-slate-700/80 hover:bg-slate-800'
+          }`}
+          title="Google Photorealistic 3D Tiles (Opzionale con API Key)"
+        >
+          <Building2 className="w-4 h-4" />
+          <span className="leading-none mt-0.5">FOTO3D</span>
+        </button>
+
+        {/* WEBCAM LIVE WINDY V3 */}
+        <button
+          id="btn-urbano-webcams"
+          type="button"
+          onClick={() => setShowWebcamsModal(true)}
+          className="w-10 h-10 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-sky-300 border border-slate-700/80 shadow-xl backdrop-blur-xl flex flex-col items-center justify-center cursor-pointer transition-all active:scale-90 font-black text-[8px]"
+          title="Webcam Live territoriali (Windy Webcams API v3)"
+        >
+          <Camera className="w-4 h-4" />
+          <span className="leading-none mt-0.5">CAM</span>
         </button>
 
         {/* TOGGLE RADAR PRECIPITAZIONI RAINVIEWER SU MAPPA */}
@@ -2797,6 +2956,15 @@ export default function Urbano3D({
             name: biz.name,
           });
         }}
+      />
+
+      {/* MODAL WEBCAM LIVE WINDY V3 */}
+      <LiveWebcamsModal
+        isOpen={showWebcamsModal}
+        onClose={() => setShowWebcamsModal(false)}
+        lat={hasValidCoords ? effectiveLat : null}
+        lng={hasValidCoords ? effectiveLng : null}
+        cityName={selectedCity}
       />
 
       {/* MODAL STREET VIEW 360° CON NAVIGAZIONE STRADALE SVOLTA PER SVOLTA */}

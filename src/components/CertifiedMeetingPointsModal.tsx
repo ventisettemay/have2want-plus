@@ -181,17 +181,62 @@ export const CertifiedMeetingPointsModal: React.FC<CertifiedMeetingPointsModalPr
       }
 
       const overpassQuery = `[out:json][timeout:12];(node["amenity"~"^(townhall|police|library|post_office)$"](around:5000,${searchLat},${searchLng});way["amenity"~"^(townhall|police|library|post_office)$"](around:5000,${searchLat},${searchLng});node["railway"="station"](around:5000,${searchLat},${searchLng}););out center 18;`;
-      const overRes = await fetch("https://overpass-api.de/api/interpreter", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" },
-        body: `data=${encodeURIComponent(overpassQuery)}`,
-      });
+      let overJson: any = null;
+      let lastOverpassError = "Overpass non raggiungibile";
 
-      if (!overRes.ok) {
-        throw new Error(`Overpass HTTP ${overRes.status}`);
+      try {
+        const proxyCtrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+        const proxyTimer = proxyCtrl ? setTimeout(() => proxyCtrl.abort(), 11000) : null;
+        const proxyRes = await fetch("/api/osm/overpass", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ query: overpassQuery }),
+          ...(proxyCtrl ? { signal: proxyCtrl.signal } : {}),
+        });
+        if (proxyTimer) clearTimeout(proxyTimer);
+        if (proxyRes.ok) {
+          overJson = await proxyRes.json();
+        }
+      } catch {
+        // Fallback ai mirror pubblici sotto
       }
 
-      const overJson = await overRes.json();
+      if (!overJson) {
+        const overpassMirrors = [
+          "https://overpass.openstreetmap.fr/api/interpreter",
+          "https://overpass-api.de/api/interpreter",
+          "https://overpass.private.coffee/api/interpreter",
+        ];
+        for (const mirror of overpassMirrors) {
+          const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+          const timer = controller ? setTimeout(() => controller.abort(), 9000) : null;
+          try {
+            const overRes = await fetch(mirror, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                Accept: "application/json",
+              },
+              body: `data=${encodeURIComponent(overpassQuery)}`,
+              ...(controller ? { signal: controller.signal } : {}),
+            });
+            if (timer) clearTimeout(timer);
+            if (!overRes.ok) {
+              lastOverpassError = `Overpass HTTP ${overRes.status}`;
+              continue;
+            }
+            overJson = await overRes.json();
+            break;
+          } catch (err: any) {
+            if (timer) clearTimeout(timer);
+            lastOverpassError = err?.name === "AbortError" ? "Timeout Overpass" : (err?.message || lastOverpassError);
+          }
+        }
+      }
+
+      if (!overJson) {
+        throw new Error(lastOverpassError);
+      }
       const osmPoints = (Array.isArray(overJson?.elements) ? overJson.elements : [])
         .map((el: any) => mapOverpassElementToPoint(el, normalizedCity || "Area Selezionata", resolvedCountry))
         .filter(Boolean) as CertifiedMeetingPoint[];

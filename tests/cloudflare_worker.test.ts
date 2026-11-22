@@ -539,4 +539,74 @@ describe('Cloudflare Pages + Worker + Urbano3D Security & TDZ Suite', () => {
     );
     expect(validSig).toBe(true);
   });
+
+  it('Worker /api/webcams/nearby e /api/satellites/omm gestiscono validazione, fallback e header sicuri', async () => {
+    const badWebcam = await handleWorkerRequest(
+      new Request('https://urbano3d.example/api/webcams/nearby?lat=0&lng=0')
+    );
+    expect(badWebcam.status).toBe(400);
+
+    const unconfiguredWebcam = await handleWorkerRequest(
+      new Request('https://urbano3d.example/api/webcams/nearby?lat=41.89&lng=12.49'),
+      {}
+    );
+    expect(unconfiguredWebcam.status).toBe(200);
+    const unconfJson: any = await unconfiguredWebcam.json();
+    expect(unconfJson.configured).toBe(false);
+    expect(unconfJson.webcams).toEqual([]);
+
+    const badNorad = await handleWorkerRequest(
+      new Request('https://urbano3d.example/api/satellites/omm?noradId=invalid_abc')
+    );
+    expect(badNorad.status).toBe(400);
+
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: any, init: any) => {
+      expect(init?.redirect).toBe('error');
+      const url = typeof input === 'string' ? input : input.url;
+      if (url.startsWith('https://api.windy.com/webcams/api/v3/webcams')) {
+        expect(init?.headers?.['x-windy-api-key']).toBe('windy_secret_key');
+        return new Response(
+          JSON.stringify({
+            webcams: [
+              {
+                webcamId: 101,
+                title: 'Piazza Venezia Live',
+                status: 'active',
+                location: { latitude: 41.895, longitude: 12.482, city: 'Roma', country: 'Italia' },
+                images: { current: { preview: 'https://images.windy.com/preview.jpg' } },
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      if (url.startsWith('https://celestrak.org/NORAD/elements/gp.php?CATNR=40697')) {
+        return new Response(
+          JSON.stringify([{ NORAD_CAT_ID: 40697, OBJECT_NAME: 'SENTINEL-2A' }]),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      return new Response('Not found', { status: 404 });
+    });
+
+    const liveWebcam = await handleWorkerRequest(
+      new Request('https://urbano3d.example/api/webcams/nearby?lat=41.89&lng=12.49&radiusKm=30'),
+      { WINDY_WEBCAMS_API_KEY: 'windy_secret_key' }
+    );
+    expect(liveWebcam.status).toBe(200);
+    const webcamJson: any = await liveWebcam.json();
+    expect(webcamJson.configured).toBe(true);
+    expect(webcamJson.webcams).toHaveLength(1);
+    expect(webcamJson.webcams[0].title).toBe('Piazza Venezia Live');
+
+    const ommRes = await handleWorkerRequest(
+      new Request('https://urbano3d.example/api/satellites/omm?noradId=40697')
+    );
+    expect(ommRes.status).toBe(200);
+    expect(ommRes.headers.get('Cache-Control')).toContain('max-age=900');
+    const ommJson: any = await ommRes.json();
+    expect(ommJson[0].NORAD_CAT_ID).toBe(40697);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 });

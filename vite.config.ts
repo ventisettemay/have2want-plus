@@ -193,8 +193,15 @@ export default defineConfig(() => {
     plugins: [react(), tailwindcss(), testnetDevServerPlugin(), excludeUnusedAiStudioAssetsPlugin()],
     optimizeDeps: {
       exclude: ['maplibre-gl'],
+      esbuildOptions: {
+        target: 'esnext',
+      },
+    },
+    worker: {
+      format: 'es',
     },
     build: {
+      target: 'esnext',
       outDir: 'dist',
       chunkSizeWarningLimit: 1200,
       rollupOptions: {

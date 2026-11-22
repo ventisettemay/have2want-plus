@@ -254,9 +254,13 @@ describe('Globo 3D & Politico - Matematica, Tocco Raycast & Dissolvenza a Sfogli
     } = await import('../src/lib/worldAtlas');
     const { getCountryForListing } = await import('../src/data/countries');
     const { getHierarchyForCountry } = await import('../src/lib/territoryHierarchy');
-    const { getEmergencyServicesForCountry, getExternalServicesForArea } = await import(
-      '../src/lib/externalGatewayServices'
-    );
+    const {
+      getEmergencyServicesForCountry,
+      getExternalServicesForArea,
+      fetchRealExternalServicesForArea,
+      clearExternalGatewayCacheForTests,
+    } = await import('../src/lib/externalGatewayServices');
+    clearExternalGatewayCacheForTests();
 
     // 1. Copertura globale e Africa 54/54 + territori chiave
     expect(WORLD_COUNTRIES.length).toBeGreaterThanOrEqual(195);
@@ -301,14 +305,49 @@ describe('Globo 3D & Politico - Matematica, Tocco Raycast & Dissolvenza a Sfogli
     expect(getEmergencyServicesForCountry('XX').countryCode).toBe('GLOBAL');
     expect(getExternalServicesForArea(0, 0, 'Null Island', 'XX')).toEqual([]);
 
-    const lagosServices = getExternalServicesForArea(6.5244, 3.3792, 'Lagos', 'NG');
-    expect(lagosServices.length).toBeGreaterThan(0);
-    lagosServices.forEach((svc) => {
+    // Nessun pin circolare inventato: senza cache Overpass reale, Lagos restituisce []
+    expect(getExternalServicesForArea(6.5244, 3.3792, 'Lagos', 'NG')).toEqual([]);
+
+    // Con risposta reale Overpass OSM, mappa POI locali senza perdite italiane
+    const mockOverpassFetch: typeof fetch = async () =>
+      new Response(
+        JSON.stringify({
+          elements: [
+            {
+              id: 7001,
+              type: 'node',
+              lat: 6.525,
+              lon: 3.381,
+              tags: { name: 'Victoria Island Supermart', shop: 'supermarket', 'addr:city': 'Lagos' },
+            },
+            {
+              id: 7002,
+              type: 'node',
+              lat: 6.523,
+              lon: 3.378,
+              tags: { name: 'Lagos Mainland Clinic', amenity: 'pharmacy', 'addr:city': 'Lagos' },
+            },
+          ],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+
+    const lagosResult = await fetchRealExternalServicesForArea(
+      6.5244,
+      3.3792,
+      'Lagos',
+      'NG',
+      mockOverpassFetch
+    );
+    expect(lagosResult.source).toBe('overpass');
+    expect(lagosResult.places.length).toBe(2);
+    lagosResult.places.forEach((svc) => {
       const serialized = JSON.stringify(svc).toLowerCase();
       expect(serialized).not.toContain('roma');
       expect(serialized).not.toContain('milano');
       expect(serialized).not.toContain('iperconad');
       expect(svc.countryCode).toBe('NG');
+      expect(svc.externalLink).toContain('openstreetmap.org');
     });
   });
 });

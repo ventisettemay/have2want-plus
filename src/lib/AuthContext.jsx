@@ -38,11 +38,12 @@ function buildSyncedUser(baseUser, rewardsState) {
   };
 }
 
+/** @type {React.Context<{ user: any; login: (userData?: Record<string, any>) => void; logout: () => void; updateUser: (updates?: Record<string, any>) => void }>} */
 const AuthContext = createContext({
   user: buildSyncedUser(DEFAULT_USER_BASE, getPioneerRewardsState()),
-  login: () => {},
+  login: (_userData) => {},
   logout: () => {},
-  updateUser: () => {},
+  updateUser: (_updates) => {},
 });
 
 export function AuthProvider({ children }) {
@@ -101,14 +102,15 @@ export function AuthProvider({ children }) {
   );
 }
 
+/** @returns {{ user: any; login: (userData?: Record<string, any>) => void; logout: () => void; updateUser: (updates?: Record<string, any>) => void }} */
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
     return {
       user: buildSyncedUser(DEFAULT_USER_BASE, getPioneerRewardsState()),
-      login: () => {},
+      login: (_userData) => {},
       logout: () => {},
-      updateUser: () => {},
+      updateUser: (_updates) => {},
     };
   }
   return context;

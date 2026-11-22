@@ -139,7 +139,7 @@ export default function SpacecraftInspectorModal({
 
   const activeCount = Object.values(satelliteStates).filter(Boolean).length;
   const totalCount = INITIAL_SATELLITES_CATALOG.length;
-  const liveTrackedCount = Object.values(telemetryMap).filter((t) => t.status === 'live').length;
+  const liveTrackedCount = (Object.values(telemetryMap) as SatelliteTelemetry[]).filter((t) => t.status === 'live').length;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
@@ -287,7 +287,7 @@ export default function SpacecraftInspectorModal({
                       </div>
                       <div className="col-span-2 sm:col-span-4 px-3 py-2 rounded-xl bg-emerald-950/30 border border-emerald-500/25 flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono text-zinc-300">
                         <span>
-                          📡 NORAD CATNR: <strong className="text-white">{currentTelemetry.noradId}</strong> • Regime: <strong className="text-emerald-300">{currentTelemetry.orbitRegime}</strong> • Inclinazione: <strong className="text-white">{currentTelemetry.inclinationDeg?.toFixed(2)}°</strong> • Periodo: <strong className="text-white">{currentTelemetry.periodMinutes?.toFixed(1)} min</strong>
+                          📡 NORAD CATNR: <strong className="text-white">{currentTelemetry.noradId}</strong> • Propagatore: <strong className="text-sky-300">{currentTelemetry.propagationModel || 'SGP4/SDP4 (satellite.js)'}</strong> • Regime: <strong className="text-emerald-300">{currentTelemetry.orbitRegime}</strong> • Inclinazione: <strong className="text-white">{currentTelemetry.inclinationDeg?.toFixed(2)}°</strong> • Periodo: <strong className="text-white">{currentTelemetry.periodMinutes?.toFixed(1)} min</strong>
                         </span>
                         <span className="text-emerald-400">
                           Agg. {currentTelemetry.computedAtIso ? new Date(currentTelemetry.computedAtIso).toLocaleTimeString('it-IT') : 'Live'}

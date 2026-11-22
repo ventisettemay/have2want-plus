@@ -368,6 +368,212 @@ async function startServer() {
     }
   });
 
+  // Windy Webcams API v3 Proxy (/api/webcams/nearby) - Zero secret leakage, strict validation
+  const windyWebcamsCache = new Map<string, { data: any; timestamp: number }>();
+  app.get('/api/webcams/nearby', async (req, res) => {
+    const lat = Number(req.query.lat);
+    const lng = Number(req.query.lng);
+    const rawRadius = req.query.radius !== undefined ? Number(req.query.radius) : 35;
+
+    if (
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lng) ||
+      lat < -90 ||
+      lat > 90 ||
+      lng < -180 ||
+      lng > 180 ||
+      (lat === 0 && lng === 0)
+    ) {
+      return res.status(400).json({ error: 'Coordinate lat/lng non valide per webcam nearby.' });
+    }
+    const radiusKm = Number.isFinite(rawRadius) ? Math.min(100, Math.max(1, Math.round(rawRadius))) : 35;
+
+    const windyKey = (process.env.WINDY_WEBCAMS_API_KEY || '').trim();
+    if (!windyKey || windyKey === 'PLACEHOLDER' || windyKey === 'MY_WINDY_API_KEY') {
+      return res.status(200).json({
+        configured: false,
+        source: 'Windy Webcams API v3',
+        webcams: [],
+        message: 'WINDY_WEBCAMS_API_KEY non configurata sul server: integrazione pronta, nessun costo attivo.',
+      });
+    }
+
+    const cacheKey = `${lat.toFixed(2)},${lng.toFixed(2)},${radiusKm}`;
+    const cached = windyWebcamsCache.get(cacheKey);
+    const now = Date.now();
+    if (cached && now - cached.timestamp < 5 * 60 * 1000) {
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      return res.status(200).json(cached.data);
+    }
+
+    try {
+      const targetUrl = `https://api.windy.com/webcams/api/v3/webcams?nearby=${encodeURIComponent(
+        `${lat.toFixed(4)},${lng.toFixed(4)},${radiusKm}`
+      )}&include=images,location,player,urls&limit=12`;
+      const upstream = await fetch(targetUrl, {
+        method: 'GET',
+        headers: {
+          'x-windy-api-key': windyKey,
+          Accept: 'application/json',
+        },
+        redirect: 'error',
+      });
+      if (!upstream.ok) {
+        return res.status(upstream.status).json({
+          configured: true,
+          source: 'Windy Webcams API v3',
+          webcams: [],
+          error: `Windy Webcams HTTP ${upstream.status}`,
+        });
+      }
+      const rawJson: any = await upstream.json().catch(() => ({}));
+      const rawList = Array.isArray(rawJson?.webcams) ? rawJson.webcams : [];
+      const webcams = rawList
+        .map((w: any) => {
+          const wLat = Number(w?.location?.latitude);
+          const wLng = Number(w?.location?.longitude);
+          const previewImageUrl =
+            w?.images?.current?.preview || w?.images?.daylight?.preview || w?.images?.current?.thumbnail || '';
+          if (!previewImageUrl || !Number.isFinite(wLat) || !Number.isFinite(wLng) || (wLat === 0 && wLng === 0)) {
+            return null;
+          }
+          return {
+            id: String(w.webcamId ?? w.id ?? ''),
+            title: String(w.title || 'Webcam Live'),
+            status: String(w.status || 'active'),
+            lat: wLat,
+            lng: wLng,
+            city: String(w?.location?.city || ''),
+            region: String(w?.location?.region || ''),
+            country: String(w?.location?.country || ''),
+            previewImageUrl: String(previewImageUrl),
+            playerUrl: typeof w?.player?.day === 'string' ? w.player.day : typeof w?.player?.live === 'string' ? w.player.live : null,
+            windyPageUrl: String(w?.urls?.detail || `https://www.windy.com/webcams/${encodeURIComponent(String(w.webcamId ?? ''))}`),
+            lastUpdatedIso: w?.lastUpdatedOn ? String(w.lastUpdatedOn) : null,
+          };
+        })
+        .filter(Boolean);
+
+      const payload = {
+        configured: true,
+        source: 'Windy Webcams API v3',
+        webcams,
+      };
+      windyWebcamsCache.set(cacheKey, { data: payload, timestamp: now });
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      return res.status(200).json(payload);
+    } catch (err: any) {
+      return res.status(502).json({
+        configured: true,
+        source: 'Windy Webcams API v3',
+        webcams: [],
+        error: err?.message || 'Errore proxy Windy Webcams',
+      });
+    }
+  });
+
+  // CelesTrak GP/OMM Proxy cache (/api/satellites/omm?noradId=...)
+  const celestrakOmmCache = new Map<string, { data: any; timestamp: number }>();
+  app.get('/api/satellites/omm', async (req, res) => {
+    const rawId = String(req.query.noradId ?? req.query.catnr ?? '').trim();
+    if (!/^\d{1,9}$/.test(rawId) || Number(rawId) <= 0) {
+      return res.status(400).json({ error: 'Parametro noradId numerico non valido' });
+    }
+    const cached = celestrakOmmCache.get(rawId);
+    const now = Date.now();
+    if (cached && now - cached.timestamp < 15 * 60 * 1000) {
+      res.setHeader('Cache-Control', 'public, max-age=900');
+      return res.status(200).json(cached.data);
+    }
+
+    try {
+      const targetUrl = `https://celestrak.org/NORAD/elements/gp.php?CATNR=${encodeURIComponent(rawId)}&FORMAT=json`;
+      const upstream = await fetch(targetUrl, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        redirect: 'error',
+      });
+      if (!upstream.ok) {
+        return res.status(upstream.status).json({ error: `CelesTrak HTTP ${upstream.status}` });
+      }
+      const data = await upstream.json();
+      celestrakOmmCache.set(rawId, { data, timestamp: now });
+      res.setHeader('Cache-Control', 'public, max-age=900');
+      return res.status(200).json(data);
+    } catch (err: any) {
+      return res.status(502).json({ error: err?.message || 'Errore proxy CelesTrak OMM' });
+    }
+  });
+
+  // OpenStreetMap Overpass Proxy con cache 5 min e deduplicazione richieste concorrenti (/api/osm/overpass)
+  const osmOverpassCache = new Map<string, { data: any; timestamp: number }>();
+  const osmOverpassInFlight = new Map<string, Promise<any>>();
+  app.post('/api/osm/overpass', async (req, res) => {
+    const rawQuery = typeof req.body?.query === 'string' ? req.body.query.trim() : '';
+    if (!rawQuery || rawQuery.length > 2048 || !rawQuery.includes('[out:json]')) {
+      return res.status(400).json({ error: 'Query Overpass [out:json] non valida' });
+    }
+
+    const now = Date.now();
+    const cached = osmOverpassCache.get(rawQuery);
+    if (cached && now - cached.timestamp < 5 * 60 * 1000) {
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      return res.status(200).json(cached.data);
+    }
+
+    let pending = osmOverpassInFlight.get(rawQuery);
+    if (!pending) {
+      pending = (async () => {
+        const mirrors = [
+          'https://overpass.openstreetmap.fr/api/interpreter',
+          'https://overpass-api.de/api/interpreter',
+          'https://overpass.private.coffee/api/interpreter',
+        ];
+        let lastErr = 'Overpass mirror non raggiungibile';
+        for (const mirror of mirrors) {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 9000);
+          try {
+            const upstream = await fetch(mirror, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                Accept: 'application/json',
+                'User-Agent': 'HAVE2WANT-PLUS/1.0 (https://have2want.app)',
+              },
+              body: `data=${encodeURIComponent(rawQuery)}`,
+              signal: controller.signal,
+              redirect: 'error',
+            });
+            clearTimeout(timer);
+            if (!upstream.ok) {
+              lastErr = `Overpass HTTP ${upstream.status}`;
+              continue;
+            }
+            const data = await upstream.json();
+            osmOverpassCache.set(rawQuery, { data, timestamp: Date.now() });
+            return data;
+          } catch (err: any) {
+            clearTimeout(timer);
+            lastErr = err?.name === 'AbortError' ? 'Timeout Overpass API' : err?.message || lastErr;
+          }
+        }
+        throw new Error(lastErr);
+      })();
+      osmOverpassInFlight.set(rawQuery, pending);
+    }
+
+    try {
+      const data = await pending;
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      return res.status(200).json(data);
+    } catch (err: any) {
+      return res.status(502).json({ error: err?.message || 'Errore proxy Overpass OSM' });
+    } finally {
+      osmOverpassInFlight.delete(rawQuery);
+    }
+  });
+
   // Pi Network SDK Backend Config
   app.get('/api/pi/config', (_req, res) => {
     const apiKey = getConfiguredPiApiKey();

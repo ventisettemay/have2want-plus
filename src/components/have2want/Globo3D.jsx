@@ -764,6 +764,16 @@ export default function Globo3D({
     renderer.domElement.style.touchAction = 'none';
     container.appendChild(renderer.domElement);
 
+    const onWebGlContextLost = (e) => {
+      e.preventDefault();
+      toast.warning('Contesto WebGL Globo 3D sospeso temporaneamente.');
+    };
+    const onWebGlContextRestored = () => {
+      toast.success('Contesto WebGL Globo 3D ripristinato.');
+    };
+    renderer.domElement.addEventListener('webglcontextlost', onWebGlContextLost, false);
+    renderer.domElement.addEventListener('webglcontextrestored', onWebGlContextRestored, false);
+
     // 4. CONTROLLI ORBITALI TOUCH E MOUSE STABILI E FLUIDI (NON BALLERINI)
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.target.copy(defaultCameraTarget);
@@ -2581,6 +2591,8 @@ export default function Globo3D({
       domEl.removeEventListener('touchstart', onTouchStart);
       domEl.removeEventListener('touchmove', onTouchMove);
       domEl.removeEventListener('touchend', onTouchEnd);
+      domEl.removeEventListener('webglcontextlost', onWebGlContextLost, false);
+      domEl.removeEventListener('webglcontextrestored', onWebGlContextRestored, false);
 
       controls.dispose();
       renderer.dispose();
@@ -2999,9 +3011,12 @@ export default function Globo3D({
                     </div>
                   </div>
                   <div>
-                    <div className="text-zinc-500 uppercase">Fonte Reale</div>
-                    <div className="text-emerald-300 font-bold mt-0.5 truncate">CelesTrak GP</div>
+                    <div className="text-zinc-500 uppercase">Fonte & Propagatore</div>
+                    <div className="text-emerald-300 font-bold mt-0.5 truncate">
+                      {telemetry.propagationModel || 'SGP4/SDP4'}
+                    </div>
                     <div className="text-zinc-400">
+                      CelesTrak GP •{' '}
                       {telemetry.computedAtIso
                         ? new Date(telemetry.computedAtIso).toLocaleTimeString('it-IT')
                         : 'Live'}

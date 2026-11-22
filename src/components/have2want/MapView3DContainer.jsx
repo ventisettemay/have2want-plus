@@ -1378,7 +1378,10 @@ export default function MapView3DContainer({
           const targetChannel = CHANNEL_MAP[satId] || satId;
           setActiveSatellite(targetChannel);
         }}
-        onSelectSatellite={(satId) => setScientificSatellite(satId)}
+        onSelectSatellite={(satId) => {
+          setScientificSatellite(satId);
+          setFocusedSatelliteId(satId);
+        }}
         onFocusSatelliteOnGlobe={(satId) => {
           setLodLevel('GLOBO');
           setFocusedSatelliteId(satId);

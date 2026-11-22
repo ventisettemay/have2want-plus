@@ -416,14 +416,243 @@ export const SAMPLE_REAL_WORLD_GATEWAY_PLACES: ExternalPlaceService[] = [
   },
 ];
 
-// Funzione Gateway: restituisce servizi localizzati per l'area reale visualizzata (MAI dati di Roma/Milano fuori Italia)
+// Cache spaziale Overpass per evitare chiamate ripetute sulla stessa area (TTL 15 minuti)
+const OVERPASS_GATEWAY_CACHE = new Map<
+  string,
+  { timestamp: number; places: ExternalPlaceService[]; source: 'overpass' | 'unavailable'; error?: string }
+>();
+const OVERPASS_CACHE_TTL_MS = 15 * 60 * 1000;
+
+function makeAreaCacheKey(lat: number, lng: number): string {
+  return `${lat.toFixed(2)},${lng.toFixed(2)}`;
+}
+
+function mapOverpassNodeToExternalPlace(
+  el: any,
+  fallbackCity: string,
+  fallbackCountryCode: string
+): ExternalPlaceService | null {
+  const tags = el?.tags || {};
+  const elLat = typeof el.lat === 'number' ? el.lat : el.center?.lat;
+  const elLng = typeof el.lon === 'number' ? el.lon : el.center?.lon;
+  if (!isValidCoord(elLat, elLng)) return null;
+
+  const shop = tags.shop || '';
+  const amenity = tags.amenity || '';
+  const nameRaw = tags.name || tags['name:it'] || tags['name:en'] || tags.operator || tags.brand;
+  if (!nameRaw) return null;
+
+  let category: ExternalPlaceService['category'] = 'event_fair';
+  let categoryLabel = 'Luogo Pubblico OpenStreetMap';
+  let badge = 'OSM Verificato';
+
+  if (shop === 'supermarket' || shop === 'department_store' || amenity === 'marketplace') {
+    category = 'supermarket_flyer';
+    categoryLabel = 'Mercato & Supermercato OSM';
+    badge = 'Approvvigionamento';
+  } else if (amenity === 'post_office' || amenity === 'parcel_locker') {
+    category = 'locker';
+    categoryLabel = 'Punto Postale & Ritiro OSM';
+    badge = 'Ritiro Pacchi';
+  } else if (amenity === 'pharmacy' || amenity === 'clinic' || amenity === 'hospital') {
+    category = 'pro_ethical';
+    categoryLabel = 'Presidio Sanitario & Farmacia';
+    badge = 'Salute & Supporto';
+  } else if (amenity === 'theatre' || amenity === 'arts_centre' || amenity === 'community_centre') {
+    category = 'nightlife';
+    categoryLabel = 'Cultura & Incontri Serali OSM';
+    badge = 'Cultura Locale';
+  } else if (amenity === 'townhall') {
+    category = 'event_fair';
+    categoryLabel = 'Centro Civico & Municipio OSM';
+    badge = 'Spazio Civico';
+  }
+
+  const cityName =
+    tags['addr:city'] || tags['addr:town'] || tags['addr:village'] || fallbackCity || 'Territorio Locale';
+  const street = [tags['addr:street'], tags['addr:housenumber']].filter(Boolean).join(' ');
+  const address = street ? `${street}, ${cityName}` : `${cityName} (${elLat.toFixed(4)}, ${elLng.toFixed(4)})`;
+  const website = typeof tags.website === 'string' && /^https?:\/\//i.test(tags.website)
+    ? tags.website
+    : `https://www.openstreetmap.org/${el.type || 'node'}/${el.id}`;
+
+  return {
+    id: `osm-gw-${el.type || 'node'}-${el.id}`,
+    name: String(nameRaw),
+    category,
+    categoryLabel,
+    badge,
+    lat: elLat,
+    lng: elLng,
+    address,
+    city: cityName,
+    countryCode: (tags['addr:country'] || fallbackCountryCode || 'GLOBAL').toUpperCase(),
+    externalLink: website,
+    externalLinkText: tags.website ? 'Sito Ufficiale Attività' : 'Apri Scheda OpenStreetMap',
+    navigationUrl: getDirectTurnByTurnUrl(elLat, elLng, String(nameRaw)),
+    description: `Punto reale estratto da OpenStreetMap Overpass (${categoryLabel}).`,
+    hours: tags.opening_hours || 'Orari su OpenStreetMap',
+  };
+}
+
+export async function fetchRealExternalServicesForArea(
+  lat: number,
+  lng: number,
+  cityName = '',
+  countryCode = '',
+  fetchImpl: typeof fetch = globalThis.fetch
+): Promise<{
+  places: ExternalPlaceService[];
+  source: 'overpass' | 'cache' | 'unavailable';
+  error?: string;
+}> {
+  if (!isValidCoord(lat, lng)) {
+    return { places: [], source: 'unavailable', error: 'Coordinate geografiche non valide' };
+  }
+
+  const key = makeAreaCacheKey(lat, lng);
+  const now = Date.now();
+  const cached = OVERPASS_GATEWAY_CACHE.get(key);
+  if (cached && now - cached.timestamp < OVERPASS_CACHE_TTL_MS) {
+    return {
+      places: cached.places,
+      source: cached.source === 'overpass' ? 'cache' : 'unavailable',
+      error: cached.error,
+    };
+  }
+
+  if (typeof fetchImpl !== 'function') {
+    return { places: [], source: 'unavailable', error: 'Fetch API non disponibile' };
+  }
+
+  const query = `[out:json][timeout:10];(node["shop"="supermarket"](around:2500,${lat},${lng});node["amenity"~"^(pharmacy|post_office|parcel_locker|marketplace|townhall|community_centre)$"](around:2500,${lat},${lng});way["amenity"~"^(marketplace|townhall|hospital)$"](around:2500,${lat},${lng}););out center 20;`;
+  const endpoints = [
+    'https://overpass.openstreetmap.fr/api/interpreter',
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.private.coffee/api/interpreter',
+    'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+  ];
+
+  const isBrowser = typeof window !== 'undefined' && typeof document !== 'undefined';
+  const useLocalProxy = isBrowser && fetchImpl === globalThis.fetch;
+
+  if (useLocalProxy) {
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), 11000) : null;
+    try {
+      const proxyRes = await fetchImpl('/api/osm/overpass', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ query }),
+        ...(controller ? { signal: controller.signal } : {}),
+      });
+      if (timeoutId) clearTimeout(timeoutId);
+      if (proxyRes.ok) {
+        const data = await proxyRes.json();
+        const rawElements = Array.isArray(data?.elements) ? data.elements : [];
+        const seenIds = new Set<string>();
+        const places: ExternalPlaceService[] = [];
+        for (const el of rawElements) {
+          const mapped = mapOverpassNodeToExternalPlace(el, cityName, countryCode);
+          if (!mapped) continue;
+          if (seenIds.has(mapped.id)) continue;
+          seenIds.add(mapped.id);
+          places.push(mapped);
+          if (places.length >= 16) break;
+        }
+        OVERPASS_GATEWAY_CACHE.set(key, {
+          timestamp: now,
+          places,
+          source: 'overpass',
+        });
+        return { places, source: 'overpass' };
+      }
+    } catch {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+  }
+
+  const requestHeaders: Record<string, string> = {
+    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+    Accept: 'application/json',
+    ...(!isBrowser ? { 'User-Agent': 'HAVE2WANT-PLUS/1.0 (https://have2want.app)' } : {}),
+  };
+
+  let lastErrorMsg = 'Errore Overpass API';
+  for (const endpoint of endpoints) {
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), 9000) : null;
+
+    try {
+      const res = await fetchImpl(endpoint, {
+        method: 'POST',
+        headers: requestHeaders,
+        body: `data=${encodeURIComponent(query)}`,
+        ...(controller ? { signal: controller.signal } : {}),
+      });
+
+      if (!res.ok) {
+        lastErrorMsg = `Overpass HTTP ${res.status}`;
+        if (timeoutId) clearTimeout(timeoutId);
+        // Riprova sul mirror successivo solo per errori transitori o HTTP 406/429/5xx
+        if ([406, 429, 500, 502, 503, 504].includes(res.status)) {
+          continue;
+        }
+        return { places: [], source: 'unavailable', error: lastErrorMsg };
+      }
+
+      const data = await res.json();
+      const rawElements = Array.isArray(data?.elements) ? data.elements : [];
+      const seenIds = new Set<string>();
+      const places: ExternalPlaceService[] = [];
+
+      for (const el of rawElements) {
+        const mapped = mapOverpassNodeToExternalPlace(el, cityName, countryCode);
+        if (!mapped) continue;
+        if (seenIds.has(mapped.id)) continue;
+        seenIds.add(mapped.id);
+        places.push(mapped);
+        if (places.length >= 16) break;
+      }
+
+      OVERPASS_GATEWAY_CACHE.set(key, {
+        timestamp: now,
+        places,
+        source: 'overpass',
+      });
+
+      if (timeoutId) clearTimeout(timeoutId);
+      return { places, source: 'overpass' };
+    } catch (err: any) {
+      if (timeoutId) clearTimeout(timeoutId);
+      lastErrorMsg =
+        err?.name === 'AbortError' ? 'Timeout Overpass API' : err?.message || 'Errore Overpass API';
+    }
+  }
+
+  return { places: [], source: 'unavailable', error: lastErrorMsg };
+}
+
+export function clearExternalGatewayCacheForTests(): void {
+  OVERPASS_GATEWAY_CACHE.clear();
+}
+
+// Restituisce esclusivamente punti reali già in cache Overpass o nodi curati espliciti di Roma/Milano (ZERO pin inventati)
 export function getExternalServicesForArea(
   lat: number,
   lng: number,
   cityName = '',
-  countryCode = ''
+  _countryCode = ''
 ): ExternalPlaceService[] {
   if (!isValidCoord(lat, lng)) return [];
+
+  const cached = OVERPASS_GATEWAY_CACHE.get(makeAreaCacheKey(lat, lng));
+  if (cached && cached.places.length > 0) {
+    return cached.places;
+  }
 
   const cityLower = (cityName || '').toLowerCase();
   const isNearRome = Math.abs(lat - 41.8902) < 0.25 && Math.abs(lng - 12.4922) < 0.25;
@@ -436,83 +665,7 @@ export function getExternalServicesForArea(
     return SAMPLE_REAL_WORLD_GATEWAY_PLACES.filter((p) => p.city === 'Milano');
   }
 
-  const labelCity = (cityName || 'Area Locale').trim();
-  const safeCode = (countryCode || 'GLOBAL').toUpperCase();
-  const qCity = encodeURIComponent(labelCity);
-
-  const templates: Array<Omit<ExternalPlaceService, 'lat' | 'lng' | 'navigationUrl'>> = [
-    {
-      id: `gw-market-${safeCode}`,
-      name: `Mercati & Supermercati a ${labelCity}`,
-      category: 'supermarket_flyer',
-      categoryLabel: 'Mercati & Offerte Locali',
-      badge: 'Gateway Locale',
-      address: `${labelCity} (${lat.toFixed(3)}, ${lng.toFixed(3)})`,
-      city: labelCity,
-      countryCode: safeCode,
-      externalLink: `https://www.openstreetmap.org/search?query=supermarket+${qCity}#map=15/${lat}/${lng}`,
-      externalLinkText: 'Apri Mappa Mercati OpenStreetMap',
-      description: `Trova mercati, negozi alimentari e punti approvvigionamento vicini a ${labelCity}.`,
-      promo: 'Ricerca territoriale istantanea senza cookie di tracciamento.',
-      hours: 'Orari locali',
-    },
-    {
-      id: `gw-locker-${safeCode}`,
-      name: `Punti Ritiro & Spedizioni ${labelCity}`,
-      category: 'locker',
-      categoryLabel: 'Logistica & Ritiro Pacchi',
-      badge: 'Hub Locale',
-      address: `Area Stazione / Centro, ${labelCity}`,
-      city: labelCity,
-      countryCode: safeCode,
-      externalLink: `https://www.google.com/maps/search/parcel+locker+${qCity}/@${lat},${lng},14z`,
-      externalLinkText: 'Individua Punti Ritiro su Mappa',
-      description: `Snodi postali e punti di ritiro sicuro per scambi e consegne a ${labelCity}.`,
-      promo: 'Ritiro protetto in area pubblica.',
-      hours: 'Verifica orari locali',
-    },
-    {
-      id: `gw-fair-${safeCode}`,
-      name: `Eventi Civici & Piazze di ${labelCity}`,
-      category: 'event_fair',
-      categoryLabel: 'Vita Civica & Incontri',
-      badge: 'Spazio Pubblico',
-      address: `Piazza Principale, ${labelCity}`,
-      city: labelCity,
-      countryCode: safeCode,
-      externalLink: `https://www.openstreetmap.org/#map=15/${lat}/${lng}`,
-      externalLinkText: 'Esplora Piazze su OpenStreetMap',
-      description: `Spazi pubblici e centri culturali di riferimento nel cuore di ${labelCity}.`,
-      promo: 'Accesso aperto alla comunità.',
-      hours: 'Sempre accessibile',
-    },
-    {
-      id: `gw-pro-${safeCode}`,
-      name: `Assistenza Medica & Farmacie (${labelCity})`,
-      category: 'pro_ethical',
-      categoryLabel: 'Servizi Essenziali di Comunità',
-      badge: 'Primo Supporto',
-      address: `Distretto Centrale, ${labelCity}`,
-      city: labelCity,
-      countryCode: safeCode,
-      externalLink: `https://www.google.com/maps/search/pharmacy+hospital+${qCity}/@${lat},${lng},14z`,
-      externalLinkText: 'Trova Farmacie e Presidi Locali',
-      description: `Accesso rapido ai presidi sanitari e alle farmacie più vicine a ${labelCity}.`,
-      promo: 'Servizio informativo pubblico.',
-      hours: '24/7 per emergenze',
-    },
-  ];
-
-  return templates.map((tpl, idx) => {
-    const angle = (idx / templates.length) * Math.PI * 2;
-    const radius = 0.004 + (idx % 2) * 0.0025;
-    const itemLat = Number((lat + Math.sin(angle) * radius).toFixed(5));
-    const itemLng = Number((lng + Math.cos(angle) * radius).toFixed(5));
-    return {
-      ...tpl,
-      lat: itemLat,
-      lng: itemLng,
-      navigationUrl: getDirectTurnByTurnUrl(itemLat, itemLng, tpl.name),
-    };
-  });
+  // Nessuna coordinata geometrica inventata per altre città: si attendono dati reali Overpass
+  return [];
 }
+

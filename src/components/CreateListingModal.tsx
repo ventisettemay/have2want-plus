@@ -544,11 +544,11 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({
                     setNewCategory("servizi_lavoro_buoni");
                     setNewSubcategory("manodopera_mestieri_riparazioni");
                   } else if (form === "km0_filiera_corta") {
-                    setNewCategory("cibo_prodotti_locali");
-                    setNewSubcategory("ortofrutta_km_zero");
+                    setNewCategory("alimentari_km0");
+                    setNewSubcategory("ortofrutta_fresca_stagione");
                   } else if (form === "orientamento_gratuito_specialista") {
                     setNewCategory("rete_specialisti_supporto");
-                    setNewSubcategory("orientamento_clinico_gratuito");
+                    setNewSubcategory("medici_comunita");
                   }
                 }}
                 className="w-full px-3 py-2 rounded-2xl bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-amber-400 cursor-pointer"

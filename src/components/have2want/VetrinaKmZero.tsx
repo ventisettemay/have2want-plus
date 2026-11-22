@@ -89,7 +89,8 @@ export default function VetrinaKmZero({
       ...newProduct,
       id: Date.now(),
       pricePi: parseFloat(newProduct.pricePi) || 5,
-      merchantId: currentUser?.id || "m_local"
+      merchantId: currentUser?.id || "m_local",
+      isDemo: false,
     };
     setProducts([productToAdd, ...products]);
     setShowUploadForm(false);

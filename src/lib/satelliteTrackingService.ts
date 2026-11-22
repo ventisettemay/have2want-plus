@@ -6,6 +6,16 @@
 // 3. I 2 canali logici esclusivamente applicativi (GATEWAY-RELAIS, BEACON-BUSINESS) hanno noradId = null e dichiarano esplicitamente l'assenza di tracciamento orbitale fisico.
 // 4. Se i dati reali non sono disponibili (rete assente / errore CelesTrak), lo stato viene dichiarato esplicitamente come 'unavailable' con lat/lng/quota null.
 
+import {
+  json2satrec,
+  propagate,
+  gstime,
+  eciToGeodetic,
+  degreesLat,
+  degreesLong,
+  type OMMJsonObject,
+  type SatRec,
+} from 'satellite.js';
 import type { SatelliteId } from './satelliteModularEngine';
 
 export type SatelliteTrackStatus =
@@ -28,6 +38,10 @@ export interface CelesTrakOmmRecord {
   MEAN_MOTION_DOT?: number;
   MEAN_MOTION_DDOT?: number;
   BSTAR?: number;
+  ELEMENT_SET_NO?: number;
+  REV_AT_EPOCH?: number;
+  EPHEMERIS_TYPE?: 0 | '0';
+  CLASSIFICATION_TYPE?: 'U' | 'C';
 }
 
 export interface SatelliteCatalogTarget {
@@ -60,6 +74,7 @@ export interface SatelliteTelemetry {
   fetchedAtIso: string | null;
   computedAtIso: string | null;
   source: string | null;
+  propagationModel?: string;
   unavailableReason: string | null;
 }
 
@@ -140,25 +155,14 @@ export const TRACKABLE_SATELLITES_METADATA: Record<SatelliteId, SatelliteCatalog
   },
 };
 
-const MU_EARTH_KM3_S2 = 398600.4418;
-const R_EARTH_EQ_KM = 6378.137;
-const R_EARTH_POLAR_KM = 6356.7523142;
-const WGS84_E2 = 1 - (R_EARTH_POLAR_KM * R_EARTH_POLAR_KM) / (R_EARTH_EQ_KM * R_EARTH_EQ_KM);
-const J2 = 1.08262668e-3;
 const DEG_TO_RAD = Math.PI / 180;
-const RAD_TO_DEG = 180 / Math.PI;
 const TWO_PI = Math.PI * 2;
-const CELESTRAK_SOURCE_LABEL = 'CelesTrak GP/OMM (NORAD)';
+const CELESTRAK_SOURCE_LABEL = 'CelesTrak GP/OMM (NORAD SGP4/SDP4)';
+const SGP4_MODEL_LABEL = 'SGP4/SDP4 (satellite.js)';
 
 function normalizeRad(angle: number): number {
   const m = angle % TWO_PI;
   return m < 0 ? m + TWO_PI : m;
-}
-
-function normalizeLngDeg(lngDeg: number): number {
-  let lng = ((lngDeg + 180) % 360 + 360) % 360 - 180;
-  if (lng === -180 && lngDeg > 0) lng = 180;
-  return lng;
 }
 
 export function parseCelesTrakEpochMs(epochStr: string): number | null {
@@ -170,14 +174,7 @@ export function parseCelesTrakEpochMs(epochStr: string): number | null {
 }
 
 export function computeGmstRad(date: Date): number {
-  const jd = date.getTime() / 86400000 + 2440587.5;
-  const t = (jd - 2451545.0) / 36525.0;
-  const gmstDeg =
-    280.46061837 +
-    360.98564736629 * (jd - 2451545.0) +
-    0.000387933 * t * t -
-    (t * t * t) / 38710000.0;
-  return normalizeRad(gmstDeg * DEG_TO_RAD);
+  return normalizeRad(gstime(date));
 }
 
 function isValidOmmRecord(raw: any): raw is CelesTrakOmmRecord {
@@ -203,135 +200,78 @@ function isValidOmmRecord(raw: any): raw is CelesTrakOmmRecord {
   );
 }
 
-function solveKeplerEccentricAnomaly(meanAnomalyRad: number, e: number): number {
-  let E = e < 0.8 ? meanAnomalyRad : Math.PI;
-  for (let iter = 0; iter < 8; iter++) {
-    const f = E - e * Math.sin(E) - meanAnomalyRad;
-    const fPrime = 1 - e * Math.cos(E);
-    const delta = f / fPrime;
-    E -= delta;
-    if (Math.abs(delta) < 1e-11) break;
-  }
-  return E;
+function toSgp4OmmJson(omm: CelesTrakOmmRecord): OMMJsonObject {
+  const epochTrimmed = omm.EPOCH.trim().replace(/Z$/i, '');
+  return {
+    OBJECT_NAME: omm.OBJECT_NAME,
+    OBJECT_ID: omm.OBJECT_ID || '2000-001A',
+    EPOCH: epochTrimmed,
+    MEAN_MOTION: omm.MEAN_MOTION,
+    ECCENTRICITY: omm.ECCENTRICITY,
+    INCLINATION: omm.INCLINATION,
+    RA_OF_ASC_NODE: omm.RA_OF_ASC_NODE,
+    ARG_OF_PERICENTER: omm.ARG_OF_PERICENTER,
+    MEAN_ANOMALY: omm.MEAN_ANOMALY,
+    EPHEMERIS_TYPE: omm.EPHEMERIS_TYPE ?? 0,
+    CLASSIFICATION_TYPE: omm.CLASSIFICATION_TYPE ?? 'U',
+    NORAD_CAT_ID: omm.NORAD_CAT_ID,
+    ELEMENT_SET_NO: omm.ELEMENT_SET_NO ?? 999,
+    REV_AT_EPOCH: omm.REV_AT_EPOCH ?? 0,
+    BSTAR: omm.BSTAR ?? 0,
+    MEAN_MOTION_DOT: omm.MEAN_MOTION_DOT ?? 0,
+    MEAN_MOTION_DDOT: omm.MEAN_MOTION_DDOT ?? 0,
+  };
 }
 
-function propagateOmmToGeodetic(
-  omm: CelesTrakOmmRecord,
+function buildSatRec(omm: CelesTrakOmmRecord): SatRec | null {
+  try {
+    const satrec = json2satrec(toSgp4OmmJson(omm));
+    if (!satrec || satrec.error !== 0) return null;
+    return satrec;
+  } catch {
+    return null;
+  }
+}
+
+function propagateSgp4ToGeodetic(
+  satrec: SatRec,
   date: Date,
-  gmstOverrideRad?: number,
-  meanAnomalyOffsetRad = 0
+  gmstOverrideRad?: number
 ): {
   lat: number;
   lng: number;
   altitudeKm: number;
   velocityKms: number;
 } | null {
-  const epochMs = parseCelesTrakEpochMs(omm.EPOCH);
-  if (epochMs === null) return null;
+  try {
+    const pv = propagate(satrec, date);
+    if (!pv || !pv.position || !pv.velocity) return null;
 
-  const dtSeconds = (date.getTime() - epochMs) / 1000;
-  const dtMinutes = dtSeconds / 60;
-  const nRevDay = omm.MEAN_MOTION;
-  const n0RadSec = (nRevDay * TWO_PI) / 86400;
-  if (!(n0RadSec > 0) || !Number.isFinite(n0RadSec)) return null;
+    const gmst = typeof gmstOverrideRad === 'number' ? gmstOverrideRad : gstime(date);
+    const geodetic = eciToGeodetic(pv.position, gmst);
+    const lat = degreesLat(geodetic.latitude);
+    const lng = degreesLong(geodetic.longitude);
+    const altitudeKm = geodetic.height;
+    const velocityKms = Math.hypot(pv.velocity.x, pv.velocity.y, pv.velocity.z);
 
-  const e = omm.ECCENTRICITY;
-  const semiMajorAxisKm = Math.cbrt(MU_EARTH_KM3_S2 / (n0RadSec * n0RadSec));
-  if (!(semiMajorAxisKm > R_EARTH_POLAR_KM) || !Number.isFinite(semiMajorAxisKm)) return null;
+    if (
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lng) ||
+      !Number.isFinite(altitudeKm) ||
+      !Number.isFinite(velocityKms)
+    ) {
+      return null;
+    }
 
-  const incRad = omm.INCLINATION * DEG_TO_RAD;
-
-  // J2 secular nodal & apsidal precession (important for LEO SSO satellites like Sentinel-2A / WorldView-3)
-  const pKm = semiMajorAxisKm * (1 - e * e);
-  const reOverP = R_EARTH_EQ_KM / pKm;
-  const j2Factor = -1.5 * J2 * n0RadSec * reOverP * reOverP;
-  const raanDotRadSec = j2Factor * Math.cos(incRad);
-  const argPerigeeDotRadSec =
-    0.75 * J2 * n0RadSec * reOverP * reOverP * (4 - 5 * Math.sin(incRad) * Math.sin(incRad));
-
-  const nDotRadMin2 = ((omm.MEAN_MOTION_DOT || 0) * TWO_PI) / (1440 * 1440);
-  const M0 = omm.MEAN_ANOMALY * DEG_TO_RAD;
-  const n0RadMin = (nRevDay * TWO_PI) / 1440;
-  const M = normalizeRad(
-    M0 + n0RadMin * dtMinutes + 0.5 * nDotRadMin2 * dtMinutes * dtMinutes + meanAnomalyOffsetRad
-  );
-
-  const E = solveKeplerEccentricAnomaly(M, e);
-  const cosE = Math.cos(E);
-  const sinE = Math.sin(E);
-
-  const rKm = semiMajorAxisKm * (1 - e * cosE);
-  const nu = 2 * Math.atan2(Math.sqrt(1 + e) * Math.sin(E / 2), Math.sqrt(1 - e) * Math.cos(E / 2));
-
-  // Position in perifocal orbital plane
-  const xOrb = rKm * Math.cos(nu);
-  const yOrb = rKm * Math.sin(nu);
-
-  // Rotate perifocal -> ECI (TEME/J2000 approximation accurate to <0.1 deg for visualization)
-  const omega = omm.ARG_OF_PERICENTER * DEG_TO_RAD + argPerigeeDotRadSec * dtSeconds;
-  const raan = omm.RA_OF_ASC_NODE * DEG_TO_RAD + raanDotRadSec * dtSeconds;
-
-  const cosO = Math.cos(raan);
-  const sinO = Math.sin(raan);
-  const cosW = Math.cos(omega);
-  const sinW = Math.sin(omega);
-  const cosI = Math.cos(incRad);
-  const sinI = Math.sin(incRad);
-
-  const pX = cosO * cosW - sinO * sinW * cosI;
-  const pY = sinO * cosW + cosO * sinW * cosI;
-  const pZ = sinW * sinI;
-
-  const qX = -cosO * sinW - sinO * cosW * cosI;
-  const qY = -sinO * sinW + cosO * cosW * cosI;
-  const qZ = cosW * sinI;
-
-  const xEci = pX * xOrb + qX * yOrb;
-  const yEci = pY * xOrb + qY * yOrb;
-  const zEci = pZ * xOrb + qZ * yOrb;
-
-  // ECI -> ECEF via GMST Earth rotation
-  const gmst = typeof gmstOverrideRad === 'number' ? gmstOverrideRad : computeGmstRad(date);
-  const cosG = Math.cos(gmst);
-  const sinG = Math.sin(gmst);
-
-  const xEcef = cosG * xEci + sinG * yEci;
-  const yEcef = -sinG * xEci + cosG * yEci;
-  const zEcef = zEci;
-
-  // ECEF -> WGS84 Geodetic (lat, lng, altitudeKm)
-  const rho = Math.hypot(xEcef, yEcef);
-  const lng = normalizeLngDeg(Math.atan2(yEcef, xEcef) * RAD_TO_DEG);
-
-  let latRad = Math.atan2(zEcef, rho * (1 - WGS84_E2));
-  let primeVerticalRadius = R_EARTH_EQ_KM;
-  for (let i = 0; i < 5; i++) {
-    const sinLat = Math.sin(latRad);
-    primeVerticalRadius = R_EARTH_EQ_KM / Math.sqrt(1 - WGS84_E2 * sinLat * sinLat);
-    latRad = Math.atan2(zEcef + WGS84_E2 * primeVerticalRadius * sinLat, rho);
-  }
-  const cosLat = Math.cos(latRad);
-  const sinLat = Math.sin(latRad);
-  primeVerticalRadius = R_EARTH_EQ_KM / Math.sqrt(1 - WGS84_E2 * sinLat * sinLat);
-  const altitudeKm =
-    Math.abs(cosLat) > 1e-5
-      ? rho / cosLat - primeVerticalRadius
-      : Math.abs(zEcef) - primeVerticalRadius * (1 - WGS84_E2);
-
-  // Instantaneous orbital velocity (vis-viva equation)
-  const velocityKms = Math.sqrt(Math.max(0, MU_EARTH_KM3_S2 * (2 / rKm - 1 / semiMajorAxisKm)));
-
-  const lat = latRad * RAD_TO_DEG;
-  if (!Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(altitudeKm)) {
+    return {
+      lat,
+      lng,
+      altitudeKm,
+      velocityKms,
+    };
+  } catch {
     return null;
   }
-
-  return {
-    lat,
-    lng,
-    altitudeKm,
-    velocityKms,
-  };
 }
 
 export function buildUnavailableTelemetry(
@@ -360,6 +300,7 @@ export function buildUnavailableTelemetry(
     fetchedAtIso: null,
     computedAtIso: new Date().toISOString(),
     source: meta.isPhysicalSpacecraft ? CELESTRAK_SOURCE_LABEL : 'HAVE2WANT Logical Channel',
+    propagationModel: meta.isPhysicalSpacecraft ? SGP4_MODEL_LABEL : 'LOGICAL',
     unavailableReason: meta.isPhysicalSpacecraft
       ? reason
       : meta.nonPhysicalReason || 'Canale logico senza satellite fisico tracciabile',
@@ -384,9 +325,10 @@ export function computeSatelliteTelemetryFromOmm(
     return buildUnavailableTelemetry(satelliteId, 'Dati orbitali CelesTrak OMM non validi o incompleti');
   }
 
-  const propagated = propagateOmmToGeodetic(omm, date);
+  const satrec = buildSatRec(omm);
+  const propagated = satrec ? propagateSgp4ToGeodetic(satrec, date) : null;
   if (!propagated) {
-    return buildUnavailableTelemetry(satelliteId, 'Impossibile propagare i parametri orbitali CelesTrak');
+    return buildUnavailableTelemetry(satelliteId, 'Impossibile propagare i parametri orbitali CelesTrak via SGP4/SDP4');
   }
 
   return {
@@ -409,27 +351,33 @@ export function computeSatelliteTelemetryFromOmm(
     fetchedAtIso: fetchedAtIso || new Date().toISOString(),
     computedAtIso: date.toISOString(),
     source: CELESTRAK_SOURCE_LABEL,
+    propagationModel: SGP4_MODEL_LABEL,
     unavailableReason: null,
   };
 }
 
 /**
- * Calcola la geometria istantanea reale del piano orbitale da CelesTrak OMM (nessuna orbita inventata).
- * Fissa il tempo siderale GMST all'istante `date` e campiona 0..2π attorno all'orbita in modo che
- * la traiettoria 3D passi esattamente attraverso la posizione geografica reale del satellite.
+ * Calcola la geometria istantanea reale del piano orbitale via SGP4/SDP4 da CelesTrak OMM (nessuna orbita inventata).
+ * Fissa il tempo siderale GMST all'istante `date` e campiona un periodo orbitale completo attorno a `date`
+ * in modo che la traiettoria 3D passi esattamente attraverso la posizione geografica reale del satellite.
  */
 export function computeInstantaneousOrbitTrack(
   omm: CelesTrakOmmRecord,
   date: Date = new Date(),
   segments = 96
 ): OrbitTrackPoint[] {
-  if (!isValidOmmRecord(omm)) return [];
-  const gmstFixed = computeGmstRad(date);
+  if (!isValidOmmRecord(omm) || segments <= 0) return [];
+  const satrec = buildSatRec(omm);
+  if (!satrec) return [];
+
+  const gmstFixed = gstime(date);
+  const periodMinutes = 1440 / omm.MEAN_MOTION;
+  const periodMs = periodMinutes * 60 * 1000;
   const points: OrbitTrackPoint[] = [];
 
   for (let i = 0; i < segments; i++) {
-    const offset = (i / segments) * TWO_PI;
-    const sample = propagateOmmToGeodetic(omm, date, gmstFixed, offset);
+    const sampleDate = new Date(date.getTime() + (i / segments) * periodMs);
+    const sample = propagateSgp4ToGeodetic(satrec, sampleDate, gmstFixed);
     if (sample) {
       points.push({
         lat: sample.lat,
@@ -592,7 +540,7 @@ class SatelliteTelemetryStore {
         physicalEntries.map(async (meta) => {
           const result = await fetchSatelliteOmmFromCelesTrak(meta.noradId!, fetchImpl);
           this.loadingSet.delete(meta.satelliteId);
-          if (result.ok) {
+          if ('omm' in result) {
             this.ommCache.set(meta.satelliteId, {
               omm: result.omm,
               fetchedAtIso: new Date().toISOString(),

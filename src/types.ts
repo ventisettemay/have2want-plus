@@ -200,6 +200,10 @@ export interface HaveWantListing {
   externalPortal?: string; // Es. "Subito.it", "Facebook Marketplace", "eBay Annunci", "Kijiji", "Wallapop"
   externalUrl?: string; // Link diretto opzionale verso l'annuncio su portale esterno
   isDemo?: boolean; // Flag per annunci illustrativi di esempio
+  originType?: 'REAL_P2P' | 'EXTERNAL' | 'SAMPLE';
+  sourceMarketplace?: string;
+  city?: string;
+  images?: string[];
 }
 
 // Tokenomics & Ad-Reward State for P2P Board Monetization
@@ -344,6 +348,10 @@ export interface PioneerUser {
   tradesCompleted: number;
   verifiedKYC: boolean;
   city: string;
+  province?: string;
+  lat?: number;
+  lng?: number;
+  reputationStars?: number;
   bio: string;
   rinnovoAutomatico?: boolean;
   creditBalance?: UserCreditBalance;

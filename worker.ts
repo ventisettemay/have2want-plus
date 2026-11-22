@@ -34,6 +34,7 @@ export interface WorkerEnv extends FirebaseTokenEnv, IdempotencyEnv, PiA2uEnv, W
   PI_API_KEY?: string;
   VITE_PI_SANDBOX?: string;
   ALLOWED_ORIGINS?: string;
+  WINDY_WEBCAMS_API_KEY?: string;
   DB?: D1DatabaseLike;
 }
 
@@ -404,6 +405,167 @@ export async function handleWorkerRequest(
       });
     } catch {
       return new Response(null, { status: 502, headers: PUBLIC_CORS_HEADERS });
+    }
+  }
+
+  // 3b. GET /api/webcams/nearby (Windy Webcams API v3 proxy)
+  if (method === 'GET' && pathname === '/api/webcams/nearby') {
+    const lat = Number(url.searchParams.get('lat'));
+    const lng = Number(url.searchParams.get('lng'));
+    const radiusParam = url.searchParams.get('radius');
+    const rawRadius = radiusParam !== null ? Number(radiusParam) : 35;
+
+    if (
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lng) ||
+      lat < -90 ||
+      lat > 90 ||
+      lng < -180 ||
+      lng > 180 ||
+      (lat === 0 && lng === 0)
+    ) {
+      return jsonResponse({ error: 'Coordinate lat/lng non valide per webcam nearby.' }, 400);
+    }
+    const radiusKm = Number.isFinite(rawRadius) ? Math.min(100, Math.max(1, Math.round(rawRadius))) : 35;
+
+    const windyKey = typeof env?.WINDY_WEBCAMS_API_KEY === 'string' ? env.WINDY_WEBCAMS_API_KEY.trim() : '';
+    if (!windyKey || windyKey === 'PLACEHOLDER' || windyKey === 'MY_WINDY_API_KEY') {
+      return jsonResponse(
+        {
+          configured: false,
+          source: 'Windy Webcams API v3',
+          webcams: [],
+          message: 'WINDY_WEBCAMS_API_KEY non configurata sul server: integrazione pronta, nessun costo attivo.',
+        },
+        200
+      );
+    }
+
+    const windyUrl = `https://api.windy.com/webcams/api/v3/webcams?nearby=${encodeURIComponent(
+      `${lat.toFixed(4)},${lng.toFixed(4)},${radiusKm}`
+    )}&include=images,location,player,urls&limit=12`;
+
+    const cache = getDefaultCache();
+    const cacheKey = new Request(windyUrl, { method: 'GET' });
+    if (cache) {
+      const cached = await cache.match(cacheKey);
+      if (cached) {
+        const clonedHeaders = new Headers(cached.headers);
+        Object.entries(PUBLIC_CORS_HEADERS).forEach(([k, v]) => clonedHeaders.set(k, v));
+        return new Response(cached.body, { status: cached.status, headers: clonedHeaders });
+      }
+    }
+
+    try {
+      const upstream = await fetch(windyUrl, {
+        method: 'GET',
+        headers: {
+          'x-windy-api-key': windyKey,
+          Accept: 'application/json',
+        },
+        redirect: 'error',
+      });
+      if (!upstream.ok) {
+        return jsonResponse(
+          {
+            configured: true,
+            source: 'Windy Webcams API v3',
+            webcams: [],
+            error: `Windy Webcams HTTP ${upstream.status}`,
+          },
+          upstream.status
+        );
+      }
+      const rawJson: any = await upstream.json().catch(() => ({}));
+      const rawList = Array.isArray(rawJson?.webcams) ? rawJson.webcams : [];
+      const webcams = rawList
+        .map((w: any) => {
+          const wLat = Number(w?.location?.latitude);
+          const wLng = Number(w?.location?.longitude);
+          const previewImageUrl =
+            w?.images?.current?.preview || w?.images?.daylight?.preview || w?.images?.current?.thumbnail || '';
+          if (!previewImageUrl || !Number.isFinite(wLat) || !Number.isFinite(wLng) || (wLat === 0 && wLng === 0)) {
+            return null;
+          }
+          return {
+            id: String(w.webcamId ?? w.id ?? ''),
+            title: String(w.title || 'Webcam Live'),
+            status: String(w.status || 'active'),
+            lat: wLat,
+            lng: wLng,
+            city: String(w?.location?.city || ''),
+            region: String(w?.location?.region || ''),
+            country: String(w?.location?.country || ''),
+            previewImageUrl: String(previewImageUrl),
+            playerUrl: typeof w?.player?.day === 'string' ? w.player.day : typeof w?.player?.live === 'string' ? w.player.live : null,
+            windyPageUrl: String(w?.urls?.detail || `https://www.windy.com/webcams/${encodeURIComponent(String(w.webcamId ?? ''))}`),
+            lastUpdatedIso: w?.lastUpdatedOn ? String(w.lastUpdatedOn) : null,
+          };
+        })
+        .filter(Boolean);
+
+      const response = jsonResponse(
+        { configured: true, source: 'Windy Webcams API v3', webcams },
+        200,
+        { 'Cache-Control': 'public, max-age=300' }
+      );
+      if (cache) {
+        const putPromise = cache.put(cacheKey, response.clone());
+        if (ctx?.waitUntil) ctx.waitUntil(putPromise);
+        else await putPromise;
+      }
+      return response;
+    } catch (err: any) {
+      return jsonResponse(
+        {
+          configured: true,
+          source: 'Windy Webcams API v3',
+          webcams: [],
+          error: err?.message || 'Errore proxy Windy Webcams',
+        },
+        502
+      );
+    }
+  }
+
+  // 3c. GET /api/satellites/omm (CelesTrak GP/OMM proxy)
+  if (method === 'GET' && pathname === '/api/satellites/omm') {
+    const rawId = (url.searchParams.get('noradId') || url.searchParams.get('catnr') || '').trim();
+    if (!/^\d{1,9}$/.test(rawId) || Number(rawId) <= 0) {
+      return jsonResponse({ error: 'Parametro noradId numerico non valido' }, 400);
+    }
+
+    const celestrakUrl = `https://celestrak.org/NORAD/elements/gp.php?CATNR=${encodeURIComponent(rawId)}&FORMAT=json`;
+    const cache = getDefaultCache();
+    const cacheKey = new Request(celestrakUrl, { method: 'GET' });
+    if (cache) {
+      const cached = await cache.match(cacheKey);
+      if (cached) {
+        const clonedHeaders = new Headers(cached.headers);
+        Object.entries(PUBLIC_CORS_HEADERS).forEach(([k, v]) => clonedHeaders.set(k, v));
+        return new Response(cached.body, { status: cached.status, headers: clonedHeaders });
+      }
+    }
+
+    try {
+      const upstream = await fetch(celestrakUrl, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        redirect: 'error',
+      });
+      if (!upstream.ok) {
+        return jsonResponse({ error: `CelesTrak HTTP ${upstream.status}` }, upstream.status);
+      }
+      const data = await upstream.json();
+      const response = jsonResponse(data, 200, { 'Cache-Control': 'public, max-age=900' });
+      if (cache) {
+        const putPromise = cache.put(cacheKey, response.clone());
+        if (ctx?.waitUntil) ctx.waitUntil(putPromise);
+        else await putPromise;
+      }
+      return response;
+    } catch (err: any) {
+      return jsonResponse({ error: err?.message || 'Errore proxy CelesTrak OMM' }, 502);
     }
   }
 
