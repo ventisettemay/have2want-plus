@@ -4,6 +4,8 @@
 // Persistenza locale degli ordini P2P interni. Nessuna simulazione di pagamento:
 // un ordine resta "pending_payment" finché il server Pi non conferma la transazione.
 
+import { calculateEcoFee } from './solidarityEconomy';
+
 export type MarketplaceOrderStatus = 'pending_payment' | 'paid' | 'cancelled';
 
 export interface MarketplaceOrderInput {
@@ -15,6 +17,8 @@ export interface MarketplaceOrderInput {
   buyerUsername: string;
   recipientUsername?: string;
   giftMessage?: string;
+  ecoFeePi?: number;
+  netToSellerPi?: number;
 }
 
 export interface MarketplaceOrder extends MarketplaceOrderInput {
@@ -82,6 +86,10 @@ export function createMarketplaceOrder(input: MarketplaceOrderInput): Marketplac
   }
 
   const now = new Date().toISOString();
+
+  // Calcolo eco-fee sull'ordine (commissione ecologica su annunci VENDO in Pi)
+  const ecoFeeCalc = calculateEcoFee(input.pricePi);
+
   const order: MarketplaceOrder = {
     ...input,
     listingTitle: input.listingTitle.trim(),
@@ -89,6 +97,8 @@ export function createMarketplaceOrder(input: MarketplaceOrderInput): Marketplac
     sellerUsername: input.sellerUsername || '',
     id: `h2w_ord_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     status: 'pending_payment',
+    ecoFeePi: ecoFeeCalc.ecoFeePi,
+    netToSellerPi: ecoFeeCalc.netToSellerPi,
     createdAt: now,
     updatedAt: now,
   };

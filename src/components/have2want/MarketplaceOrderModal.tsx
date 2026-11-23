@@ -8,6 +8,7 @@ import {
   failMarketplaceOrderPayment,
   MarketplaceOrder,
 } from '@/lib/marketplaceOrdersService';
+import { calculateEcoFee } from '@/lib/solidarityEconomy';
 
 export interface MarketplaceOrderListing {
   id: string;
@@ -50,6 +51,9 @@ export default function MarketplaceOrderModal({
     : (typeof listing.price === 'number' && listing.price > 0 ? listing.price : 0);
 
   const buyerUsername = currentUser?.username || 'pioneer_me';
+
+  // Eco-fee calcolata sul prezzo dell'annuncio (commissione ecologica su VENDO in Pi)
+  const ecoFeeCalc = calculateEcoFee(pricePi);
 
   const resetAndClose = () => {
     setMode('self');
@@ -163,6 +167,17 @@ export default function MarketplaceOrderModal({
             <div className="flex items-center gap-2 mt-3">
               <span className="text-lg font-black text-emerald-300">{pricePi} π</span>
               <span className="text-[10px] text-zinc-500">Prezzo diretto dell'annuncio</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-3 p-3 rounded-xl bg-zinc-900/50 border border-zinc-800/50">
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] text-zinc-400">Eco-fee (2%)</span>
+                <span className="text-xs font-mono text-zinc-300">{ecoFeeCalc.ecoFeePi.toFixed(4)} π</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] text-zinc-400">Netto al venditore</span>
+                <span className="text-xs font-mono text-emerald-400">{ecoFeeCalc.netToSellerPi.toFixed(4)} π</span>
+              </div>
             </div>
           </div>
 
