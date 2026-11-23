@@ -1140,6 +1140,63 @@ export async function handleWorkerRequest(
     return jsonResponse({ success: true, data: [], runtime: 'cloudflare-worker' }, 200, NO_CACHE_HEADERS);
   }
 
+  // 10. POST /api/testnet/publish (parità edge con server.ts, senza FS locale)
+  if (method === 'POST' && pathname === '/api/testnet/publish') {
+    const contentType = request.headers.get('content-type') || '';
+    try {
+      let input: Record<string, any> = {};
+      if (contentType.includes('multipart/form-data')) {
+        const formData = await request.formData();
+        for (const [key, value] of formData.entries()) {
+          input[key] = value instanceof File ? value.name : String(value);
+        }
+        if (formData.has('image')) {
+          const file = formData.get('image');
+          if (file instanceof File) {
+            input.image_url = `/uploads/${file.name}`;
+          }
+        }
+      } else {
+        input = await request.json().catch(() => ({}));
+      }
+
+      const productName = String(input?.product_name || input?.title || input?.name || 'Nuovo Articolo').trim();
+      const productId = `TXT-${Date.now().toString().slice(-6)}`;
+
+      return jsonResponse(
+        {
+          status: 'success',
+          success: true,
+          product_id: productId,
+          image_url: typeof input?.image_url === 'string' && input.image_url.trim() ? input.image_url.trim() : null,
+          stored: {
+            product_id: productId,
+            product_name: productName,
+            current_category: String(input?.current_category || input?.category || 'Varie'),
+            is_18_plus: input?.is_18_plus === true || String(input?.is_18_plus).toLowerCase() === 'true',
+            technical_specs: { anno: String(input?.specs_anno || input?.year || '2024') },
+            location: {
+              latitude: parseFloat(String(input?.user_lat ?? input?.lat ?? 0)) || 0,
+              longitude: parseFloat(String(input?.user_lng ?? input?.lng ?? 0)) || 0,
+            },
+            image_url: typeof input?.image_url === 'string' && input.image_url.trim() ? input.image_url.trim() : null,
+          },
+        },
+        200,
+        NO_CACHE_HEADERS,
+        piCors.headers
+      );
+    } catch (err: any) {
+      const msg = err?.message || 'Errore publish testnet';
+      return jsonResponse(
+        { success: false, error: msg },
+        /estensione|mime|dimensione|payload/i.test(msg) ? 400 : 500,
+        {},
+        piCors.headers
+      );
+    }
+  }
+
   // ==================== CHAT API (Worker) ====================
   // Crea o recupera chat P2P
   if (method === 'POST' && pathname === '/api/chats') {
