@@ -21,6 +21,7 @@ import AppTutorModal from '@/components/have2want/AppTutorModal';
 import InterruttoriRapidiModal from '@/components/have2want/InterruttoriRapidiModal';
 import AutoTutorPill from '@/components/have2want/AutoTutorPill';
 import OrbitalSatellitesHub from '@/components/have2want/OrbitalSatellitesHub';
+import { SATELLITE_TO_CHANNEL } from '@/lib/satelliteModularEngine';
 import { DedicatedCategoryPage } from '@/components/DedicatedCategoryPage';
 import { CountrySelectorModal } from '@/components/CountrySelectorModal';
 import { COUNTRIES, getCountryForListing } from '@/data/countries';
@@ -677,7 +678,7 @@ function Have2WantPlusMain() {
             <button
               id="btn-scroll-channel-km0"
               onClick={() => {
-                setActiveSatelliteChannel('KMZERO');
+                setActiveSatelliteChannel(SATELLITE_TO_CHANNEL.KM0_SAT);
                 toast.info("🌿 Canale Km 0: Produttori Locali & Filiera Corta");
               }}
               className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-emerald-950/60 border-2 border-[#10b981] shadow-[0_0_12px_rgba(16,185,129,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
@@ -694,7 +695,7 @@ function Have2WantPlusMain() {
             <button
               id="btn-scroll-channel-meteo"
               onClick={() => {
-                setActiveSatelliteChannel('WEATHER');
+                setActiveSatelliteChannel(SATELLITE_TO_CHANNEL.METEO_SAT);
                 toast.info("⛅ Canale Meteo Live: Clima e Previsioni in Tempo Reale");
               }}
               className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-sky-950/60 border-2 border-[#38bdf8] shadow-[0_0_12px_rgba(56,189,248,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
@@ -711,7 +712,7 @@ function Have2WantPlusMain() {
             <button
               id="btn-scroll-channel-marketplace"
               onClick={() => {
-                setActiveSatelliteChannel('MONDO');
+                setActiveSatelliteChannel(SATELLITE_TO_CHANNEL.GLOBAL_MARKET_SAT);
                 toast.info("🌐 Canale Marketplace Globale: Supermarket e Spedizioni");
               }}
               className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-purple-950/60 border-2 border-[#a855f7] shadow-[0_0_12px_rgba(168,85,247,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"

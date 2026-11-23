@@ -235,6 +235,40 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
   }
 ];
 
+// ============================================================================
+// MAPPA CANONICA SATELLITE → CANALE UI / COMPONENTE TARGET
+// Unica fonte di verità per il routing satellitare. Ogni SatelliteId di
+// INITIAL_SATELLITES_CATALOG è associato al canale UI e al componente target.
+// ============================================================================
+
+export const SATELLITE_TO_CHANNEL: Record<SatelliteId, string> = {
+  METEO_SAT: 'WEATHER',
+  KM0_SAT: 'KMZERO',
+  STREET_360_SAT: 'STRADARIO',
+  PI_CHAT_SAT: 'CHAT',
+  GLOBAL_MARKET_SAT: 'SUPERMARKET',
+  EXTERNAL_MARKET_SAT: 'EXTERNAL',
+  CONOSCENZE_MESTIERI_SAT: 'CONOSCENZE_MESTIERI',
+  BUSINESS_ADS_SAT: 'BUSINESS_ADS',
+  WEBCAM: 'WEBCAM',
+  METEO_ROUTE: 'METEO_ROUTE',
+  ACTIONFLOW_SAT: 'ACTIONFLOW',
+};
+
+export const SATELLITE_TO_COMPONENT: Record<SatelliteId, string> = {
+  METEO_SAT: 'LiveWeatherModal',
+  KM0_SAT: 'VetrinaKmZero',
+  STREET_360_SAT: 'StreetView360Modal',
+  PI_CHAT_SAT: 'VoiceNoteChat',
+  GLOBAL_MARKET_SAT: 'GlobalMarketplaceView',
+  EXTERNAL_MARKET_SAT: 'ExternalListings',
+  CONOSCENZE_MESTIERI_SAT: 'ConoscenzeMestieriArchive',
+  BUSINESS_ADS_SAT: 'BusinessSponsorModal',
+  WEBCAM: 'LiveWebcamModal',
+  METEO_ROUTE: 'MeteoNavigazioneModal',
+  ACTIONFLOW_SAT: 'ActionFlowHubModal',
+};
+
 const STORAGE_KEY = 'h2w_satellites_modular_state_v2';
 
 class SatelliteModularEngine {

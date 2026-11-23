@@ -6,21 +6,7 @@ import BachecaLavoroP2P from './BachecaLavoroP2P';
 import VetrinaAgenziePaywall from './VetrinaAgenziePaywall';
 import LiveWeatherModal from './LiveWeatherModal';
 import SpacecraftInspectorModal from './SpacecraftInspectorModal';
-import { SatelliteId, satelliteEngine } from '@/lib/satelliteModularEngine';
-
-const SATELLITE_TO_CHANNEL: Record<SatelliteId, string> = {
-  METEO_SAT: 'WEATHER',
-  KM0_SAT: 'KMZERO',
-  STREET_360_SAT: 'STRADARIO',
-  PI_CHAT_SAT: 'CHAT',
-  GLOBAL_MARKET_SAT: 'SUPERMARKET',
-  EXTERNAL_MARKET_SAT: 'EXTERNAL',
-  CONOSCENZE_MESTIERI_SAT: 'CONOSCENZE_MESTIERI',
-  BUSINESS_ADS_SAT: 'BUSINESS_ADS',
-  WEBCAM: 'WEBCAM',
-  METEO_ROUTE: 'METEO_ROUTE',
-  ACTIONFLOW_SAT: 'ACTIONFLOW',
-};
+import { SatelliteId, satelliteEngine, SATELLITE_TO_CHANNEL, SATELLITE_TO_COMPONENT } from '@/lib/satelliteModularEngine';
 
 interface OrbitalSatellitesHubProps {
   currentUser?: any;
@@ -438,19 +424,8 @@ export default function OrbitalSatellitesHub({
             return;
           }
           // Fallback locale solo se l'hub è usato senza il contenitore della mappa
-          const fallbackMap: Record<string, string> = {
-            METEO_SAT: 'METEO',
-            KM0_SAT: 'KMZERO',
-            GLOBAL_MARKET_SAT: 'SUPERMARKET',
-            WEBCAM: 'WEBCAM',
-            METEO_ROUTE: 'METEO_ROUTE',
-            PI_CHAT_SAT: 'PI_CHAT',
-            EXTERNAL_MARKET_SAT: 'EXTERNAL',
-            CONOSCENZE_MESTIERI_SAT: 'CONOSCENZE_MESTIERI',
-            BUSINESS_ADS_SAT: 'BUSINESS_ADS',
-            ACTIONFLOW_SAT: 'ACTIONFLOW',
-          };
-          if (fallbackMap[satId]) setActiveChannel(fallbackMap[satId] as any);
+          const channel = SATELLITE_TO_CHANNEL[satId];
+          if (channel) setActiveChannel(channel as any);
         }}
         onSelectSatellite={(satId) => setSelectedSatForFleet(satId)}
       />

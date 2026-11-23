@@ -31,6 +31,7 @@ import {
 import { getCachedPiRealPrice, PI_REAL_PRICE_EUR } from '@/lib/piRealPriceService';
 import { getDisplayCoordinates, filterVisibleListings, applyGeoPrivacy, setDefaultTerritoryCoordinates } from '@/lib/geoPrivacy';
 import { publishShopToCloud, subscribeToCloudShops } from '@/lib/firestoreService';
+import { SATELLITE_TO_CHANNEL } from '@/lib/satelliteModularEngine';
 import MerchantDetailModal from './MerchantDetailModal';
 import StrettaDiMano from './StrettaDiMano';
 import { toast } from 'sonner';
@@ -1356,14 +1357,7 @@ export default function MapView3DContainer({
         onLaunchChannel={(satId) => {
           setScientificSatellite(null);
           const CHANNEL_MAP = {
-            METEO_SAT: 'WEATHER',
-            KM0_SAT: 'KMZERO',
-            STREET_360_SAT: 'STRADARIO',
-            PI_CHAT_SAT: 'CHAT',
-            GLOBAL_MARKET_SAT: 'MONDO',
-            EXTERNAL_MARKET_SAT: 'EXTERNAL',
-            COMMUNITY_RESCUE_SAT: 'COMUNITA',
-            BUSINESS_ADS_SAT: 'BUSINESS_ADS',
+            ...SATELLITE_TO_CHANNEL,
             KMZERO: 'KMZERO',
             WEATHER: 'WEATHER',
             MONDO: 'MONDO',
