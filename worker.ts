@@ -1197,6 +1197,72 @@ export async function handleWorkerRequest(
     }
   }
 
+  // 11. POST /api/osm/overpass (proxy con validazione query e cache)
+  if (method === 'POST' && pathname === '/api/osm/overpass') {
+    const cache = getDefaultCache();
+    const cacheKey = new Request('https://osm.internal/overpass', { method: 'POST' });
+
+    const body = await parseJsonBody(request);
+    if (!body || typeof body.query !== 'string' || !body.query.trim()) {
+      return jsonResponse({ success: false, error: 'query obbligatoria e non vuota' }, 400, {}, piCors.headers);
+    }
+
+    const query = body.query.trim();
+
+    // Try cache
+    if (cache) {
+      try {
+        const cached = await cache.match(cacheKey);
+        if (cached) {
+          return new Response(cached.body, {
+            status: cached.status,
+            headers: { ...PUBLIC_CORS_HEADERS, 'Content-Type': 'application/json; charset=utf-8' },
+          });
+        }
+      } catch {}
+    }
+
+    try {
+      const upstream = await fetch('https://overpass-api.de/api/interpreter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+        redirect: 'error',
+      });
+      if (!upstream.ok) {
+        return jsonResponse(
+          { success: false, error: `Overpass HTTP ${upstream.status}` },
+          upstream.status,
+          {},
+          piCors.headers
+        );
+      }
+      const data = await upstream.json();
+      const response = jsonResponse(
+        { success: true, data },
+        200,
+        { 'Cache-Control': 'public, max-age=300' },
+        piCors.headers
+      );
+      if (cache) {
+        const putPromise = cache.put(cacheKey, response.clone());
+        if (ctx?.waitUntil) {
+          ctx.waitUntil(putPromise);
+        } else {
+          await putPromise;
+        }
+      }
+      return response;
+    } catch (err: any) {
+      return jsonResponse(
+        { success: false, error: err?.message || 'Errore proxy Overpass' },
+        502,
+        {},
+        piCors.headers
+      );
+    }
+  }
+
   // ==================== CHAT API (Worker) ====================
   // Crea o recupera chat P2P
   if (method === 'POST' && pathname === '/api/chats') {

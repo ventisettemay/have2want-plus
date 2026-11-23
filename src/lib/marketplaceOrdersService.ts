@@ -19,6 +19,7 @@ export interface MarketplaceOrderInput {
   giftMessage?: string;
   ecoFeePi?: number;
   netToSellerPi?: number;
+  qrPickupCode?: string;
 }
 
 export interface MarketplaceOrder extends MarketplaceOrderInput {
@@ -28,6 +29,9 @@ export interface MarketplaceOrder extends MarketplaceOrderInput {
   updatedAt: string;
   txId?: string;
   paymentError?: string;
+  qrPickupValidated?: boolean;
+  pickupConfirmedAt?: string;
+  pickupConfirmedBy?: string;
 }
 
 const STORAGE_KEY = 'h2w_marketplace_orders_v1';
@@ -149,6 +153,43 @@ export function cancelMarketplaceOrder(orderId: string): MarketplaceOrder | null
   const updated: MarketplaceOrder = {
     ...orders[index],
     status: 'cancelled',
+    updatedAt: new Date().toISOString(),
+  };
+  orders[index] = updated;
+  writeOrders(orders);
+  return updated;
+}
+
+export function confirmOrderPickupWithQr(orderId: string, qrCode: string): MarketplaceOrder | null {
+  const orders = readOrders();
+  const index = orders.findIndex((order) => order.id === orderId);
+  if (index < 0) return null;
+
+  const order = orders[index];
+  if (order.status !== 'paid') return null;
+  if (!qrCode || qrCode.trim().length < 4) return null;
+
+  const updated: MarketplaceOrder = {
+    ...order,
+    qrPickupCode: qrCode.trim(),
+    qrPickupValidated: true,
+    pickupConfirmedAt: new Date().toISOString(),
+    pickupConfirmedBy: order.buyerUsername,
+    updatedAt: new Date().toISOString(),
+  };
+  orders[index] = updated;
+  writeOrders(orders);
+  return updated;
+}
+
+export function updateMarketplaceOrderStatus(orderId: string, status: MarketplaceOrderStatus): MarketplaceOrder | null {
+  const orders = readOrders();
+  const index = orders.findIndex((order) => order.id === orderId);
+  if (index < 0) return null;
+
+  const updated: MarketplaceOrder = {
+    ...orders[index],
+    status,
     updatedAt: new Date().toISOString(),
   };
   orders[index] = updated;

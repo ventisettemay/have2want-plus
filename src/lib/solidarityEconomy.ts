@@ -7,7 +7,8 @@
  * ECO-FEE: Commissione ecologica su annunci VENDO.
  * Percentuale del prezzo in Pi destinata a progetti di sostenibilità territoriale.
  */
-export const ECO_FEE_PERCENT = 0.02; // 2% del prezzo in Pi
+export const ECO_FEE_PERCENT = 0.02; // 2% del prezzo in Pi (aliquota base)
+export const ECO_FEE_CAP_PI = 50; // Cap massimo eco-fee in Pi
 
 export interface EcoFeeCalculation {
   itemPricePi: number;
@@ -17,13 +18,28 @@ export interface EcoFeeCalculation {
 }
 
 export function calculateEcoFee(itemPricePi: number): EcoFeeCalculation {
-  const ecoFeePi = Number((itemPricePi * ECO_FEE_PERCENT).toFixed(4));
+  // Aliquote degressive: più alto il prezzo, più bassa la percentuale eco-fee
+  let percentage: number;
+  if (itemPricePi <= 10) {
+    percentage = 0.02; // 2% fino a 10 π
+  } else if (itemPricePi <= 100) {
+    percentage = 0.015; // 1.5% da 10 a 100 π
+  } else {
+    percentage = 0.01; // 1% oltre 100 π
+  }
+
+  let ecoFeePi = Number((itemPricePi * percentage).toFixed(4));
+  // Applica cap massimo
+  if (ecoFeePi > ECO_FEE_CAP_PI) {
+    ecoFeePi = Number(ECO_FEE_CAP_PI.toFixed(4));
+  }
+
   const netToSellerPi = Number((itemPricePi - ecoFeePi).toFixed(4));
   return {
     itemPricePi,
     ecoFeePi,
     netToSellerPi,
-    percentage: ECO_FEE_PERCENT * 100,
+    percentage,
   };
 }
 

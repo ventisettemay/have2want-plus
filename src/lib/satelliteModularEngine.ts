@@ -272,6 +272,11 @@ export const SATELLITE_TO_COMPONENT: Record<SatelliteId, string> = {
   LAVORO_SAT: 'BachecaLavoroP2P',
 };
 
+// Risolve il canale UI associato a un SatelliteId (wrapper sulla mappa canonica)
+export function resolveSatelliteChannel(satId: SatelliteId): string {
+  return SATELLITE_TO_CHANNEL[satId];
+}
+
 const STORAGE_KEY = 'h2w_satellites_modular_state_v2';
 
 class SatelliteModularEngine {
