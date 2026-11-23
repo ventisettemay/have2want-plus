@@ -729,7 +729,7 @@ function Have2WantPlusMain() {
             <button
               id="btn-scroll-channel-lavoro"
               onClick={() => {
-                setActiveSatelliteChannel('P2P');
+                setActiveSatelliteChannel(SATELLITE_TO_CHANNEL.LAVORO_SAT);
                 toast.info("💼 Canale Lavoro P2P: Bacheca Mestieri, Servizi e Scambi");
               }}
               className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-emerald-950/60 border-2 border-[#00ff66] shadow-[0_0_12px_rgba(0,255,102,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"

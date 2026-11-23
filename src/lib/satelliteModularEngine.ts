@@ -5,6 +5,7 @@
 
 export type SatelliteId =
   | 'ACTIONFLOW_SAT'
+  | 'LAVORO_SAT'
   | 'METEO_SAT'
   | 'KM0_SAT'
   | 'STREET_360_SAT'
@@ -253,6 +254,7 @@ export const SATELLITE_TO_CHANNEL: Record<SatelliteId, string> = {
   WEBCAM: 'WEBCAM',
   METEO_ROUTE: 'METEO_ROUTE',
   ACTIONFLOW_SAT: 'ACTIONFLOW',
+  LAVORO_SAT: 'LAVORO',
 };
 
 export const SATELLITE_TO_COMPONENT: Record<SatelliteId, string> = {
@@ -267,6 +269,7 @@ export const SATELLITE_TO_COMPONENT: Record<SatelliteId, string> = {
   WEBCAM: 'LiveWebcamModal',
   METEO_ROUTE: 'MeteoNavigazioneModal',
   ACTIONFLOW_SAT: 'ActionFlowHubModal',
+  LAVORO_SAT: 'BachecaLavoroP2P',
 };
 
 const STORAGE_KEY = 'h2w_satellites_modular_state_v2';

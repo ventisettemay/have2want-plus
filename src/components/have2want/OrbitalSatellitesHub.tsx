@@ -150,7 +150,7 @@ export default function OrbitalSatellitesHub({
     },
     {
       id: 'LAVORO' as const,
-      satId: undefined as SatelliteId | undefined,
+      satId: 'LAVORO_SAT' as SatelliteId,
       name: 'Lavoro & Servizi Diretti',
       desc: 'Annunci di lavoro, servizi di prossimità e collaborazioni senza agenzie',
       icon: Briefcase,
