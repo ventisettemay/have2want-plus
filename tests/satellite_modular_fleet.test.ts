@@ -11,25 +11,25 @@ import {
   createSharedAerospaceMaterials,
 } from '../src/components/have2want/spacecraft3D/SpacecraftModelsBuilder';
 
-describe('Satellite Modular Fleet Engine – HAVE2WANT PLUS', () => {
+describe('Satellite Modular Fleet Engine – HAVE2WANT PLUS (11 Satelliti Definitivi)', () => {
   beforeEach(() => {
     // Reset to all satellites ON
     satelliteEngine.applyPreset('RIPRISTINA_TUTTI');
   });
 
-  it('Dovrebbe contenere esattamente gli 11 identificativi satellite ufficiali (8 originali + 3 estensioni VIEW)', () => {
+  it('Dovrebbe contenere esattamente gli 11 identificativi satellite ufficiali', () => {
     const EXPECTED_11_IDS: SatelliteId[] = [
-      'METEO_SAT',
       'KM0_SAT',
-      'STREET_360_SAT',
+      'METEO_SAT',
       'PI_CHAT_SAT',
       'GLOBAL_MARKET_SAT',
       'EXTERNAL_MARKET_SAT',
-      'CONOSCENZE_MESTIERI_SAT',
       'BUSINESS_ADS_SAT',
-      'WEBCAM',
-      'METEO_ROUTE',
+      'MAP_SAT',
+      'COMMUNITY_RESCUE_SAT',
       'ACTIONFLOW_SAT',
+      'DEFIANCE_PULSE_SAT',
+      'RADAR_SAT',
     ];
 
     expect(INITIAL_SATELLITES_CATALOG).toHaveLength(11);
@@ -130,24 +130,21 @@ describe('Satellite Modular Fleet Engine – HAVE2WANT PLUS', () => {
     expect(satelliteEngine.getActiveCount()).toBe(2);
 
     expect(satelliteEngine.isSatelliteActive('METEO_SAT')).toBe(false);
-    expect(satelliteEngine.isSatelliteActive('CONOSCENZE_MESTIERI_SAT')).toBe(false);
+    expect(satelliteEngine.isSatelliteActive('DEFIANCE_PULSE_SAT')).toBe(false);
   });
 
-  it('Dovrebbe applicare il preset SOLO_TERRITORIO (6 satelliti di prossimità, navigazione e conoscenze)', () => {
+  it('Dovrebbe applicare il preset SOLO_TERRITORIO (4 satelliti di prossimità e navigazione)', () => {
     satelliteEngine.applyPreset('SOLO_TERRITORIO');
     const expectedTerritory: SatelliteId[] = [
       'KM0_SAT',
-      'STREET_360_SAT',
+      'MAP_SAT',
       'BUSINESS_ADS_SAT',
-      'WEBCAM',
-      'METEO_ROUTE',
-      'CONOSCENZE_MESTIERI_SAT',
     ];
 
     expectedTerritory.forEach((id) => {
       expect(satelliteEngine.isSatelliteActive(id)).toBe(true);
     });
-    expect(satelliteEngine.getActiveCount()).toBe(6);
+    expect(satelliteEngine.getActiveCount()).toBe(3);
 
     expect(satelliteEngine.isSatelliteActive('GLOBAL_MARKET_SAT')).toBe(false);
   });
@@ -165,13 +162,13 @@ describe('Satellite Modular Fleet Engine – HAVE2WANT PLUS', () => {
     expect(callCount).toBe(1);
 
     // Cambia stato
-    satelliteEngine.toggleSatellite('CONOSCENZE_MESTIERI_SAT');
+    satelliteEngine.toggleSatellite('DEFIANCE_PULSE_SAT');
     expect(callCount).toBe(2);
-    expect(notifiedStates!['CONOSCENZE_MESTIERI_SAT']).toBe(false);
+    expect(notifiedStates!['DEFIANCE_PULSE_SAT']).toBe(false);
 
     // Disiscrizione
     unsubscribe();
-    satelliteEngine.toggleSatellite('CONOSCENZE_MESTIERI_SAT');
+    satelliteEngine.toggleSatellite('DEFIANCE_PULSE_SAT');
     // Non deve essere più chiamato
     expect(callCount).toBe(2);
   });

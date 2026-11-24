@@ -1,21 +1,20 @@
 // SATELLITE MODULAR ENGINE – HAVE2WANT PLUS
-// Registro centrale e centro di controllo degli 8 satelliti tridimensionali.
+// Registro centrale e centro di controllo dei 10 satelliti definitivi + DEFIANCE PULSE.
 // Gestisce l'attivazione/disattivazione autonoma (ON/OFF), le orbite, i preset
 // e la persistenza locale/cloud, preservando l'integrità di tutti i servizi esistenti.
 
 export type SatelliteId =
-  | 'ACTIONFLOW_SAT'
-  | 'LAVORO_SAT'
-  | 'METEO_SAT'
   | 'KM0_SAT'
-  | 'STREET_360_SAT'
+  | 'METEO_SAT'
   | 'PI_CHAT_SAT'
   | 'GLOBAL_MARKET_SAT'
   | 'EXTERNAL_MARKET_SAT'
-  | 'CONOSCENZE_MESTIERI_SAT'
   | 'BUSINESS_ADS_SAT'
-  | 'WEBCAM'
-  | 'METEO_ROUTE';
+  | 'MAP_SAT'
+  | 'COMMUNITY_RESCUE_SAT'
+  | 'ACTIONFLOW_SAT'
+  | 'DEFIANCE_PULSE_SAT'
+  | 'RADAR_SAT';
 
 export type PresetType =
   | 'ACCENDI_TUTTI'
@@ -45,28 +44,11 @@ export interface SatelliteConfig {
   isActive: boolean;
 }
 
-// Configurazione Ingegneristica degli 8 Satelliti (Distribuzione orbitale a 360° LEO, MEO, GEO)
+// Configurazione Ingegneristica dei 10 Satelliti Definitivi + DEFIANCE PULSE (Distribuzione orbitale a 360° LEO, MEO, GEO)
 export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
   {
-    id: 'METEO_SAT',
-    name: 'Meteo & Clima Live',
-    codeName: 'METEOSAT-3G',
-    category: 'METEO',
-    icon: '🌦️',
-    color: '#38bdf8',
-    foilColor: 0xe2e8f0,
-    altitudeKm: 35786,
-    orbitMultiplier: 1.66,
-    speed: 0.0006,
-    inclination: 0.08,
-    startAngle: 0.0,
-    h2wRole: 'Previsioni climatologiche Open-Meteo per ogni comune e regione',
-    targetComponent: 'LiveWeatherModal',
-    isActive: true,
-  },
-  {
     id: 'KM0_SAT',
-    name: 'Produttori a Km 0',
+    name: 'KM 0 — Filiera Corta',
     codeName: 'SENTINEL-2 (ESA)',
     category: 'TERRITORIO',
     icon: '🌾',
@@ -76,31 +58,31 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
     orbitMultiplier: 1.20,
     speed: 0.0011,
     inclination: 1.35,
-    startAngle: 0.785,
-    h2wRole: 'Botteghe locali, agricoltori e filiera corta a chilometro zero',
+    startAngle: 0.0,
+    h2wRole: 'Produttori locali, agricoltori e filiera corta a chilometro zero',
     targetComponent: 'VetrinaKmZero',
     isActive: true,
   },
   {
-    id: 'STREET_360_SAT',
-    name: 'Stradario & Vista 360°',
-    codeName: 'WORLDVIEW-3',
-    category: 'TERRITORIO',
-    icon: '🧭',
-    color: '#06b6d4',
-    foilColor: 0x18181b,
-    altitudeKm: 617,
-    orbitMultiplier: 1.26,
-    speed: 0.0008,
-    inclination: 0.75,
-    startAngle: 1.57,
-    h2wRole: 'Navigazione urbana tridimensionale, passeggiata stradale e incroci',
-    targetComponent: 'StreetView360Modal',
+    id: 'METEO_SAT',
+    name: 'METEO — Clima & Radar Live',
+    codeName: 'METEOSAT-3G',
+    category: 'METEO',
+    icon: '🌦️',
+    color: '#38bdf8',
+    foilColor: 0xe2e8f0,
+    altitudeKm: 35786,
+    orbitMultiplier: 1.66,
+    speed: 0.0006,
+    inclination: 0.08,
+    startAngle: 0.5,
+    h2wRole: 'Previsioni climatologiche Open-Meteo, radar precipitazioni, allerte per ogni territorio',
+    targetComponent: 'LiveWeatherModal',
     isActive: true,
   },
   {
     id: 'PI_CHAT_SAT',
-    name: 'Chat Vocale & Video',
+    name: 'CHAT E VIDEO — Comunicazione Diretta',
     codeName: 'STARLINK-COMM',
     category: 'COMUNICAZIONE',
     icon: '🎙️',
@@ -110,14 +92,14 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
     orbitMultiplier: 1.22,
     speed: 0.0010,
     inclination: -0.92,
-    startAngle: 2.356,
-    h2wRole: 'Messaggistica discreta, note vocali da microfono e videochiamata diretta',
+    startAngle: 1.1,
+    h2wRole: 'Messaggistica discreta, note vocali, videochiamata diretta, gruppi comunità/quartiere',
     targetComponent: 'VoiceNoteChat',
     isActive: true,
   },
   {
     id: 'GLOBAL_MARKET_SAT',
-    name: 'Marketplace Globale',
+    name: 'PRODOTTI DEL MONDO — Marketplace Interno',
     codeName: 'TELSTAR 19V',
     category: 'MERCATI',
     icon: '🌐',
@@ -127,14 +109,14 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
     orbitMultiplier: 1.60,
     speed: 0.00065,
     inclination: 0.22,
-    startAngle: 3.141,
-    h2wRole: 'Supermarket mondiale con prezzi in valuta locale e conversione Pi Network reale',
+    startAngle: 1.7,
+    h2wRole: 'Annunci utenti HAVE2WANT, compravendita P2P, pagamenti Pi, Conferma di Acquisto',
     targetComponent: 'GlobalMarketplaceView',
     isActive: true,
   },
   {
     id: 'EXTERNAL_MARKET_SAT',
-    name: 'Marketplace Esterni',
+    name: 'MARKETPLACE ESTERNI — Canali Esterni',
     codeName: 'GATEWAY-RELAIS',
     category: 'MERCATI',
     icon: '🛒',
@@ -144,31 +126,14 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
     orbitMultiplier: 1.44,
     speed: 0.00075,
     inclination: -0.62,
-    startAngle: 3.927,
-    h2wRole: 'Articoli da canali esterni (Amazon, eBay, AliExpress) con guadagno per l\'app',
+    startAngle: 2.3,
+    h2wRole: 'Ricerca prodotti su piattaforme esterne (Amazon, eBay, ecc.), link affiliati, commissioni in criptovaluta',
     targetComponent: 'ExternalListings',
     isActive: true,
   },
   {
-    id: 'CONOSCENZE_MESTIERI_SAT',
-    name: 'Conoscenze & Mestieri',
-    codeName: 'ARCHIVE-SAT',
-    category: 'TERRITORIO',
-    icon: '📚',
-    color: '#f59e0b',
-    foilColor: 0xd4af37,
-    altitudeKm: 850,
-    orbitMultiplier: 1.30,
-    speed: 0.0008,
-    inclination: 0.40,
-    startAngle: 4.712,
-    h2wRole: 'Archivio guide pratiche, saperi artigianali, riparazioni ed esperienze di vita condivise',
-    targetComponent: 'ConoscenzeMestieriArchive',
-    isActive: true,
-  },
-  {
     id: 'BUSINESS_ADS_SAT',
-    name: 'Pubblicità Esercenti',
+    name: 'CREAZIONE PUBBLICITÀ — Vetrine Sponsorizzate',
     codeName: 'BEACON-BUSINESS',
     category: 'TERRITORIO',
     icon: '🏪',
@@ -178,48 +143,48 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
     orbitMultiplier: 1.34,
     speed: 0.0009,
     inclination: -0.38,
-    startAngle: 5.497,
-    h2wRole: 'Locandine e spazi pubblicitari per negozi ed esercenti con Quota X (0.15)',
+    startAngle: 2.9,
+    h2wRole: 'Pubblicità commercianti 7gg a pagamento Pi, AI Creator per contenuti, vetrine geolocalizzate',
     targetComponent: 'BusinessSponsorModal',
     isActive: true,
   },
   {
-    id: 'WEBCAM',
-    name: 'Webcam Pubbliche Live',
-    codeName: 'CAMSAT-OBS',
+    id: 'MAP_SAT',
+    name: 'MAP — Navigazione & Territorio Unificato',
+    codeName: 'MAP-COMPOSITE',
     category: 'TERRITORIO',
-    icon: '📹',
+    icon: '🗺️',
     color: '#06b6d4',
     foilColor: 0x18181b,
     altitudeKm: 800,
-    orbitMultiplier: 1.28,
-    speed: 0.00085,
-    inclination: 0.45,
-    startAngle: 6.1,
-    h2wRole: 'Webcam pubbliche, turistiche e di traffico in tempo reale',
-    targetComponent: 'LiveWebcamModal',
+    orbitMultiplier: 1.30,
+    speed: 0.0008,
+    inclination: 0.5,
+    startAngle: 3.5,
+    h2wRole: 'GPS, strade ed edifici reali (MapLibre), percorsi reali (OSRM), meteo integrato, webcam live, layer commerciali 3-tier',
+    targetComponent: 'MapView3DContainer',
     isActive: true,
   },
   {
-    id: 'METEO_ROUTE',
-    name: 'Meteo Navigazione',
-    codeName: 'WX-NAV-SAT',
-    category: 'METEO',
-    icon: '🧭',
-    color: '#38bdf8',
+    id: 'COMMUNITY_RESCUE_SAT',
+    name: 'SOCCORSO — Emergenze & Mutuo Aiuto',
+    codeName: 'COSPAS-SARSAT',
+    category: 'COMUNITA',
+    icon: '🆘',
+    color: '#ef4444',
     foilColor: 0xe2e8f0,
-    altitudeKm: 35786,
-    orbitMultiplier: 1.7,
-    speed: 0.0006,
-    inclination: 0.1,
-    startAngle: 0.3,
-    h2wRole: 'Meteo lungo i percorsi di navigazione (auto/bici/piedi)',
-    targetComponent: 'MeteoNavigazioneModal',
+    altitudeKm: 19000,
+    orbitMultiplier: 1.52,
+    speed: 0.0007,
+    inclination: 1.10,
+    startAngle: 4.1,
+    h2wRole: 'Numeri emergenza mondiali, carpooling solidale, mutuo aiuto, punti incontro certificati — SEPARATO da Chat/Video',
+    targetComponent: 'WorldEmergencyModal',
     isActive: true,
   },
   {
     id: 'ACTIONFLOW_SAT',
-    name: 'ActionFlow Hub',
+    name: 'ACTIONFLOW HUB — Portal Applicazioni Esterne',
     codeName: 'ACTIONFLOW-CORE',
     category: 'COMUNITA',
     icon: '🎮',
@@ -229,11 +194,45 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
     orbitMultiplier: 1.4,
     speed: 0.0008,
     inclination: 0.5,
-    startAngle: 2.5,
-    h2wRole: 'Centro operativo missioni, attività AI e ricompense — ActionFlow Hub',
+    startAngle: 4.7,
+    h2wRole: 'Centro operativo missioni, attività AI e ricompense — Portal per app esterne dell\'ecosistema',
     targetComponent: 'ActionFlowHubModal',
-    isActive: false,
-  }
+    isActive: true,
+  },
+  {
+    id: 'DEFIANCE_PULSE_SAT',
+    name: 'DEFIANCE PULSE — Multimedia AI (Creator, Music, Video, Promotion)',
+    codeName: 'DEFIANCE-CORE',
+    category: 'COMUNICAZIONE',
+    icon: '⚡',
+    color: '#8b5cf6',
+    foilColor: 0x7c3aed,
+    altitudeKm: 2000,
+    orbitMultiplier: 1.45,
+    speed: 0.00085,
+    inclination: 0.6,
+    startAngle: 5.3,
+    h2wRole: 'Quattro aree: CREATOR (AI generativa contenuti), MUSIC (basi/loop locali), VIDEO (feed verticale), PROMOTION (ADS interno) — client-side, no API esterne',
+    targetComponent: 'DefiancePulseHub',
+    isActive: true,
+  },
+  {
+    id: 'RADAR_SAT',
+    name: 'RADAR — Scansione Prossimità Territoriale',
+    codeName: 'RADAR-SCAN',
+    category: 'TERRITORIO',
+    icon: '📡',
+    color: '#f59e0b',
+    foilColor: 0xd4af37,
+    altitudeKm: 800,
+    orbitMultiplier: 1.25,
+    speed: 0.0010,
+    inclination: 0.3,
+    startAngle: 5.9,
+    h2wRole: 'Scansione radar di prossimità 35 km, marker territoriali locali, geolocalizzazione P2P',
+    targetComponent: 'RadarProximityModal',
+    isActive: true,
+  },
 ];
 
 // ============================================================================
@@ -243,33 +242,31 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
 // ============================================================================
 
 export const SATELLITE_TO_CHANNEL: Record<SatelliteId, string> = {
-  METEO_SAT: 'WEATHER',
   KM0_SAT: 'KMZERO',
-  STREET_360_SAT: 'STRADARIO',
+  METEO_SAT: 'WEATHER',
   PI_CHAT_SAT: 'CHAT',
   GLOBAL_MARKET_SAT: 'SUPERMARKET',
   EXTERNAL_MARKET_SAT: 'EXTERNAL',
-  CONOSCENZE_MESTIERI_SAT: 'CONOSCENZE_MESTIERI',
   BUSINESS_ADS_SAT: 'BUSINESS_ADS',
-  WEBCAM: 'WEBCAM',
-  METEO_ROUTE: 'METEO_ROUTE',
+  MAP_SAT: 'MAP',
+  COMMUNITY_RESCUE_SAT: 'EMERGENCY',
   ACTIONFLOW_SAT: 'ACTIONFLOW',
-  LAVORO_SAT: 'LAVORO',
+  DEFIANCE_PULSE_SAT: 'DEFIANCE_PULSE',
+  RADAR_SAT: 'RADAR',
 };
 
 export const SATELLITE_TO_COMPONENT: Record<SatelliteId, string> = {
-  METEO_SAT: 'LiveWeatherModal',
   KM0_SAT: 'VetrinaKmZero',
-  STREET_360_SAT: 'StreetView360Modal',
+  METEO_SAT: 'LiveWeatherModal',
   PI_CHAT_SAT: 'VoiceNoteChat',
   GLOBAL_MARKET_SAT: 'GlobalMarketplaceView',
   EXTERNAL_MARKET_SAT: 'ExternalListings',
-  CONOSCENZE_MESTIERI_SAT: 'ConoscenzeMestieriArchive',
   BUSINESS_ADS_SAT: 'BusinessSponsorModal',
-  WEBCAM: 'LiveWebcamModal',
-  METEO_ROUTE: 'MeteoNavigazioneModal',
+  MAP_SAT: 'MapView3DContainer',
+  COMMUNITY_RESCUE_SAT: 'WorldEmergencyModal',
   ACTIONFLOW_SAT: 'ActionFlowHubModal',
-  LAVORO_SAT: 'BachecaLavoroP2P',
+  DEFIANCE_PULSE_SAT: 'DefiancePulseHub',
+  RADAR_SAT: 'RadarProximityModal',
 };
 
 // Risolve il canale UI associato a un SatelliteId (wrapper sulla mappa canonica)
@@ -277,7 +274,7 @@ export function resolveSatelliteChannel(satId: SatelliteId): string {
   return SATELLITE_TO_CHANNEL[satId];
 }
 
-const STORAGE_KEY = 'h2w_satellites_modular_state_v2';
+const STORAGE_KEY = 'h2w_satellites_modular_state_v3';
 
 class SatelliteModularEngine {
   private state: Record<SatelliteId, boolean>;
@@ -369,7 +366,7 @@ class SatelliteModularEngine {
     }
   }
 
-  // Applicazione dei Sette Preset Concordati
+  // Applicazione dei Preset Concordati
   public applyPreset(preset: PresetType) {
     const newState: Record<SatelliteId, boolean> = {} as any;
 
@@ -417,11 +414,8 @@ class SatelliteModularEngine {
         INITIAL_SATELLITES_CATALOG.forEach((sat) => {
           newState[sat.id] =
             sat.id === 'KM0_SAT' ||
-            sat.id === 'STREET_360_SAT' ||
-            sat.id === 'BUSINESS_ADS_SAT' ||
-            sat.id === 'WEBCAM' ||
-            sat.id === 'METEO_ROUTE' ||
-            sat.id === 'CONOSCENZE_MESTIERI_SAT';
+            sat.id === 'MAP_SAT' ||
+            sat.id === 'BUSINESS_ADS_SAT';
         });
         break;
 

@@ -11,7 +11,7 @@ import { SatelliteConfig, SatelliteId } from '@/lib/satelliteModularEngine';
 export type SatelliteLightMode = 'BLINKING' | 'NORMAL' | 'BRIGHT';
 
 export function getSatelliteLightMode(id: SatelliteId): SatelliteLightMode {
-  if (id === 'METEO_SAT' || id === 'STREET_360_SAT') return 'BLINKING';
+  if (id === 'METEO_SAT' || id === 'MAP_SAT' || id === 'RADAR_SAT') return 'BLINKING';
   if (id === 'EXTERNAL_MARKET_SAT') return 'NORMAL';
   return 'BRIGHT';
 }
@@ -392,44 +392,73 @@ export function buildEngineeredSpacecraft(
     }
 
     // -------------------------------------------------------------------------
-    // 4. STREET_360_SAT: WORLDVIEW-3 – Fotogrammetria Stradale Sub-Metrica
+    // 4. MAP_SAT: MAP-COMPOSITE – Navigazione & Territorio Unificato
+    // Fonde: WORLDVIEW-3 (Strade/Edifici 3D) + WEBCAM Live + METEO_ROUTE (OSRM + Meteo su Percorsi)
     // -------------------------------------------------------------------------
-    case 'STREET_360_SAT': {
-      // Imponente telescopio Cassegrain ottico da 1.1m (barilotto in fibra di carbonio)
-      const telescopeTube = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.8, 5.8, 24), carbonFiberMat);
+    case 'MAP_SAT': {
+      // Chassis modulare composito: corpo centrale con 3 payload integrati
+      const bus = new THREE.Mesh(new THREE.BoxGeometry(4.0, 4.0, 4.4), titaniumMat);
+      group.add(bus);
+      clickables.push(bus);
+
+      // PAYLOAD 1: Telescopio fotogrammetrico WORLDVIEW-3 style (Strade/Edifici 3D sub-metrico)
+      const telescopeTube = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.6, 5.0, 20), carbonFiberMat);
       telescopeTube.rotation.x = Math.PI / 2;
-      telescopeTube.position.set(0, 0, 1.4);
-      const sunshadeRing = new THREE.Mesh(new THREE.TorusGeometry(1.6, 0.14, 16, 24), goldFoilMat);
-      sunshadeRing.position.set(0, 0, 4.3);
-      const apertureLens = new THREE.Mesh(new THREE.CircleGeometry(1.4, 24), neonMat);
-      apertureLens.position.set(0, 0, 4.25);
+      telescopeTube.position.set(-1.6, 0, 1.2);
+      const sunshadeRing = new THREE.Mesh(new THREE.TorusGeometry(1.4, 0.12, 16, 24), goldFoilMat);
+      sunshadeRing.position.set(-1.6, 0, 3.7);
+      const apertureLens = new THREE.Mesh(new THREE.CircleGeometry(1.2, 24), neonMat);
+      apertureLens.position.set(-1.6, 0, 3.65);
       group.add(telescopeTube, sunshadeRing, apertureLens);
       clickables.push(telescopeTube, apertureLens);
 
+      // PAYLOAD 2: Array di sensori WEBCAM live (multi-angolo, cupole ottiche)
+      const webcamArray = new THREE.Group();
+      for (let i = 0; i < 4; i++) {
+        const angle = (i * Math.PI) / 2;
+        const camHousing = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.3, 12), silverFoilMat);
+        camHousing.position.set(Math.cos(angle) * 1.0, Math.sin(angle) * 1.0, 2.5);
+        camHousing.rotation.x = -Math.PI / 6;
+        const camLens = new THREE.Mesh(new THREE.CircleGeometry(0.35, 16), neonMat);
+        camLens.position.set(Math.cos(angle) * 1.0, Math.sin(angle) * 1.0, 2.65);
+        webcamArray.add(camHousing, camLens);
+      }
+      group.add(webcamArray);
+      clickables.push(webcamArray);
+
+      // PAYLOAD 3: Modulo METEO-NAV (OSRM + Radar meteo su percorsi)
+      const meteoNavPod = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.2, 1.8), carbonFiberMat);
+      meteoNavPod.position.set(1.6, 0, 1.2);
+      const meteoRadarDish = new THREE.Mesh(new THREE.SphereGeometry(0.8, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2), dishMeshMat);
+      meteoRadarDish.position.set(1.6, 0, 2.3);
+      meteoRadarDish.rotation.x = -Math.PI / 4;
+      group.add(meteoNavPod, meteoRadarDish);
+      clickables.push(meteoNavPod, meteoRadarDish);
+
       // Modulo avionico e giroscopi CMG posteriore
       const avionicsBus = new THREE.Mesh(new THREE.BoxGeometry(3.6, 3.6, 2.2), silverFoilMat);
-      avionicsBus.position.set(0, 0, -1.8);
+      avionicsBus.position.set(0, 0, -2.0);
       group.add(avionicsBus);
       clickables.push(avionicsBus);
 
       // Pannelli solari ad angolo per massimizzare la ricarica in orbita eliosincrona
-      const wingL = new THREE.Mesh(new THREE.BoxGeometry(4.8, 2.6, 0.2), solarCellMat);
-      wingL.position.set(-4.8, 0, -1.4);
+      const wingL = new THREE.Mesh(new THREE.BoxGeometry(5.2, 2.8, 0.2), solarCellMat);
+      wingL.position.set(-5.2, 0, -1.6);
       wingL.rotation.y = 0.25;
-      const wingR = new THREE.Mesh(new THREE.BoxGeometry(4.8, 2.6, 0.2), solarCellMat);
-      wingR.position.set(4.8, 0, -1.4);
+      const wingR = new THREE.Mesh(new THREE.BoxGeometry(5.2, 2.8, 0.2), solarCellMat);
+      wingR.position.set(5.2, 0, -1.6);
       wingR.rotation.y = -0.25;
       group.add(wingL, wingR);
       clickables.push(wingL, wingR);
 
-      // Antenna X-band ad alto guadagno orientabile per download 3.2 Gbps
-      const xBandDish = new THREE.Mesh(new THREE.SphereGeometry(0.9, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2), dishMeshMat);
+      // Antenna X-band ad alto guadagno orientabile per download dati compositi
+      const xBandDish = new THREE.Mesh(new THREE.SphereGeometry(1.0, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2), dishMeshMat);
       xBandDish.rotation.x = Math.PI / 2;
       xBandDish.position.set(1.4, 1.4, 0);
       group.add(xBandDish);
 
-      leftBeaconPos.set(-7.4, 0, -1.4);
-      rightBeaconPos.set(7.4, 0, -1.4);
+      leftBeaconPos.set(-8.2, 0, -1.6);
+      rightBeaconPos.set(8.2, 0, -1.6);
       break;
     }
 
@@ -545,49 +574,211 @@ export function buildEngineeredSpacecraft(
     }
 
     // -------------------------------------------------------------------------
-    // 13. CONOSCENZE_MESTIERI_SAT: ARCHIVE-SAT – Archivio Guide & Saperi
+    // 13. COMMUNITY_RESCUE_SAT: COSPAS-SARSAT – Emergenze Mondiali & Mutuo Aiuto
     // -------------------------------------------------------------------------
-    case 'CONOSCENZE_MESTIERI_SAT': {
-      // Chassis in lamina oro simbolo di valore e conservazione della conoscenza
-      const busGold = new THREE.Mesh(new THREE.BoxGeometry(3.0, 3.0, 3.2), goldFoilMat);
-      const busAmberStripe = new THREE.Mesh(new THREE.BoxGeometry(3.1, 1.2, 3.3), amberAccentMat);
-      group.add(busGold, busAmberStripe);
-      clickables.push(busGold, busAmberStripe);
+    case 'COMMUNITY_RESCUE_SAT': {
+      // Chassis in lamina argento con accenti rossi emergenza (alta visibilità)
+      const bus = new THREE.Mesh(new THREE.BoxGeometry(3.6, 3.6, 3.8), silverFoilMat);
+      const redStripe = new THREE.Mesh(new THREE.BoxGeometry(3.7, 0.8, 3.9), rescueRedMat);
+      redStripe.position.set(0, 0, 1.8);
+      group.add(bus, redStripe);
+      clickables.push(bus, redStripe);
 
-      // Antenna a libro aperto (simbolo di conoscenza condivisa)
-      const bookSpine = new THREE.Mesh(new THREE.BoxGeometry(0.15, 2.0, 2.0), titaniumMat);
-      bookSpine.position.set(0, 0, 2.8);
-      const bookPageL = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.2, 0.1), whiteRadiatorMat);
-      bookPageL.position.set(-0.65, 0, 2.8);
-      bookPageL.rotation.y = -0.2;
-      const bookPageR = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.2, 0.1), whiteRadiatorMat);
-      bookPageR.position.set(0.65, 0, 2.8);
-      bookPageR.rotation.y = 0.2;
-      group.add(bookSpine, bookPageL, bookPageR);
-      clickables.push(bookSpine, bookPageL, bookPageR);
+      // Antenna SAR (Search and Rescue) 406 MHz - grande parabola orientabile
+      const sarDish = new THREE.Mesh(new THREE.SphereGeometry(1.8, 20, 20, 0, Math.PI * 2, 0, Math.PI / 2.2), dishMeshMat);
+      sarDish.position.set(0, 1.8, 2.8);
+      sarDish.rotation.y = Math.PI / 4;
+      group.add(sarDish);
+      clickables.push(sarDish);
 
-      // Anello di dati orbitale (raccolta distribuita)
-      const dataRing = new THREE.Mesh(new THREE.TorusGeometry(1.8, 0.1, 8, 32), neonMat);
-      dataRing.rotation.x = Math.PI / 2;
-      dataRing.position.set(0, 0, 2.0);
-      group.add(dataRing);
-      clickables.push(dataRing);
+      // Array di ripetitori di emergenza (4 moduli angolari)
+      for (let i = 0; i < 4; i++) {
+        const angle = (i * Math.PI) / 2;
+        const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 1.2, 8), rescueRedMat);
+        beacon.position.set(Math.cos(angle) * 1.6, Math.sin(angle) * 1.6, 2.0);
+        beacon.material.emissive = new THREE.Color(0xdc2626);
+        beacon.material.emissiveIntensity = 0.8;
+        group.add(beacon);
+        clickables.push(beacon);
+      }
 
-      // Ali solari a forma di pagina (simbolo di archivio)
-      const wingL = new THREE.Mesh(new THREE.BoxGeometry(5.0, 2.8, 0.15), solarCellMat);
-      wingL.position.set(-5.5, 0, 0);
-      const wingR = new THREE.Mesh(new THREE.BoxGeometry(5.0, 2.8, 0.15), solarCellMat);
-      wingR.position.set(5.5, 0, 0);
+      // Modulo carpooling solidale / punti incontro (simbolo mani unite)
+      const handshakePod = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.12, 8, 16), amberAccentMat);
+      handshakePod.rotation.x = Math.PI / 2;
+      handshakePod.position.set(0, 0, -1.5);
+      group.add(handshakePod);
+      clickables.push(handshakePod);
+
+      // Ali solari ad alta efficienza per operatività continua emergenza
+      const wingL = new THREE.Mesh(new THREE.BoxGeometry(5.6, 3.0, 0.2), solarCellMat);
+      wingL.position.set(-5.8, 0, 0);
+      const wingR = new THREE.Mesh(new THREE.BoxGeometry(5.6, 3.0, 0.2), solarCellMat);
+      wingR.position.set(5.8, 0, 0);
       group.add(wingL, wingR);
       clickables.push(wingL, wingR);
 
-      leftBeaconPos.set(-8.5, 0, 0);
-      rightBeaconPos.set(8.5, 0, 0);
+      leftBeaconPos.set(-8.8, 0, 0);
+      rightBeaconPos.set(8.8, 0, 0);
       break;
     }
 
     // -------------------------------------------------------------------------
-    // 14. BUSINESS_ADS_SAT: INTELSAT-40E / TEMPO – Piattaforma Spettrometro
+    // 14. ACTIONFLOW_SAT: ACTIONFLOW-CORE – Portal Applicazioni Esterne
+    // -------------------------------------------------------------------------
+    case 'ACTIONFLOW_SAT': {
+      // Chassis modulare esagonale (hub multi-porta per app esterne)
+      const bus = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 3.8, 6), titaniumMat);
+      bus.rotation.z = Math.PI / 2;
+      group.add(bus);
+      clickables.push(bus);
+
+      // Core centrale pulsante (motore AI/ricompense)
+      const core = new THREE.Mesh(new THREE.OctahedronGeometry(1.0), neonMat);
+      core.position.set(0, 0, 1.0);
+      group.add(core);
+      clickables.push(core);
+
+      // 6 Porte di connessione per app esterne dell'ecosistema (esagonali)
+      for (let i = 0; i < 6; i++) {
+        const angle = (i * 2 * Math.PI) / 6;
+        const port = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 0.4), carbonFiberMat);
+        port.position.set(Math.cos(angle) * 2.8, Math.sin(angle) * 2.8, 0.8);
+        port.rotation.z = angle;
+        const portGlow = new THREE.Mesh(new THREE.CircleGeometry(0.5, 12), neonMat);
+        portGlow.position.set(Math.cos(angle) * 3.0, Math.sin(angle) * 3.0, 1.0);
+        portGlow.rotation.z = angle;
+        group.add(port, portGlow);
+        clickables.push(port, portGlow);
+      }
+
+      // Antenna di sincronizzazione mesh per coordinamento missioni
+      const syncArray = new THREE.Mesh(new THREE.SphereGeometry(0.7, 12, 12), dishMeshMat);
+      syncArray.position.set(0, 0, 2.6);
+      group.add(syncArray);
+      clickables.push(syncArray);
+
+      // Ali solari retraibili (design compatto per hub orbitale)
+      const wingL = new THREE.Mesh(new THREE.BoxGeometry(4.0, 2.4, 0.18), solarCellMat);
+      wingL.position.set(-4.4, 0, -0.8);
+      const wingR = new THREE.Mesh(new THREE.BoxGeometry(4.0, 2.4, 0.18), solarCellMat);
+      wingR.position.set(4.4, 0, -0.8);
+      group.add(wingL, wingR);
+      clickables.push(wingL, wingR);
+
+      leftBeaconPos.set(-7.4, 0, -0.8);
+      rightBeaconPos.set(7.4, 0, -0.8);
+      break;
+    }
+
+    // -------------------------------------------------------------------------
+    // 15. DEFIANCE_PULSE_SAT: DEFIANCE-CORE – Multimedia AI (4 Aree: Creator, Music, Video, Promotion)
+    // -------------------------------------------------------------------------
+    case 'DEFIANCE_PULSE_SAT': {
+      // Chassis "infinite canvas" - piattaforma generativa client-side, no API esterne
+      const bus = new THREE.Mesh(new THREE.BoxGeometry(4.4, 2.8, 4.0), carbonFiberMat);
+      const violetAccent = new THREE.Mesh(new THREE.BoxGeometry(4.5, 0.6, 4.1), neonMat);
+      violetAccent.position.set(0, 0, 2.0);
+      violetAccent.material.emissiveIntensity = 1.8;
+      group.add(bus, violetAccent);
+      clickables.push(bus, violetAccent);
+
+      // 4 MODULI GENERATIVI disposti a croce (CREATOR, MUSIC, VIDEO, PROMOTION)
+      const moduleData = [
+        { pos: new THREE.Vector3(-2.2, 0, 2.8), label: 'CREATOR' },   // AI Generativa contenuti
+        { pos: new THREE.Vector3(2.2, 0, 2.8), label: 'MUSIC' },       // Basi/loop locali
+        { pos: new THREE.Vector3(-2.2, 0, -2.8), label: 'VIDEO' },     // Feed verticale
+        { pos: new THREE.Vector3(2.2, 0, -2.8), label: 'PROMO' },      // ADS interno
+      ];
+
+      moduleData.forEach((mod) => {
+        const moduleBox = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.0, 1.6), titaniumMat);
+        moduleBox.position.copy(mod.pos);
+        const moduleCore = new THREE.Mesh(new THREE.SphereGeometry(0.5, 12, 12), neonMat);
+        moduleCore.position.copy(mod.pos);
+        moduleCore.material.emissiveIntensity = 1.2;
+        group.add(moduleBox, moduleCore);
+        clickables.push(moduleBox, moduleCore);
+      });
+
+      // Anello di dati AI unificato (connessione tra i 4 moduli)
+      const aiRing = new THREE.Mesh(new THREE.TorusGeometry(2.5, 0.08, 16, 48), neonMat);
+      aiRing.rotation.x = Math.PI / 2;
+      aiRing.position.set(0, 0, 0);
+      group.add(aiRing);
+      clickables.push(aiRing);
+
+      // Antenna di broadcast locale (CPU utente, no cloud)
+      const localBroadcast = new THREE.Mesh(new THREE.ConeGeometry(0.6, 1.8, 8), titaniumMat);
+      localBroadcast.position.set(0, 0, 3.8);
+      localBroadcast.rotation.x = Math.PI;
+      group.add(localBroadcast);
+      clickables.push(localBroadcast);
+
+      // Ali solari a "pulsazione" (simbolo client-side processing)
+      const wingL = new THREE.Mesh(new THREE.BoxGeometry(4.8, 2.6, 0.15), solarCellMat);
+      wingL.position.set(-5.2, 0, 0);
+      const wingR = new THREE.Mesh(new THREE.BoxGeometry(4.8, 2.6, 0.15), solarCellMat);
+      wingR.position.set(5.2, 0, 0);
+      group.add(wingL, wingR);
+      clickables.push(wingL, wingR);
+
+      leftBeaconPos.set(-8.2, 0, 0);
+      rightBeaconPos.set(8.2, 0, 0);
+      break;
+    }
+
+    // -------------------------------------------------------------------------
+    // 15. RADAR_SAT: RADAR-SCAN – Scansione Prossimità Territoriale 35 km
+    // -------------------------------------------------------------------------
+    case 'RADAR_SAT': {
+      // Chassis compatto in lamina oro per riflettività radar
+      const bus = new THREE.Mesh(new THREE.BoxGeometry(2.8, 2.8, 3.2), goldFoilMat);
+      group.add(bus);
+      clickables.push(bus);
+
+      // Array radar phased-array anteriore (grande pannello piatto con elementi)
+      const radarArray = new THREE.Mesh(new THREE.BoxGeometry(3.2, 2.6, 0.3), carbonFiberMat);
+      radarArray.position.set(0, 0, 1.75);
+      const radarElements = new THREE.Group();
+      for (let x = -1.2; x <= 1.2; x += 0.6) {
+        for (let y = -1.0; y <= 1.0; y += 0.5) {
+          const element = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.4, 8), neonMat);
+          element.position.set(x, y, 1.95);
+          element.material.emissiveIntensity = 0.8;
+          radarElements.add(element);
+        }
+      }
+      group.add(radarArray, radarElements);
+      clickables.push(radarArray, radarElements);
+
+      // Modulo elaborazione segnale posteriore
+      const signalPod = new THREE.Mesh(new THREE.BoxGeometry(2.0, 2.0, 1.8), titaniumMat);
+      signalPod.position.set(0, 0, -1.6);
+      group.add(signalPod);
+      clickables.push(signalPod);
+
+      // Antenna downlink per trasmissione dati scansione
+      const downlinkDish = new THREE.Mesh(new THREE.SphereGeometry(0.7, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2), dishMeshMat);
+      downlinkDish.rotation.x = Math.PI / 2;
+      downlinkDish.position.set(1.2, 1.2, -0.5);
+      group.add(downlinkDish);
+      clickables.push(downlinkDish);
+
+      // Ali solari laterali
+      const wingL = new THREE.Mesh(new THREE.BoxGeometry(4.4, 2.4, 0.18), solarCellMat);
+      wingL.position.set(-4.6, 0, 0);
+      const wingR = new THREE.Mesh(new THREE.BoxGeometry(4.4, 2.4, 0.18), solarCellMat);
+      wingR.position.set(4.6, 0, 0);
+      group.add(wingL, wingR);
+      clickables.push(wingL, wingR);
+
+      leftBeaconPos.set(-7.6, 0, 0);
+      rightBeaconPos.set(7.6, 0, 0);
+      break;
+    }
+
+    // -------------------------------------------------------------------------
+    // 16. BUSINESS_ADS_SAT: INTELSAT-40E / TEMPO – Piattaforma Spettrometro
     // -------------------------------------------------------------------------
     case 'BUSINESS_ADS_SAT': {
       // Piattaforma commerciale geostazionaria Maxar 1300 con lamina Kapton oro
@@ -636,9 +827,9 @@ export function buildEngineeredSpacecraft(
   clickables.push(badge);
 
   // Fari differenziati in base alla missione del satellite:
-  // - BLINKING (METEO_SAT, STREET_360_SAT): Luce lampeggiante (ON/OFF)
+  // - BLINKING (METEO_SAT, MAP_SAT, RADAR_SAT): Luce lampeggiante (ON/OFF)
   // - NORMAL (EXTERNAL_MARKET_SAT): Luce normale continua a bassa intensità
-  // - BRIGHT (KM0_SAT, GLOBAL_MARKET_SAT, BUSINESS_ADS_SAT, PI_CHAT_SAT, CONOSCENZE_MESTIERI_SAT): Luce brillante continua ad alta intensità
+  // - BRIGHT (KM0_SAT, GLOBAL_MARKET_SAT, BUSINESS_ADS_SAT, PI_CHAT_SAT, COMMUNITY_RESCUE_SAT, ACTIONFLOW_SAT, DEFIANCE_PULSE_SAT): Luce brillante continua ad alta intensità
   const isBlinking = lightMode === 'BLINKING';
   const isBright = lightMode === 'BRIGHT';
 

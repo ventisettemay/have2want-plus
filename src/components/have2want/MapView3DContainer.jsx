@@ -31,7 +31,7 @@ import {
 import { getCachedPiRealPrice, PI_REAL_PRICE_EUR } from '@/lib/piRealPriceService';
 import { getDisplayCoordinates, filterVisibleListings, applyGeoPrivacy, setDefaultTerritoryCoordinates } from '@/lib/geoPrivacy';
 import { publishShopToCloud, subscribeToCloudShops } from '@/lib/firestoreService';
-import { SATELLITE_TO_CHANNEL } from '@/lib/satelliteModularEngine';
+import { SATELLITE_TO_CHANNEL, SATELLITE_TO_COMPONENT } from '@/lib/satelliteModularEngine';
 import MerchantDetailModal from './MerchantDetailModal';
 import StrettaDiMano from './StrettaDiMano';
 import { toast } from 'sonner';
@@ -59,6 +59,7 @@ import {
   GraduationCap,
   Maximize2,
   Minimize2,
+  Satellite,
 } from 'lucide-react';
 
 function getInitialTargetCoords(selectedCountry) {
@@ -449,10 +450,12 @@ export default function MapView3DContainer({
       setActiveSatellite(activeSatelliteChannel);
       if (activeSatelliteChannel === 'CHAT') {
         setIsVoiceChatOpen(true);
-      } else if (activeSatelliteChannel === 'CONOSCENZE_MESTIERI') {
-        setIsEmergencyModalOpen(false);
+      } else if (activeSatelliteChannel === 'EMERGENCY') {
+        setIsEmergencyModalOpen(true);
         setIsCarpoolModalOpen(false);
-        // Conoscenze & Mestieri apre l'archivio guide, non la modalità emergenza
+      } else if (activeSatelliteChannel === 'MAP') {
+        // MAP channel attiva la vista URBANO_3D con navigazione unificata
+        setLodLevel('URBANO_3D');
       }
     }
   }, [activeSatelliteChannel]);
@@ -537,7 +540,7 @@ export default function MapView3DContainer({
       isDiscreetMode
     });
 
-    // Filtro orbitale selettivo degli 8 satelliti (I marker non pertinenti vengono nascosti):
+    // Filtro orbitale selettivo dei 10 satelliti definitivi (I marker non pertinenti vengono nascosti):
     if (activeSatellite === 'KMZERO') {
       result = result.filter((item) => {
         const cat = ((item.category || item.subcategory || '') + ' ' + (item.title || '')).toLowerCase();
@@ -548,11 +551,9 @@ export default function MapView3DContainer({
         const txt = ((item.category || '') + ' ' + (item.title || '') + ' ' + (item.have_description || '')).toLowerCase();
         return txt.includes('mare') || txt.includes('meteo') || txt.includes('barc') || txt.includes('agricol') || txt.includes('km0') || txt.includes('sport') || txt.includes('trasfert') || txt.includes('bici');
       });
-    } else if (activeSatellite === 'STRADARIO') {
-      result = result.filter((item) => {
-        const txt = ((item.category || '') + ' ' + (item.subcategory || '') + ' ' + (item.title || '')).toLowerCase();
-        return txt.includes('mobilit') || txt.includes('bici') || txt.includes('auto') || txt.includes('strad') || txt.includes('trasfert') || txt.includes('carpool') || txt.includes('serviz');
-      });
+    } else if (activeSatellite === 'MAP') {
+      // MAP unificato: mostra tutto (strade, edifici, commerciali 3-tier, meteo, webcam)
+      // Nessun filtro restrittivo - la navigazione è libera
     } else if (activeSatellite === 'SUPERMARKET' || activeSatellite === 'MONDO') {
       result = result.filter((item) => {
         const intent = (item.intent || '').toUpperCase();
@@ -564,23 +565,31 @@ export default function MapView3DContainer({
         const txt = ((item.source || '') + ' ' + (item.category || '') + ' ' + (item.title || '')).toLowerCase();
         return Boolean(item.isExternal) || txt.includes('external') || txt.includes('ebay') || txt.includes('amazon') || txt.includes('tecnolog') || txt.includes('elettronic');
       });
-    } else if (activeSatellite === 'CONOSCENZE_MESTIERI') {
-      result = result.filter((item) => {
-        const txt = ((item.category || '') + ' ' + (item.subcategory || '') + ' ' + (item.title || '')).toLowerCase();
-        return txt.includes('guida') || txt.includes('riparaz') || txt.includes('artigian') || txt.includes('fai.da.te') || txt.includes('manual') || txt.includes('saper') || txt.includes('conoscenz') || txt.includes('mestier');
-      });
-    } else if (activeSatellite === 'BARATTO') {
-      result = result.filter((item) => {
-        const intent = (item.intent || '').toUpperCase();
-        return intent === 'BARATTO' || intent === 'BARATTO_SCAMBIO' || intent === 'SCAMBIO' || intent === 'WANT' || item.isBaratto;
-      });
     } else if (activeSatellite === 'LAVORO' || activeSatellite === 'P2P') {
       result = result.filter((item) => {
         const cat = ((item.category || item.subcategory || '') + ' ' + (item.title || '')).toLowerCase();
         return cat.includes('lavor') || cat.includes('serviz') || cat.includes('artigian') || cat.includes('riparaz') || cat.includes('competenze');
       });
+    } else if (activeSatellite === 'CHAT') {
+      // Canale Chat Esclusivo: i marker standard lasciano spazio agli utenti Pioneer attivi 👨 / 👩
+      result = [];
+    } else if (activeSatellite === 'BUSINESS_ADS') {
+      // Canale Commercianti Esclusivo: i marker standard lasciano spazio agli esercizi e convenzioni Pi
+      result = [];
+    } else if (activeSatellite === 'EMERGENCY') {
+      // SOCCORSO: solo punti incontro certificati e presidi emergenza
+      result = result.filter((item) => {
+        const txt = ((item.category || '') + ' ' + (item.title || '')).toLowerCase();
+        return txt.includes('municip') || txt.includes('comunale') || txt.includes('stazione') || txt.includes('piazza') || txt.includes('bibliotec') || txt.includes('presidio') || txt.includes('emergenza');
+      });
+    } else if (activeSatellite === 'ACTIONFLOW') {
+      // ACTIONFLOW HUB: mostra missioni e ricompense attive
+      result = result.filter((item) => {
+        const txt = ((item.category || '') + ' ' + (item.title || '')).toLowerCase();
+        return txt.includes('missione') || txt.includes('ricompens') || txt.includes('azione') || txt.includes('premio');
+      });
     } else if (activeSatellite === 'RADAR') {
-      // Scansione radar di prossimità territoriale (raggio 35 km)
+      // RADAR: Scansione radar di prossimità territoriale (raggio 35 km)
       if (targetCoords && typeof targetCoords.lat === 'number' && typeof targetCoords.lng === 'number') {
         result = result.filter((item) => {
           if (typeof item.lat !== 'number' || typeof item.lng !== 'number') return false;
@@ -589,12 +598,6 @@ export default function MapView3DContainer({
           return Math.hypot(dLat, dLng) <= 35;
         });
       }
-    } else if (activeSatellite === 'CHAT') {
-      // Canale Chat Esclusivo: i marker standard lasciano spazio agli utenti Pioneer attivi 👨 / 👩
-      result = [];
-    } else if (activeSatellite === 'BUSINESS_ADS') {
-      // Canale Commercianti Esclusivo: i marker standard lasciano spazio agli esercizi e convenzioni Pi
-      result = [];
     }
 
     return result;
@@ -795,30 +798,21 @@ export default function MapView3DContainer({
                   }
                   break;
 
-                case 'WEBCAM':
-                  if (activeSatellite === 'WEBCAM') {
+                case 'MAP_SAT':
+                case 'MAP':
+                  if (activeSatellite === 'MAP') {
                     setActiveSatellite(null);
                     if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
-                    toast.info('📹 CAMSAT-OBS: Webcam Live Disattivate', { duration: 1800 });
+                    toast.info('🗺️ MAP-COMPOSITE: Navigazione Unificata Disattivata', { duration: 1800 });
                   } else {
-                    setActiveSatellite('WEBCAM');
-                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('WEBCAM');
-                    toast.success('📹 CAMSAT-OBS: Webcam Live Attivate');
+                    setActiveSatellite('MAP');
+                    setLodLevel('URBANO_3D');
+                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('MAP');
+                    toast.success('🗺️ MAP-COMPOSITE: GPS, Strade/Edifici Reali, OSRM, Meteo Integrato, Webcam Attivi');
                   }
                   break;
 
-                case 'METEO_ROUTE':
-                  if (activeSatellite === 'METEO_ROUTE') {
-                    setActiveSatellite(null);
-                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
-                    toast.info('🧭 WX-NAV-SAT: Meteo Navigazione Disattivato', { duration: 1800 });
-                  } else {
-                    setActiveSatellite('METEO_ROUTE');
-                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('METEO_ROUTE');
-                    toast.success('🧭 WX-NAV-SAT: Meteo Navigazione Attivato');
-                  }
-                  break;
-
+                case 'ACTIONFLOW_SAT':
                 case 'ACTIONFLOW':
                   if (activeSatellite === 'ACTIONFLOW') {
                     setActiveSatellite(null);
@@ -844,31 +838,6 @@ export default function MapView3DContainer({
                   }
                   break;
 
-                case 'RADAR':
-                  if (activeSatellite === 'RADAR') {
-                    setActiveSatellite(null);
-                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
-                    toast.info('📡 Scansione Radar Disattivata', { duration: 1800 });
-                  } else {
-                    setActiveSatellite('RADAR');
-                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('RADAR');
-                    toast.success('📡 Scansione Radar Territoriale 25 km Attiva');
-                  }
-                  break;
-
-                case 'STREET_360_SAT':
-                case 'STRADARIO':
-                  if (activeSatellite === 'STRADARIO') {
-                    setActiveSatellite(null);
-                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
-                    toast.info('🧭 WORLDVIEW-3: Passeggiata Stradale Chiusa', { duration: 1800 });
-                  } else {
-                    setActiveSatellite('STRADARIO');
-                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('STRADARIO');
-                    toast.success('🧭 WORLDVIEW-3: Passeggiata Stradale 360° Panoramax Attiva');
-                  }
-                  break;
-
                 case 'PI_CHAT_SAT':
                 case 'VOICE_CHAT':
                 case 'CHAT':
@@ -885,27 +854,15 @@ export default function MapView3DContainer({
                   }
                   break;
 
-                case 'BARATTO':
-                  if (activeSatellite === 'BARATTO') {
-                    setActiveSatellite(null);
-                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
-                    toast.info('🔄 Filtro Baratto Disattivato', { duration: 1800 });
-                  } else {
-                    setActiveSatellite('BARATTO');
-                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('BARATTO');
-                    toast.success('🔄 Pubblicazione HAVE/WANT & Baratto Puro');
-                  }
-                  break;
-
                 case 'GLOBAL_MARKET_SAT':
                   if (activeSatellite === 'SUPERMARKET') {
                     setActiveSatellite(null);
                     if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
-                    toast.info('🌐 TELSTAR 19V: Commercio Globale Chiuso', { duration: 1800 });
+                    toast.info('🌐 TELSTAR 19V: Marketplace Interno Chiuso', { duration: 1800 });
                   } else {
                     setActiveSatellite('SUPERMARKET');
                     if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('SUPERMARKET');
-                    toast.success('🌐 TELSTAR 19V: Marketplace Internazionale Attivo');
+                    toast.success('🌐 TELSTAR 19V: PRODOTTI DEL MONDO — Marketplace Interno Attivo');
                   }
                   break;
 
@@ -913,41 +870,11 @@ export default function MapView3DContainer({
                   if (activeSatellite === 'EXTERNAL') {
                     setActiveSatellite(null);
                     if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
-                    toast.info('🛒 GATEWAY-RELAIS: Mercati Esteri (eBay/Amazon) Chiusi', { duration: 1800 });
+                    toast.info('🛒 GATEWAY-RELAIS: Marketplace Esterni Chiusi', { duration: 1800 });
                   } else {
                     setActiveSatellite('EXTERNAL');
                     if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('EXTERNAL');
-                    toast.success('🛒 GATEWAY-RELAIS: Mercati Esteri eBay/Amazon Attivi');
-                  }
-                  break;
-
-                case 'LAVORO':
-                case 'P2P':
-                  if (activeSatellite === 'LAVORO') {
-                    setActiveSatellite(null);
-                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
-                    toast.info('💼 Bacheca Lavoro Chiusa', { duration: 1800 });
-                  } else {
-                    setActiveSatellite('LAVORO');
-                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('LAVORO');
-                    toast.success('💼 Bacheca Lavoro P2P e Competenze Attiva');
-                  }
-                  break;
-
-                case 'CONOSCENZE_MESTIERI_SAT':
-                case 'CONOSCENZE_MESTIERI':
-                  if (activeSatellite === 'CONOSCENZE_MESTIERI') {
-                    setActiveSatellite(null);
-                    setIsEmergencyModalOpen(false);
-                    setIsCarpoolModalOpen(false);
-                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
-                    toast.info('📚 ARCHIVE-SAT: Conoscenze & Mestieri Disattivato', { duration: 1800 });
-                  } else {
-                    setActiveSatellite('CONOSCENZE_MESTIERI');
-                    setIsEmergencyModalOpen(false);
-                    setIsCarpoolModalOpen(false);
-                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('CONOSCENZE_MESTIERI');
-                    toast.success('📚 ARCHIVE-SAT: Archivio Conoscenze & Mestieri Attivo');
+                    toast.success('🛒 GATEWAY-RELAIS: MARKETPLACE ESTERNI — eBay/Amazon Attivi');
                   }
                   break;
 
@@ -956,11 +883,54 @@ export default function MapView3DContainer({
                   if (activeSatellite === 'BUSINESS_ADS') {
                     setActiveSatellite(null);
                     if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
-                    toast.info('🏪 INTELSAT-40E: Canale Commercianti Disattivato', { duration: 1800 });
+                    toast.info('🏪 INTELSAT-40E: Creazione Pubblicità Disattivata', { duration: 1800 });
                   } else {
                     setActiveSatellite('BUSINESS_ADS');
                     if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('BUSINESS_ADS');
-                    toast.success('🏪 INTELSAT-40E: Canale Commercianti & Convenzioni Pi Attivo');
+                    toast.success('🏪 INTELSAT-40E: CREAZIONE PUBBLICITÀ — Vetrine Sponsorizzate + AI Attive');
+                  }
+                  break;
+
+                case 'COMMUNITY_RESCUE_SAT':
+                case 'EMERGENCY':
+                  if (activeSatellite === 'EMERGENCY') {
+                    setActiveSatellite(null);
+                    setIsEmergencyModalOpen(false);
+                    setIsCarpoolModalOpen(false);
+                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
+                    toast.info('🆘 COSPAS-SARSAT: Soccorso Disattivato', { duration: 1800 });
+                  } else {
+                    setActiveSatellite('EMERGENCY');
+                    setIsEmergencyModalOpen(true);
+                    setIsCarpoolModalOpen(false);
+                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('EMERGENCY');
+                    toast.success('🆘 COSPAS-SARSAT: SOCCORSO — Emergenze Mondiali & Mutuo Aiuto Attivo');
+                  }
+                  break;
+
+                case 'DEFIANCE_PULSE_SAT':
+                case 'DEFIANCE_PULSE':
+                  if (activeSatellite === 'DEFIANCE_PULSE') {
+                    setActiveSatellite(null);
+                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
+                    toast.info('⚡ DEFIANCE-CORE: Defiance Pulse Disattivato', { duration: 1800 });
+                  } else {
+                    setActiveSatellite('DEFIANCE_PULSE');
+                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('DEFIANCE_PULSE');
+                    toast.success('⚡ DEFIANCE-CORE: DEFIANCE PULSE — Creator, Music, Video, Promotion Attivo');
+                  }
+                  break;
+
+                case 'RADAR_SAT':
+                case 'RADAR':
+                  if (activeSatellite === 'RADAR') {
+                    setActiveSatellite(null);
+                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
+                    toast.info('📡 RADAR-SCAN: Scansione Prossimità Disattivata', { duration: 1800 });
+                  } else {
+                    setActiveSatellite('RADAR');
+                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('RADAR');
+                    toast.success('📡 RADAR-SCAN: Scansione Prossimità Territoriale 35 km Attiva');
                   }
                   break;
 
@@ -1348,7 +1318,7 @@ export default function MapView3DContainer({
         }}
       />
 
-      {/* 🛰️ SPACECRAFT INSPECTOR & PANNELLO CONTROLLO FLOTTA (8 SATELLITI & 7 PRESET) */}
+      {/* 🛰️ SPACECRAFT INSPECTOR & PANNELLO CONTROLLO FLOTTA (10 SATELLITI + DEFIANCE PULSE & 8 PRESET) */}
       <SpacecraftInspectorModal
         isOpen={Boolean(scientificSatellite)}
         selectedSatelliteId={scientificSatellite}
@@ -1360,15 +1330,14 @@ export default function MapView3DContainer({
             ...SATELLITE_TO_CHANNEL,
             KMZERO: 'KMZERO',
             WEATHER: 'WEATHER',
-            MONDO: 'MONDO',
+            SUPERMARKET: 'SUPERMARKET',
             EXTERNAL: 'EXTERNAL',
-            P2P: 'P2P',
-            RADAR: 'RADAR',
-            COMUNITA: 'COMUNITA',
-            BARATTO: 'BARATTO',
-            STRADARIO: 'STRADARIO',
+            MAP: 'MAP',
+            EMERGENCY: 'EMERGENCY',
             CHAT: 'CHAT',
             BUSINESS_ADS: 'BUSINESS_ADS',
+            ACTIONFLOW: 'ACTIONFLOW',
+            DEFIANCE_PULSE: 'DEFIANCE_PULSE',
           };
           const targetChannel = CHANNEL_MAP[satId] || satId;
           setActiveSatellite(targetChannel);
@@ -1402,7 +1371,7 @@ export default function MapView3DContainer({
         />
       )}
 
-      {/* 🛰️ MODALI DEGLI 8 SATELLITI ORBITANTI OPERATIVI */}
+      {/* 🛰️ MODALI DEI 10 SATELLITI DEFINITIVI + DEFIANCE PULSE */}
       {activeSatellite === 'KMZERO' && (
         <VetrinaKmZero
           isOpen={true}
@@ -1431,7 +1400,7 @@ export default function MapView3DContainer({
                 <span className="text-2xl">🛒</span>
                 <div>
                   <div className="text-[10px] font-black uppercase tracking-widest text-orange-400">
-                    GATEWAY-RELAIS • MERCATI ESTERI & INTERNAZIONALI
+                    GATEWAY-RELAIS • MARKETPLACE ESTERNI
                   </div>
                   <h3 className="text-lg font-black text-white">Ricerca su eBay, Amazon & Store Esteri</h3>
                 </div>
@@ -1439,7 +1408,7 @@ export default function MapView3DContainer({
               <button
                 onClick={handleCloseSatelliteModal}
                 className="p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-800 cursor-pointer"
-                title="Chiudi Mercati Esteri"
+                title="Chiudi Marketplace Esterni"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1474,12 +1443,151 @@ export default function MapView3DContainer({
           </div>
         </div>
       )}
-      {(activeSatellite === 'P2P' || activeSatellite === 'LAVORO') && (
-        <BachecaLavoroP2P
+      {activeSatellite === 'MAP' && (
+        <div className="fixed inset-0 z-50 bg-black overflow-hidden">
+          <div className="sticky top-0 z-40 bg-black/95 border-b border-zinc-800 px-4 py-3 flex items-center justify-between backdrop-blur-md">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🗺️</span>
+              <span className="text-xs font-black text-cyan-400 uppercase tracking-wider">
+                MAP — NAVIGAZIONE UNIFICATA
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleCloseSatelliteModal}
+              className="px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+              <span>Chiudi</span>
+            </button>
+          </div>
+          <div className="h-[calc(100vh-60px)]">
+            <Urbano3D
+              centroLat={targetCoords?.lat ?? selectedCountry?.lat}
+              centroLng={targetCoords?.lng ?? selectedCountry?.lng}
+              lat={targetCoords?.lat ?? selectedCountry?.lat}
+              lng={targetCoords?.lng ?? selectedCountry?.lng}
+              onBazarSelect={handleBuildingSelect}
+              countryName={selectedCountry?.name || 'Territorio'}
+              isFullscreen={isFullscreenMap}
+              onToggleFullscreen={handleToggleFullscreen}
+              activeChannel="MAP"
+              placeData={selectedCountry ? {
+                name: selectedCountry.capital || selectedCountry.name,
+                displayName: selectedCountry.capital ? `${selectedCountry.capital}, ${selectedCountry.name}` : selectedCountry.name,
+                countryName: selectedCountry.name,
+                countryCode: selectedCountry.code || 'GLOBO',
+                flag: selectedCountry.flag,
+                language: selectedCountry.language || { name: selectedCountry.lang || 'Lingua Locale' },
+                currency: selectedCountry.currencyData || { code: selectedCountry.currency || 'EUR', symbol: '€' },
+                lat: selectedCountry.lat,
+                lng: selectedCountry.lng,
+                timezone: selectedCountry.timezone,
+              } : null}
+              onLocationChange={(place) => {
+                if (place && isValidCoord(place.lat, place.lng)) {
+                  setTargetCoords({ lat: place.lat, lng: place.lng });
+                }
+              }}
+              filter={filter}
+              filteredListings={filteredListings}
+              onSelectListing={handleBuildingSelect}
+              selectedListing={selectedListing}
+              onBackToGlobe={() => { setLodLevel('GLOBO'); handleCloseSatelliteModal(); }}
+              sponsoredBusinesses={sponsoredBusinesses}
+              onOpenVoiceChat={handleOpenVoiceChatForStore}
+              onSelectExternalPlace={(place) => setSelectedExternalPlace(place)}
+            />
+          </div>
+        </div>
+      )}
+      {activeSatellite === 'EMERGENCY' && (
+        <WorldEmergencyModal
           isOpen={true}
           onClose={handleCloseSatelliteModal}
-          currentUser={currentProfile}
+          defaultCountryCode={selectedCountry?.code || selectedCountry?.id || 'GLOBAL'}
         />
+      )}
+      {activeSatellite === 'ACTIONFLOW' && (
+        <div className="fixed inset-0 z-50 bg-slate-950 overflow-y-auto animate-in fade-in duration-200">
+          <div className="sticky top-0 z-40 bg-slate-900/95 border-b border-slate-800 px-4 py-3 flex items-center justify-between backdrop-blur-md">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🎮</span>
+              <span className="text-xs font-black text-violet-400 uppercase tracking-wider">
+                ACTIONFLOW HUB — PORTAL APP ESTERNE
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleCloseSatelliteModal}
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+              <span>Chiudi</span>
+            </button>
+          </div>
+          <div className="max-w-7xl mx-auto p-4">
+            <div className="text-center py-12 text-zinc-400">
+              <Zap className="w-16 h-16 mx-auto mb-4 text-violet-500/50" />
+              <p className="text-sm">ActionFlowHubModal — Centro missioni, attività AI, ricompense</p>
+              <p className="text-xs mt-2">Portal per applicazioni esterne dell'ecosistema</p>
+            </div>
+          </div>
+        </div>
+      )}
+      {activeSatellite === 'DEFIANCE_PULSE' && (
+        <div className="fixed inset-0 z-50 bg-slate-950 overflow-y-auto animate-in fade-in duration-200">
+          <div className="sticky top-0 z-40 bg-slate-900/95 border-b border-slate-800 px-4 py-3 flex items-center justify-between backdrop-blur-md">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">⚡</span>
+              <span className="text-xs font-black text-violet-400 uppercase tracking-wider">
+                DEFIANCE PULSE — MULTIMEDIA AI (4 AREE)
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleCloseSatelliteModal}
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+              <span>Chiudi</span>
+            </button>
+          </div>
+          <div className="max-w-7xl mx-auto p-4">
+            <div className="text-center py-12 text-zinc-400">
+              <Zap className="w-16 h-16 mx-auto mb-4 text-violet-500/50" />
+              <p className="text-sm">DefiancePulseHub — CREATOR • MUSIC • VIDEO • PROMOTION</p>
+              <p className="text-xs mt-2">Generazione client-side (CPU utente), no API esterne, no costi</p>
+            </div>
+          </div>
+        </div>
+      )}
+      {activeSatellite === 'RADAR' && (
+        <div className="fixed inset-0 z-50 bg-slate-950 overflow-y-auto animate-in fade-in duration-200">
+          <div className="sticky top-0 z-40 bg-slate-900/95 border-b border-slate-800 px-4 py-3 flex items-center justify-between backdrop-blur-md">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">📡</span>
+              <span className="text-xs font-black text-amber-400 uppercase tracking-wider">
+                RADAR — SCANSIONE PROSSIMITÀ TERRITORIALE
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleCloseSatelliteModal}
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+              <span>Chiudi</span>
+            </button>
+          </div>
+          <div className="max-w-7xl mx-auto p-4">
+            <div className="text-center py-12 text-zinc-400">
+              <Satellite className="w-16 h-16 mx-auto mb-4 text-amber-500/50" />
+              <p className="text-sm">RadarProximityModal — Scansione 35 km, Marker Territoriali</p>
+              <p className="text-xs mt-2">Geolocalizzazione P2P, prossimità locale attiva</p>
+            </div>
+          </div>
+        </div>
       )}
       {(activeSatellite === 'WEATHER' || activeSatellite === 'METEO') && (
         <LiveWeatherModal
@@ -1488,128 +1596,28 @@ export default function MapView3DContainer({
           country={selectedCountry}
         />
       )}
-      {activeSatellite === 'STRADARIO' && (
-        <StreetView360Modal
+      {activeSatellite === 'BUSINESS_ADS' && (
+        <BusinessSponsorModal
           isOpen={true}
           onClose={handleCloseSatelliteModal}
-          lat={targetCoords?.lat ?? selectedCountry?.lat}
-          lng={targetCoords?.lng ?? selectedCountry?.lng}
-          cityName={selectedCountry?.name || 'Mondo'}
+          onAddSponsoredBusiness={handleAddSponsoredBusiness}
+          currentLocation={{
+            lat: targetCoords?.lat ?? selectedCountry?.lat,
+            lng: targetCoords?.lng ?? selectedCountry?.lng,
+            city: selectedCountry?.name || '',
+            region: selectedCountry?.name || '',
+            countryCode: selectedCountry?.code || '',
+          }}
         />
       )}
-      {activeSatellite === 'COMUNITA' && (
-        <div className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-md p-3 sm:p-6 overflow-y-auto flex flex-col gap-4">
-          <div className="max-w-4xl w-full mx-auto flex flex-wrap items-center justify-between gap-2 bg-zinc-950 border border-zinc-800 px-4 py-3 rounded-2xl shadow-xl">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">🤝</span>
-              <div>
-                <div className="text-[10px] font-black uppercase tracking-widest text-red-400">
-                  COSPAS-SARSAT • COMUNITÀ, SOCCORSO & MOBILITÀ SOLIDALE
-                </div>
-                <h3 className="text-sm sm:text-base font-black text-white">
-                  {communityModalMode === 'CARPOOL' ? 'Carpool Solidale Attivo' : 'Presidi Emergenze Globali'}
-                </h3>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <div className="flex items-center bg-zinc-900 p-1 rounded-xl border border-zinc-800 gap-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCommunityModalMode('EMERGENCY');
-                    setIsEmergencyModalOpen(true);
-                    setIsCarpoolModalOpen(false);
-                  }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-colors cursor-pointer ${
-                    communityModalMode === 'EMERGENCY'
-                      ? 'bg-red-600 text-white'
-                      : 'text-zinc-400 hover:text-white'
-                  }`}
-                >
-                  🚨 Emergenze
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCommunityModalMode('CARPOOL');
-                    setIsEmergencyModalOpen(false);
-                    setIsCarpoolModalOpen(true);
-                  }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-colors cursor-pointer ${
-                    communityModalMode === 'CARPOOL'
-                      ? 'bg-[#00ff66] text-black'
-                      : 'text-zinc-400 hover:text-white'
-                  }`}
-                >
-                  🚗 Carpool
-                </button>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleCloseSatelliteModal}
-                className="px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 text-xs font-black flex items-center gap-1.5 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-                <span>Chiudi</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="max-w-4xl w-full mx-auto">
-            {communityModalMode === 'CARPOOL' ? (
-              <div className="w-full [&>div]:!static [&>div]:!inset-auto [&>div]:!bg-transparent [&>div]:!backdrop-blur-none [&>div]:!p-0 [&>div]:!animate-none">
-                <GlobalCarpoolModal
-                  isOpen={isCarpoolModalOpen && communityModalMode === 'CARPOOL'}
-                  onClose={handleCloseSatelliteModal}
-                />
-              </div>
-            ) : (
-              <div className="w-full [&>div]:!static [&>div]:!inset-auto [&>div]:!bg-transparent [&>div]:!backdrop-blur-none [&>div]:!p-0 [&>div]:!animate-none">
-                <WorldEmergencyModal
-                  isOpen={isEmergencyModalOpen && communityModalMode !== 'CARPOOL'}
-                  onClose={handleCloseSatelliteModal}
-                  defaultCountryCode={selectedCountry?.code || selectedCountry?.id || 'GLOBAL'}
-                />
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-      {activeSatellite === 'RADAR' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="max-w-md w-full bg-zinc-950 border border-amber-500/40 rounded-3xl p-6 shadow-2xl text-center space-y-4">
-            <span className="text-4xl">📡</span>
-            <h3 className="text-lg font-black text-white">Radar Territoriale di Prossimità</h3>
-            <p className="text-xs text-zinc-300">
-              Scansione attiva per le coordinate di <strong>{selectedCountry?.name || 'questo territorio'}</strong>. Raggio di copertura P2P impostato su prossimità locale.
-            </p>
-            <button
-              onClick={handleCloseSatelliteModal}
-              className="w-full py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-black font-black text-xs transition-colors cursor-pointer"
-            >
-              Conferma Scansione Radar
-            </button>
-          </div>
-        </div>
-      )}
-      {activeSatellite === 'BARATTO' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="max-w-md w-full bg-zinc-950 border border-pink-500/40 rounded-3xl p-6 shadow-2xl text-center space-y-4">
-            <span className="text-4xl">🔄</span>
-            <h3 className="text-lg font-black text-white">Filtro Baratto Puro & WANT</h3>
-            <p className="text-xs text-zinc-300">
-              Visualizzazione esclusiva di scambi reciproci merce contro merce, senza moneta fiat. Risoluzione desideri con matching algoritmico inverso.
-            </p>
-            <button
-              onClick={handleCloseSatelliteModal}
-              className="w-full py-2.5 rounded-xl bg-pink-500 hover:bg-pink-400 text-white font-black text-xs transition-colors cursor-pointer"
-            >
-              Attiva Filtro Baratto
-            </button>
-          </div>
-        </div>
+      {activeSatellite === 'CHAT' && (
+        <VoiceNoteChat
+          isOpen={true}
+          onClose={handleCloseSatelliteModal}
+          recipientName={voiceChatRecipient.name}
+          recipientRole={voiceChatRecipient.role}
+          initialVoiceIntro={voiceChatRecipient.intro}
+        />
       )}
     </div>
   );

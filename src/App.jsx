@@ -673,123 +673,140 @@ function Have2WantPlusMain() {
             {/* Separatore */}
             <div className="w-[1px] h-5 bg-zinc-800 shrink-0" />
 
-            {/* 🛰️ SERVIZI CHIAVE CON CONTORNO LED LUMINOSO (CUORE DELL'APP) */}
+            {/* 🛰️ SERVIZI CHIAVE CON CONTORNO LED LUMINOSO (CUORE DELL'APP) — 10 SATELLITI DEFINITIVI */}
             {/* 1. Km 0: Contorno LED Verde Smeraldo */}
             <button
               id="btn-scroll-channel-km0"
               onClick={() => {
                 setActiveSatelliteChannel(SATELLITE_TO_CHANNEL.KM0_SAT);
-                toast.info("🌿 Canale Km 0: Produttori Locali & Filiera Corta");
+                toast.info("🌿 KM 0 — Filiera Corta & Produttori Locali");
               }}
               className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-emerald-950/60 border-2 border-[#10b981] shadow-[0_0_12px_rgba(16,185,129,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
-              title="Filiera Corta, Produttori Locali e Agricoltura Km 0"
+              title="KM 0 — Produttori Locali, Agricoltori, Filiera Corta"
             >
               <span className="w-2.5 h-2.5 rounded-full bg-[#10b981] shadow-[0_0_8px_#10b981] animate-pulse shrink-0" />
               <div className="flex flex-col text-left leading-tight">
-                <span className="text-[12px] font-black text-emerald-300">🌿 Km 0</span>
-                <span className="text-[9px] font-bold text-emerald-400/80 uppercase tracking-tighter">Produttori</span>
+                <span className="text-[12px] font-black text-emerald-300">🌿 KM 0</span>
+                <span className="text-[9px] font-bold text-emerald-400/80 uppercase tracking-tighter">Filiera Corta</span>
               </div>
             </button>
 
-            {/* 2. Meteo Live: Contorno LED Ciano Cielo */}
+            {/* 2. Meteo: Contorno LED Ciano Cielo */}
             <button
               id="btn-scroll-channel-meteo"
               onClick={() => {
                 setActiveSatelliteChannel(SATELLITE_TO_CHANNEL.METEO_SAT);
-                toast.info("⛅ Canale Meteo Live: Clima e Previsioni in Tempo Reale");
+                toast.info("⛅ METEO — Clima, Radar & Previsioni Live");
               }}
               className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-sky-950/60 border-2 border-[#38bdf8] shadow-[0_0_12px_rgba(56,189,248,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
-              title="Meteo Live, nubi e radar precipitazioni in tempo reale"
+              title="METEO — Open-Meteo, Radar 3D, Allerte per Ogni Territorio"
             >
               <span className="w-2.5 h-2.5 rounded-full bg-[#38bdf8] shadow-[0_0_8px_#38bdf8] animate-pulse shrink-0" />
               <div className="flex flex-col text-left leading-tight">
-                <span className="text-[12px] font-black text-sky-300">⛅ Meteo Live</span>
-                <span className="text-[9px] font-bold text-sky-400/80 uppercase tracking-tighter">Tempo Reale</span>
+                <span className="text-[12px] font-black text-sky-300">⛅ METEO</span>
+                <span className="text-[9px] font-bold text-sky-400/80 uppercase tracking-tighter">Clima Live</span>
               </div>
             </button>
 
-            {/* 3. Marketplace Globale: Contorno LED Viola Neon */}
+            {/* 3. Prodotti del Mondo (Marketplace Interno): Contorno LED Viola Neon */}
             <button
-              id="btn-scroll-channel-marketplace"
+              id="btn-scroll-channel-prodotti-mondo"
               onClick={() => {
                 setActiveSatelliteChannel(SATELLITE_TO_CHANNEL.GLOBAL_MARKET_SAT);
-                toast.info("🌐 Canale Marketplace Globale: Supermarket e Spedizioni");
+                toast.info("🌐 PRODOTTI DEL MONDO — Marketplace Interno Utenti");
               }}
               className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-purple-950/60 border-2 border-[#a855f7] shadow-[0_0_12px_rgba(168,85,247,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
-              title="Supermarket Globale, compravendite internazionali e spedizioni tracciate"
+              title="PRODOTTI DEL MONDO — Annunci Utenti HAVE2WANT, Compravendita P2P, Pagamenti Pi"
             >
               <span className="w-2.5 h-2.5 rounded-full bg-[#a855f7] shadow-[0_0_8px_#a855f7] animate-pulse shrink-0" />
               <div className="flex flex-col text-left leading-tight">
-                <span className="text-[12px] font-black text-purple-300">🌐 Marketplace</span>
-                <span className="text-[9px] font-bold text-purple-400/80 uppercase tracking-tighter">Globale</span>
+                <span className="text-[12px] font-black text-purple-300">🌐 PRODOTTI MONDO</span>
+                <span className="text-[9px] font-bold text-purple-400/80 uppercase tracking-tighter">Marketplace Interno</span>
               </div>
             </button>
 
-            {/* 4. Lavoro P2P: Contorno LED Verde Neon Pi */}
+            {/* 4. MAP: Contorno LED Ciano / Blu Navigazione */}
             <button
-              id="btn-scroll-channel-lavoro"
+              id="btn-scroll-channel-map"
               onClick={() => {
-                setActiveSatelliteChannel(SATELLITE_TO_CHANNEL.LAVORO_SAT);
-                toast.info("💼 Canale Lavoro P2P: Bacheca Mestieri, Servizi e Scambi");
-              }}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-emerald-950/60 border-2 border-[#00ff66] shadow-[0_0_12px_rgba(0,255,102,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
-              title="Bacheca Lavoro P2P, Mestieri, Prestazioni e Scambi tra Privati"
-            >
-              <span className="w-2.5 h-2.5 rounded-full bg-[#00ff66] shadow-[0_0_8px_#00ff66] animate-pulse shrink-0" />
-              <div className="flex flex-col text-left leading-tight">
-                <span className="text-[12px] font-black text-[#00ff66]">💼 Lavoro P2P</span>
-                <span className="text-[9px] font-bold text-[#00ff66]/80 uppercase tracking-tighter">Bacheca & Servizi</span>
-              </div>
-            </button>
-
-            {/* 5. Car Sharing: Contorno LED Ciano / Verde Acqua */}
-            <button
-              id="btn-scroll-carpooling"
-              onClick={() => {
-                setShowCarpoolModal(true);
-                toast.info("🚗 Car Sharing: Viaggi e passaggi condivisi");
+                setActiveSatelliteChannel(SATELLITE_TO_CHANNEL.MAP_SAT);
+                toast.info("🗺️ MAP — GPS, Strade/Edifici Reali, Percorsi OSRM, Meteo Integrato, Webcam");
               }}
               className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-cyan-950/60 border-2 border-[#06b6d4] shadow-[0_0_12px_rgba(6,182,212,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
-              title="Car Sharing: Viaggi in auto condivisi tra privati per dividere i costi"
+              title="MAP — Navigazione Unificata: GPS, MapLibre, OSRM, Meteo su Percorsi, Webcam Live"
             >
-              <Car className="w-4 h-4 text-[#06b6d4] shrink-0" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#06b6d4] shadow-[0_0_8px_#06b6d4] animate-pulse shrink-0" />
               <div className="flex flex-col text-left leading-tight">
-                <span className="text-[12px] font-black text-cyan-300">🚗 Car Sharing</span>
-                <span className="text-[9px] font-bold text-cyan-400/80 uppercase tracking-tighter">Passaggi Auto</span>
+                <span className="text-[12px] font-black text-cyan-300">🗺️ MAP</span>
+                <span className="text-[9px] font-bold text-cyan-400/80 uppercase tracking-tighter">Navigazione Reale</span>
               </div>
             </button>
 
-            {/* 6. Negozi e Attività Locali: Contorno LED Ambra / Oro */}
+            {/* 5. Soccorso: Contorno LED Rosso Emergenza */}
             <button
-              id="btn-scroll-botteghe"
+              id="btn-scroll-channel-soccorso"
               onClick={() => {
-                setShowCraftMemoryModal(true);
-                toast.info("🏪 Negozi, Artigiani & Attività Locali del Territorio");
+                setActiveSatelliteChannel(SATELLITE_TO_CHANNEL.COMMUNITY_RESCUE_SAT);
+                toast.info("🆘 SOCCORSO — Emergenze Mondiali, Carpooling Solidale, Punti Incontro Certificati");
               }}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-amber-950/60 border-2 border-[#f59e0b] shadow-[0_0_12px_rgba(245,158,11,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
-              title="Negozi, Commercianti, Artigianato e Imprese del Territorio"
+              className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-red-950/60 border-2 border-[#ef4444] shadow-[0_0_12px_rgba(239,68,68,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
+              title="SOCCORSO — Numeri Emergenza Globali, Mutuo Aiuto, Presidi Civici — SEPARATO da Chat/Video"
             >
-              <BookOpen className="w-4 h-4 text-[#f59e0b] shrink-0" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#ef4444] shadow-[0_0_8px_#ef4444] animate-pulse shrink-0" />
               <div className="flex flex-col text-left leading-tight">
-                <span className="text-[12px] font-black text-amber-300">🏪 Negozi Locali</span>
-                <span className="text-[9px] font-bold text-amber-400/80 uppercase tracking-tighter">Commercio & Attività</span>
+                <span className="text-[12px] font-black text-red-300">🆘 SOCCORSO</span>
+                <span className="text-[9px] font-bold text-red-400/80 uppercase tracking-tighter">Emergenze Globali</span>
               </div>
             </button>
 
-            {/* 7. Centro Inserzioni: Glow Pieno LED Verde Neon */}
+            {/* 6. Creazione Pubblicità: Contorno LED Viola/Fucsia */}
             <button
-              id="btn-scroll-centro-inserzioni"
+              id="btn-scroll-channel-creazione-pubblicita"
               onClick={() => {
-                handleOpenAdHub();
-                toast.info("⚡ Centro Inserzioni & Spazi Pubblicitari");
+                setActiveSatelliteChannel(SATELLITE_TO_CHANNEL.BUSINESS_ADS_SAT);
+                toast.info("🏪 CREAZIONE PUBBLICITÀ — Vetrine Sponsorizzate 7gg Pi + AI Creator");
               }}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-[#00ff66] hover:bg-[#00e65c] text-black border-2 border-[#00ff66] shadow-[0_0_16px_rgba(0,255,102,0.6)] flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
-              title="Centro Inserzioni e Gestione Spazi Pubblicitari per Attività Commerciali"
+              className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-purple-950/60 border-2 border-[#e11d48] shadow-[0_0_12px_rgba(225,29,72,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
+              title="CREAZIONE PUBBLICITÀ — Pubblicità Commercianti, AI Creator per Contenuti, Vetrine Geolocalizzate"
             >
-              <Zap className="w-4 h-4 fill-black text-black shrink-0" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#e11d48] shadow-[0_0_8px_#e11d48] animate-pulse shrink-0" />
               <div className="flex flex-col text-left leading-tight">
-                <span className="text-[12px] font-black text-black">INSERZIONI</span>
-                <span className="text-[9px] font-extrabold text-black/80 uppercase tracking-tighter">Spazi & Negozi</span>
+                <span className="text-[12px] font-black text-pink-300">🏪 CREAZIONE ADS</span>
+                <span className="text-[9px] font-bold text-pink-400/80 uppercase tracking-tighter">Vetrine + AI</span>
+              </div>
+            </button>
+
+            {/* 7. Marketplace Esterni: Contorno LED Arancione */}
+            <button
+              id="btn-scroll-channel-marketplace-esterni"
+              onClick={() => {
+                setActiveSatelliteChannel(SATELLITE_TO_CHANNEL.EXTERNAL_MARKET_SAT);
+                toast.info("🛒 MARKETPLACE ESTERNI — Amazon, eBay, AliExpress, Link Affiliati, Commissioni Crypto");
+              }}
+              className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-amber-950/60 border-2 border-[#f97316] shadow-[0_0_12px_rgba(249,115,22,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
+              title="MARKETPLACE ESTERNI — Ricerca Prodotti Esterni, Link Affiliati Tracciati, Pagamento Criptovaluta"
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-[#f97316] shadow-[0_0_8px_#f97316] animate-pulse shrink-0" />
+              <div className="flex flex-col text-left leading-tight">
+                <span className="text-[12px] font-black text-amber-300">🛒 MARKET ESTERNI</span>
+                <span className="text-[9px] font-bold text-amber-400/80 uppercase tracking-tighter">Canali Esterni</span>
+              </div>
+            </button>
+
+            {/* 8. DEFIANCE PULSE: Contorno LED Viola Brillante — Pulsante Separato Evidenziato */}
+            <button
+              id="btn-scroll-channel-defiance-pulse"
+              onClick={() => {
+                setActiveSatelliteChannel(SATELLITE_TO_CHANNEL.DEFIANCE_PULSE_SAT);
+                toast.info("⚡ DEFIANCE PULSE — CREATOR, MUSIC, VIDEO, PROMOTION (AI Client-Side)");
+              }}
+              className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-violet-950/60 border-2 border-[#8b5cf6] shadow-[0_0_16px_rgba(139,92,246,0.6)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
+              title="DEFIANCE PULSE — 4 Aree: CREATOR (AI Generativa), MUSIC (Basi Locali), VIDEO (Feed Verticale), PROMOTION (ADS Interno)"
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-[#8b5cf6] shadow-[0_0_12px_#8b5cf6] animate-pulse shrink-0" />
+              <div className="flex flex-col text-left leading-tight">
+                <span className="text-[12px] font-black text-violet-300">⚡ DEFIANCE PULSE</span>
+                <span className="text-[9px] font-bold text-violet-400/80 uppercase tracking-tighter">CREATOR • MUSIC • VIDEO • PROMO</span>
               </div>
             </button>
 
@@ -1100,7 +1117,7 @@ function Have2WantPlusMain() {
             )}
           </div>
 
-          {/* GLI 8 SATELLITI OPERATIVI ORBITANTI HAVE2WANT */}
+          {/* 10 SATELLITI DEFINITIVI + DEFIANCE PULSE */}
           <OrbitalSatellitesHub
             currentUser={pioneerUser}
             country={selectedCountry}
@@ -1108,6 +1125,7 @@ function Have2WantPlusMain() {
               toast.success(`💬 Handshake chat avviato per: ${mId}`);
             }}
             onOpenSatelliteChannel={(channel) => setActiveSatelliteChannel(channel)}
+            onOpenDefiancePulse={() => setActiveSatelliteChannel('DEFIANCE_PULSE')}
           />
 
           <button

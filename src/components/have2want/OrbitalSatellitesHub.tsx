@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { CloudSun, Store, ShoppingBag, Briefcase, X, ChevronRight, Sparkles, ShieldCheck, MapPin, Truck, Satellite, Video, Monitor, Mic, Wifi, Compass, Shield, Users, Globe, Zap, Bell, LifeBuoy, Building2, Megaphone } from 'lucide-react';
+import { CloudSun, Store, ShoppingBag, X, ChevronRight, Sparkles, MapPin, Mic, Globe, Zap, LifeBuoy, Megaphone, Satellite, Compass, Shield, Map, ShieldAlert, Cpu, Music, Video, Megaphone as MegaphoneIcon } from 'lucide-react';
 import VetrinaKmZero from './VetrinaKmZero';
 import { GlobalMarketplaceView } from './GlobalMarketplaceView';
-import BachecaLavoroP2P from './BachecaLavoroP2P';
-import VetrinaAgenziePaywall from './VetrinaAgenziePaywall';
 import LiveWeatherModal from './LiveWeatherModal';
 import SpacecraftInspectorModal from './SpacecraftInspectorModal';
+import WorldEmergencyModal from './WorldEmergencyModal';
 import { SatelliteId, satelliteEngine, SATELLITE_TO_CHANNEL, SATELLITE_TO_COMPONENT } from '@/lib/satelliteModularEngine';
 
 interface OrbitalSatellitesHubProps {
@@ -17,7 +16,22 @@ interface OrbitalSatellitesHubProps {
   onToggleWeather?: () => void;
   isWeatherActive?: boolean;
   onOpenSatelliteChannel?: (channel: string) => void;
+  onOpenDefiancePulse?: () => void;
 }
+
+type ChannelId =
+  | 'WEATHER'
+  | 'KMZERO'
+  | 'CHAT'
+  | 'SUPERMARKET'
+  | 'EXTERNAL'
+  | 'BUSINESS_ADS'
+  | 'MAP'
+  | 'EMERGENCY'
+  | 'ACTIONFLOW'
+  | 'DEFIANCE_PULSE'
+  | 'RADAR'
+  | null;
 
 export default function OrbitalSatellitesHub({
   currentUser,
@@ -28,8 +42,9 @@ export default function OrbitalSatellitesHub({
   onToggleWeather,
   isWeatherActive: isWeatherActiveProp = true,
   onOpenSatelliteChannel,
+  onOpenDefiancePulse,
 }: OrbitalSatellitesHubProps) {
-  const [activeChannel, setActiveChannel] = useState<'METEO' | 'KMZERO' | 'SUPERMARKET' | 'LAVORO' | 'AGENZIE' | 'WEBCAM' | 'METEO_ROUTE' | 'PI_CHAT' | 'EXTERNAL' | 'CONOSCENZE_MESTIERI' | 'BUSINESS_ADS' | 'ACTIONFLOW' | null>(null);
+  const [activeChannel, setActiveChannel] = useState<ChannelId>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isFleetModalOpen, setIsFleetModalOpen] = useState(false);
   const [selectedSatForFleet, setSelectedSatForFleet] = useState<SatelliteId | null>(null);
@@ -47,12 +62,12 @@ export default function OrbitalSatellitesHub({
 
   const isWeatherActive = satelliteStates['METEO_SAT'] ?? isWeatherActiveProp;
 
-      const channels = [
+  const channels = [
     {
-      id: 'METEO' as const,
+      id: 'WEATHER' as const,
       satId: 'METEO_SAT' as SatelliteId,
-      name: 'Meteo & Radar Territorio',
-      desc: 'Nuvole, pioggia dinamica 3D, radar live e dissolvenza geopolitica',
+      name: 'METEO — Clima & Radar Live',
+      desc: 'Previsioni Open-Meteo, radar 3D, allerte per ogni territorio',
       icon: CloudSun,
       color: 'from-sky-500 to-blue-600',
       badge: isWeatherActive ? 'LIVE 3D' : 'PAUSA',
@@ -61,8 +76,8 @@ export default function OrbitalSatellitesHub({
     {
       id: 'KMZERO' as const,
       satId: 'KM0_SAT' as SatelliteId,
-      name: 'Produttori a Km Zero',
-      desc: 'Agricoltori locali, ortofrutta fresca, negozi del territorio e ritiro sul posto',
+      name: 'KM 0 — Filiera Corta',
+      desc: 'Produttori locali, agricoltori, filiera corta a chilometro zero',
       icon: Store,
       color: 'from-emerald-500 to-teal-600',
       badge: 'PRODUTTORI LOCALI',
@@ -71,103 +86,102 @@ export default function OrbitalSatellitesHub({
     {
       id: 'SUPERMARKET' as const,
       satId: 'GLOBAL_MARKET_SAT' as SatelliteId,
-      name: 'Supermarket dal Mondo',
-      desc: 'Marketplace mondiale, negozi internazionali e spedizioni tracciate',
+      name: 'PRODOTTI DEL MONDO — Marketplace Interno',
+      desc: 'Annunci utenti HAVE2WANT, compravendita P2P, pagamenti Pi',
       icon: ShoppingBag,
       color: 'from-amber-500 to-orange-600',
-      badge: 'MARKETPLACE MONDO',
+      badge: 'MARKETPLACE INTERNO',
       badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
-    },
-    {
-      id: 'WEBCAM' as const,
-      satId: 'WEBCAM' as SatelliteId,
-      name: 'Webcam Live Territorio',
-      desc: 'Webcam live sul territorio, traffico, meteo locale e panorami in tempo reale',
-      icon: Video,
-      color: 'from-cyan-500 to-blue-600',
-      badge: 'WEBCAM LIVE',
-      badgeColor: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40',
-    },
-    {
-      id: 'METEO_ROUTE' as const,
-      satId: 'METEO_ROUTE' as SatelliteId,
-      name: 'Meteo Navigazione',
-      desc: 'Previsioni lungo il percorso, allerte meteo stradale e condizioni visibilità',
-      icon: Compass,
-      color: 'from-indigo-500 to-purple-600',
-      badge: 'METEO PERCORSO',
-      badgeColor: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40',
-    },
-    {
-      id: 'PI_CHAT' as const,
-      satId: 'PI_CHAT_SAT' as SatelliteId,
-      name: 'Chat Vocale & Video',
-      desc: 'Messaggistica discreta, note vocali da microfono e videochiamata diretta',
-      icon: Mic,
-      color: 'from-emerald-500 to-green-600',
-      badge: 'CHAT & CALL',
-      badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
     },
     {
       id: 'EXTERNAL' as const,
       satId: 'EXTERNAL_MARKET_SAT' as SatelliteId,
-      name: 'Marketplace Esterno',
-      desc: 'Cataloghi esterni aggregati, fornitori globali e link affiliati tracciati',
+      name: 'MARKETPLACE ESTERNI — Canali Esterni',
+      desc: 'Ricerca prodotti Amazon/eBay, link affiliati, commissioni crypto',
       icon: Globe,
       color: 'from-amber-500 to-yellow-600',
       badge: 'MARKET ESTERNO',
       badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
     },
     {
-      id: 'CONOSCENZE_MESTIERI' as const,
-      satId: 'CONOSCENZE_MESTIERI_SAT' as SatelliteId,
-      name: 'Conoscenze & Mestieri',
-      desc: 'Archivio guide pratiche, saperi artigianali, riparazioni e esperienze di vita condivise',
-      icon: LifeBuoy,
-      color: 'from-amber-500 to-orange-600',
-      badge: 'ARCHIVIO ATTIVO',
-      badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+      id: 'CHAT' as const,
+      satId: 'PI_CHAT_SAT' as SatelliteId,
+      name: 'CHAT E VIDEO — Comunicazione Diretta',
+      desc: 'Messaggistica, note vocali, videochiamata, gruppi comunità/quartiere',
+      icon: Mic,
+      color: 'from-emerald-500 to-green-600',
+      badge: 'CHAT & CALL',
+      badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
     },
     {
       id: 'BUSINESS_ADS' as const,
       satId: 'BUSINESS_ADS_SAT' as SatelliteId,
-      name: 'Business & Sponsor Ads',
-      desc: 'Vetrine sponsorizzate, pubblicità geolocalizzata e campagne a pagamento in Pi',
+      name: 'CREAZIONE PUBBLICITÀ — Vetrine Sponsorizzate',
+      desc: 'Pubblicità 7gg Pi-paid, AI Creator per contenuti, vetrine geolocalizzate',
       icon: Megaphone,
       color: 'from-purple-500 to-fuchsia-600',
-      badge: 'ADV VIP',
+      badge: 'ADV VIP + AI',
       badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
+    },
+    {
+      id: 'MAP' as const,
+      satId: 'MAP_SAT' as SatelliteId,
+      name: 'MAP — Navigazione & Territorio',
+      desc: 'GPS, strade/edifici reali, percorsi OSRM, meteo integrato, webcam, layer 3-tier',
+      icon: Map,
+      color: 'from-cyan-500 to-blue-600',
+      badge: 'NAVIGAZIONE REALE',
+      badgeColor: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40',
+    },
+    {
+      id: 'EMERGENCY' as const,
+      satId: 'COMMUNITY_RESCUE_SAT' as SatelliteId,
+      name: 'SOCCORSO — Emergenze & Mutuo Aiuto',
+      desc: 'Numeri emergenza mondiali, carpooling solidale, punti incontro certificati',
+      icon: ShieldAlert,
+      color: 'from-red-500 to-rose-600',
+      badge: 'EMERGENZA GLOBALE',
+      badgeColor: 'bg-red-500/20 text-red-300 border-red-500/40',
     },
     {
       id: 'ACTIONFLOW' as const,
       satId: 'ACTIONFLOW_SAT' as SatelliteId,
-      name: 'ActionFlow Hub',
-      desc: 'Centro operativo missioni, attività AI e ricompense — ActionFlow Hub',
+      name: 'ACTIONFLOW HUB — Portal App Esterne',
+      desc: 'Centro missioni, attività AI, ricompense, portal ecosistema esterno',
       icon: Zap,
       color: 'from-violet-500 to-purple-600',
       badge: 'ACTIONFLOW HUB',
       badgeColor: 'bg-violet-500/20 text-violet-300 border-violet-500/40',
     },
     {
-      id: 'LAVORO' as const,
-      satId: 'LAVORO_SAT' as SatelliteId,
-      name: 'Lavoro & Servizi Diretti',
-      desc: 'Annunci di lavoro, servizi di prossimità e collaborazioni senza agenzie',
-      icon: Briefcase,
-      color: 'from-purple-500 to-indigo-600',
-      badge: 'LAVORO & SERVIZI',
-      badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
+      id: 'DEFIANCE_PULSE' as const,
+      satId: 'DEFIANCE_PULSE_SAT' as SatelliteId,
+      name: 'DEFIANCE PULSE — Multimedia AI (4 Aree)',
+      desc: 'CREATOR, MUSIC, VIDEO, PROMOTION — generazione client-side, no API esterne',
+      icon: Cpu,
+      color: 'from-violet-500 to-pink-600',
+      badge: 'AI CREATOR • MUSIC • VIDEO • PROMO',
+      badgeColor: 'bg-violet-500/20 text-violet-300 border-violet-500/40',
     },
     {
-      id: 'AGENZIE' as const,
-      name: 'Agenzie & Interinali',
-      desc: 'Vetrina a pagamento per agenzie, con le stesse tariffe dei commercianti',
-      icon: ShieldCheck,
-      color: 'from-rose-500 to-pink-600',
-      badge: 'ABBONAMENTO',
-      badgeColor: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+      id: 'RADAR' as const,
+      satId: 'RADAR_SAT' as SatelliteId,
+      name: 'RADAR — Scansione Prossimità Territoriale',
+      desc: 'Scansione radar 35 km, marker territoriali locali, geolocalizzazione P2P',
+      icon: Satellite,
+      color: 'from-amber-500 to-orange-600',
+      badge: 'SCANSIONE 35 KM',
+      badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
     },
   ];
+
+  const handleChannelClick = (chan: typeof channels[0]) => {
+    setActiveChannel(chan.id);
+    setIsMenuOpen(false);
+    if (onOpenSatelliteChannel) {
+      onOpenSatelliteChannel(chan.id);
+    }
+  };
 
   return (
     <>
@@ -182,7 +196,7 @@ export default function OrbitalSatellitesHub({
               ? 'bg-[#00ff66] text-black border-[#00ff66] shadow-[#00ff66]/20'
               : 'bg-zinc-950/90 hover:bg-zinc-900 text-white border-zinc-700/80 hover:border-zinc-500'
           }`}
-          title="Canali Territoriali: Meteo, Km 0, Marketplace e Lavoro P2P"
+          title="Canali Territoriali: 11 Satelliti Definitivi"
         >
           <span className="relative flex h-2.5 w-2.5">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00ff66] opacity-75"></span>
@@ -199,7 +213,7 @@ export default function OrbitalSatellitesHub({
                 <span className="text-base">🌐</span>
                 <div>
                   <h4 className="text-xs font-black text-white uppercase tracking-wider">Canali & Servizi Territoriali</h4>
-                  <p className="text-[10px] text-zinc-400">Le 4 funzioni operative chiave dell'ecosistema Have2Want</p>
+                  <p className="text-[10px] text-zinc-400">11 Satelliti Definitivi</p>
                 </div>
               </div>
               <button
@@ -211,7 +225,7 @@ export default function OrbitalSatellitesHub({
               </button>
             </div>
 
-            {/* 🛰️ Centro Controllo Flotta 8 Satelliti H2W */}
+            {/* 🛰️ Centro Controllo Flotta */}
             <div className="mb-2.5">
               <button
                 type="button"
@@ -228,8 +242,8 @@ export default function OrbitalSatellitesHub({
                   </div>
                   <div>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-black text-white">CONTROLLO FLOTTA 8 SATELLITI</span>
-                      <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-emerald-400 text-black">7 PRESET</span>
+                      <span className="text-xs font-black text-white">CONTROLLO FLOTTA 11 SATELLITI</span>
+                      <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-emerald-400 text-black">8 PRESET</span>
                     </div>
                     <p className="text-[10px] text-zinc-300">Interruttori ON/OFF, Ispezione 3D, orbite ed azionamenti</p>
                   </div>
@@ -245,10 +259,7 @@ export default function OrbitalSatellitesHub({
                   <button
                     key={chan.id}
                     type="button"
-                    onClick={() => {
-                      setActiveChannel(chan.id);
-                      setIsMenuOpen(false);
-                    }}
+                    onClick={() => handleChannelClick(chan)}
                     className="w-full text-left p-2.5 rounded-xl bg-zinc-900/60 hover:bg-zinc-850 border border-zinc-800/70 hover:border-zinc-700 transition-all flex items-center justify-between group cursor-pointer"
                   >
                     <div className="flex items-center gap-3 min-w-0">
@@ -271,7 +282,7 @@ export default function OrbitalSatellitesHub({
               })}
             </div>
 
-            {/* Interruttori diretti degli 8 satelliti */}
+            {/* Interruttori diretti dei 10+1 satelliti */}
             <div className="mt-3 pt-2.5 border-t border-zinc-800/80">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] font-black text-zinc-300 uppercase tracking-wider">Satelliti · ON/OFF</span>
@@ -309,8 +320,8 @@ export default function OrbitalSatellitesHub({
         )}
       </div>
 
-      {/* CANALE 1: METEO & RADAR TERRITORIO (dati reali Open-Meteo + RainViewer) */}
-      {activeChannel === 'METEO' && (
+      {/* CANALE: METEO & RADAR TERRITORIO */}
+      {activeChannel === 'WEATHER' && (
         <LiveWeatherModal
           isOpen={true}
           onClose={() => setActiveChannel(null)}
@@ -325,14 +336,14 @@ export default function OrbitalSatellitesHub({
         />
       )}
 
-      {/* CANALE 2: VETRINA KM ZERO */}
+      {/* CANALE: VETRINA KM ZERO */}
       {activeChannel === 'KMZERO' && (
         <div className="fixed inset-0 z-50 bg-slate-950 overflow-y-auto animate-in fade-in duration-200">
           <div className="sticky top-0 z-40 bg-slate-900/95 border-b border-slate-800 px-4 py-3 flex items-center justify-between backdrop-blur-md">
             <div className="flex items-center gap-2">
-              <span className="text-lg">🥦</span>
-              <span className="text-xs font-black text-amber-400 uppercase tracking-wider">
-                VETRINA A KM ZERO (PRODOTTI FRESCHI & TERRITORIO)
+              <span className="text-lg">🌾</span>
+              <span className="text-xs font-black text-emerald-400 uppercase tracking-wider">
+                KM 0 — FILIERA CORTA
               </span>
             </div>
             <button
@@ -350,7 +361,7 @@ export default function OrbitalSatellitesHub({
         </div>
       )}
 
-      {/* CANALE 3: MARKETPLACE INTERNAZIONALE & PRODOTTI FISICI */}
+      {/* CANALE: PRODOTTI DEL MONDO (Marketplace Interno) */}
       {activeChannel === 'SUPERMARKET' && (
         <div className="fixed inset-0 z-50 bg-black overflow-y-auto animate-in fade-in duration-200">
           <GlobalMarketplaceView
@@ -360,14 +371,177 @@ export default function OrbitalSatellitesHub({
         </div>
       )}
 
-      {/* CANALE 4: BACHECA LAVORO & SCAMBI P2P */}
-      {activeChannel === 'LAVORO' && (
+      {/* CANALE: MARKETPLACE ESTERNI */}
+      {activeChannel === 'EXTERNAL' && (
+        <div className="fixed inset-0 z-50 bg-black overflow-y-auto animate-in fade-in duration-200">
+          <GlobalMarketplaceView
+            onBack={() => setActiveChannel(null)}
+            currentUser={currentUser}
+          />
+        </div>
+      )}
+
+      {/* CANALE: CHAT E VIDEO */}
+      {activeChannel === 'CHAT' && (
         <div className="fixed inset-0 z-50 bg-slate-950 overflow-y-auto animate-in fade-in duration-200">
           <div className="sticky top-0 z-40 bg-slate-900/95 border-b border-slate-800 px-4 py-3 flex items-center justify-between backdrop-blur-md">
             <div className="flex items-center gap-2">
-              <span className="text-lg">💼</span>
+              <span className="text-lg">🎙️</span>
+              <span className="text-xs font-black text-emerald-400 uppercase tracking-wider">
+                CHAT E VIDEO — COMUNICAZIONE DIRETTA
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveChannel(null)}
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+              <span>Chiudi</span>
+            </button>
+          </div>
+          <div className="max-w-7xl mx-auto p-4">
+            <div className="text-center py-12 text-zinc-400">
+              <Mic className="w-16 h-16 mx-auto mb-4 text-emerald-500/50" />
+              <p className="text-sm">VoiceNoteChat — Messaggistica, note vocali, videochiamata</p>
+              <p className="text-xs mt-2">Gruppi comunità, quartiere, chat private — separato da SOCCORSO</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CANALE: CREAZIONE PUBBLICITÀ */}
+      {activeChannel === 'BUSINESS_ADS' && (
+        <div className="fixed inset-0 z-50 bg-slate-950 overflow-y-auto animate-in fade-in duration-200">
+          <div className="sticky top-0 z-40 bg-slate-900/95 border-b border-slate-800 px-4 py-3 flex items-center justify-between backdrop-blur-md">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🏪</span>
+              <span className="text-xs font-black text-purple-400 uppercase tracking-wider">
+                CREAZIONE PUBBLICITÀ — VETRINE SPONSORIZZATE
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveChannel(null)}
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+              <span>Chiudi</span>
+            </button>
+          </div>
+          <div className="max-w-7xl mx-auto p-4">
+            <div className="text-center py-12 text-zinc-400">
+              <Megaphone className="w-16 h-16 mx-auto mb-4 text-purple-500/50" />
+              <p className="text-sm">BusinessSponsorModal — Vetrine 7gg Pi-paid + AI Creator</p>
+              <p className="text-xs mt-2">Genera copy, headline, script vocale, storyboard video con AI</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CANALE: MAP — Navigazione Unificata */}
+      {activeChannel === 'MAP' && (
+        <div className="fixed inset-0 z-50 bg-black overflow-hidden animate-in fade-in duration-200">
+          <div className="sticky top-0 z-40 bg-black/95 border-b border-zinc-800 px-4 py-3 flex items-center justify-between backdrop-blur-md">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🗺️</span>
+              <span className="text-xs font-black text-cyan-400 uppercase tracking-wider">
+                MAP — NAVIGAZIONE & TERRITORIO
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveChannel(null)}
+              className="px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+              <span>Chiudi</span>
+            </button>
+          </div>
+          <div className="h-[calc(100vh-60px)]">
+            <div className="text-center py-12 text-zinc-400">
+              <Map className="w-16 h-16 mx-auto mb-4 text-cyan-500/50" />
+              <p className="text-sm">MapView3DContainer — GPS, Strade/Edifici Reali, OSRM, Meteo Integrato, Webcam</p>
+              <p className="text-xs mt-2">Layer: Commerciali 3-tier • Meteo su Percorsi • Webcam Live</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CANALE: SOCCORSO — Emergenze */}
+      {activeChannel === 'EMERGENCY' && (
+        <WorldEmergencyModal
+          isOpen={true}
+          onClose={() => setActiveChannel(null)}
+        />
+      )}
+
+      {/* CANALE: ACTIONFLOW HUB */}
+      {activeChannel === 'ACTIONFLOW' && (
+        <div className="fixed inset-0 z-50 bg-slate-950 overflow-y-auto animate-in fade-in duration-200">
+          <div className="sticky top-0 z-40 bg-slate-900/95 border-b border-slate-800 px-4 py-3 flex items-center justify-between backdrop-blur-md">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🎮</span>
+              <span className="text-xs font-black text-violet-400 uppercase tracking-wider">
+                ACTIONFLOW HUB — PORTAL APP ESTERNE
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveChannel(null)}
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+              <span>Chiudi</span>
+            </button>
+          </div>
+          <div className="max-w-7xl mx-auto p-4">
+            <div className="text-center py-12 text-zinc-400">
+              <Zap className="w-16 h-16 mx-auto mb-4 text-violet-500/50" />
+              <p className="text-sm">ActionFlowHubModal — Centro missioni, attività AI, ricompense</p>
+              <p className="text-xs mt-2">Portal per applicazioni esterne dell'ecosistema</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CANALE: DEFIANCE PULSE */}
+      {activeChannel === 'DEFIANCE_PULSE' && (
+        <div className="fixed inset-0 z-50 bg-slate-950 overflow-y-auto animate-in fade-in duration-200">
+          <div className="sticky top-0 z-40 bg-slate-900/95 border-b border-slate-800 px-4 py-3 flex items-center justify-between backdrop-blur-md">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">⚡</span>
+              <span className="text-xs font-black text-violet-400 uppercase tracking-wider">
+                DEFIANCE PULSE — MULTIMEDIA AI (4 AREE)
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveChannel(null)}
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+              <span>Chiudi</span>
+            </button>
+          </div>
+          <div className="max-w-7xl mx-auto p-4">
+            <div className="text-center py-12 text-zinc-400">
+              <Cpu className="w-16 h-16 mx-auto mb-4 text-violet-500/50" />
+              <p className="text-sm">DefiancePulseHub — CREATOR • MUSIC • VIDEO • PROMOTION</p>
+              <p className="text-xs mt-2">Generazione client-side (CPU utente), no API esterne, no costi</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CANALE: RADAR — Scansione Prossimità */}
+      {activeChannel === 'RADAR' && (
+        <div className="fixed inset-0 z-50 bg-slate-950 overflow-y-auto animate-in fade-in duration-200">
+          <div className="sticky top-0 z-40 bg-slate-900/95 border-b border-slate-800 px-4 py-3 flex items-center justify-between backdrop-blur-md">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">📡</span>
               <span className="text-xs font-black text-amber-400 uppercase tracking-wider">
-                BACHECA LAVORO P2P & COMPETENZE (NO AGENZIE INTERINALI)
+                RADAR — SCANSIONE PROSSIMITÀ TERRITORIALE
               </span>
             </div>
             <button
@@ -379,36 +553,17 @@ export default function OrbitalSatellitesHub({
               <span>Chiudi</span>
             </button>
           </div>
-          <div className="max-w-7xl mx-auto">
-            <BachecaLavoroP2P currentUser={currentUser} />
-          </div>
-        </div>
-      )}
-
-      {/* CANALE 5: VETRINA AGENZIE A PAGAMENTO */}
-      {activeChannel === 'AGENZIE' && (
-        <div className="fixed inset-0 z-50 bg-slate-950 overflow-y-auto animate-in fade-in duration-200">
-          <div className="sticky top-0 z-40 bg-slate-900/95 border-b border-slate-800 px-4 py-3 flex items-center justify-between backdrop-blur-md">
-            <div className="flex items-center gap-2">
-              <span className="text-lg">🏢</span>
-              <span className="text-xs font-black text-rose-400 uppercase tracking-wider">
-                VETRINA AGENZIE & INTERINALI (ABBONAMENTO)
-              </span>
+          <div className="max-w-7xl mx-auto p-4">
+            <div className="text-center py-12 text-zinc-400">
+              <Satellite className="w-16 h-16 mx-auto mb-4 text-amber-500/50" />
+              <p className="text-sm">RadarProximityModal — Scansione 35 km, Marker Territoriali</p>
+              <p className="text-xs mt-2">Geolocalizzazione P2P, prossimità locale attiva</p>
             </div>
-            <button
-              type="button"
-              onClick={() => setActiveChannel(null)}
-              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-              <span>Chiudi</span>
-            </button>
           </div>
-          <VetrinaAgenziePaywall currentUser={currentUser} />
         </div>
       )}
 
-      {/* 🛰️ MODALE CONTROLLO FLOTTA 8 SATELLITI & ISPEZIONE 3D */}
+      {/* 🛰️ MODALE CONTROLLO FLOTTA & ISPEZIONE 3D */}
       <SpacecraftInspectorModal
         isOpen={isFleetModalOpen}
         selectedSatelliteId={selectedSatForFleet}
@@ -416,16 +571,13 @@ export default function OrbitalSatellitesHub({
         onClose={() => setIsFleetModalOpen(false)}
         onLaunchChannel={(satId) => {
           setIsFleetModalOpen(false);
-          // L'apertura di un canale attiva anche il relativo satellite
           satelliteEngine.setSatelliteActive(satId, true);
           if (onOpenSatelliteChannel) {
-            // Delega al contenitore territoriale: un solo livello di modali e servizio corretto
             onOpenSatelliteChannel(SATELLITE_TO_CHANNEL[satId]);
             return;
           }
-          // Fallback locale solo se l'hub è usato senza il contenitore della mappa
           const channel = SATELLITE_TO_CHANNEL[satId];
-          if (channel) setActiveChannel(channel as any);
+          if (channel) setActiveChannel(channel as ChannelId);
         }}
         onSelectSatellite={(satId) => setSelectedSatForFleet(satId)}
       />
