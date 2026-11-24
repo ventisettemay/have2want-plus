@@ -30,7 +30,6 @@ type ChannelId =
   | 'EMERGENCY'
   | 'ACTIONFLOW'
   | 'DEFIANCE_PULSE'
-  | 'RADAR'
   | null;
 
 export default function OrbitalSatellitesHub({
@@ -135,7 +134,7 @@ export default function OrbitalSatellitesHub({
     },
     {
       id: 'EMERGENCY' as const,
-      satId: 'COMMUNITY_RESCUE_SAT' as SatelliteId,
+      satId: 'SOCCORSO_SAT' as SatelliteId,
       name: 'SOCCORSO — Emergenze & Mutuo Aiuto',
       desc: 'Numeri emergenza mondiali, carpooling solidale, punti incontro certificati',
       icon: ShieldAlert,
@@ -163,16 +162,6 @@ export default function OrbitalSatellitesHub({
       badge: 'AI CREATOR • MUSIC • VIDEO • PROMO',
       badgeColor: 'bg-violet-500/20 text-violet-300 border-violet-500/40',
     },
-    {
-      id: 'RADAR' as const,
-      satId: 'RADAR_SAT' as SatelliteId,
-      name: 'RADAR — Scansione Prossimità Territoriale',
-      desc: 'Scansione radar 35 km, marker territoriali locali, geolocalizzazione P2P',
-      icon: Satellite,
-      color: 'from-amber-500 to-orange-600',
-      badge: 'SCANSIONE 35 KM',
-      badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
-    },
   ];
 
   const handleChannelClick = (chan: typeof channels[0]) => {
@@ -196,7 +185,7 @@ export default function OrbitalSatellitesHub({
               ? 'bg-[#00ff66] text-black border-[#00ff66] shadow-[#00ff66]/20'
               : 'bg-zinc-950/90 hover:bg-zinc-900 text-white border-zinc-700/80 hover:border-zinc-500'
           }`}
-          title="Canali Territoriali: 11 Satelliti Definitivi"
+          title="Canali Territoriali: 10 Satelliti Definitivi"
         >
           <span className="relative flex h-2.5 w-2.5">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00ff66] opacity-75"></span>
@@ -213,7 +202,7 @@ export default function OrbitalSatellitesHub({
                 <span className="text-base">🌐</span>
                 <div>
                   <h4 className="text-xs font-black text-white uppercase tracking-wider">Canali & Servizi Territoriali</h4>
-                  <p className="text-[10px] text-zinc-400">11 Satelliti Definitivi</p>
+                  <p className="text-[10px] text-zinc-400">10 Satelliti Definitivi</p>
                 </div>
               </div>
               <button
@@ -242,7 +231,7 @@ export default function OrbitalSatellitesHub({
                   </div>
                   <div>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-black text-white">CONTROLLO FLOTTA 11 SATELLITI</span>
+                      <span className="text-xs font-black text-white">CONTROLLO FLOTTA 10 SATELLITI</span>
                       <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-emerald-400 text-black">8 PRESET</span>
                     </div>
                     <p className="text-[10px] text-zinc-300">Interruttori ON/OFF, Ispezione 3D, orbite ed azionamenti</p>
@@ -529,35 +518,6 @@ export default function OrbitalSatellitesHub({
               <Cpu className="w-16 h-16 mx-auto mb-4 text-violet-500/50" />
               <p className="text-sm">DefiancePulseHub — CREATOR • MUSIC • VIDEO • PROMOTION</p>
               <p className="text-xs mt-2">Generazione client-side (CPU utente), no API esterne, no costi</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* CANALE: RADAR — Scansione Prossimità */}
-      {activeChannel === 'RADAR' && (
-        <div className="fixed inset-0 z-50 bg-slate-950 overflow-y-auto animate-in fade-in duration-200">
-          <div className="sticky top-0 z-40 bg-slate-900/95 border-b border-slate-800 px-4 py-3 flex items-center justify-between backdrop-blur-md">
-            <div className="flex items-center gap-2">
-              <span className="text-lg">📡</span>
-              <span className="text-xs font-black text-amber-400 uppercase tracking-wider">
-                RADAR — SCANSIONE PROSSIMITÀ TERRITORIALE
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setActiveChannel(null)}
-              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-              <span>Chiudi</span>
-            </button>
-          </div>
-          <div className="max-w-7xl mx-auto p-4">
-            <div className="text-center py-12 text-zinc-400">
-              <Satellite className="w-16 h-16 mx-auto mb-4 text-amber-500/50" />
-              <p className="text-sm">RadarProximityModal — Scansione 35 km, Marker Territoriali</p>
-              <p className="text-xs mt-2">Geolocalizzazione P2P, prossimità locale attiva</p>
             </div>
           </div>
         </div>

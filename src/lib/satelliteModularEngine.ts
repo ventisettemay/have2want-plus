@@ -11,10 +11,9 @@ export type SatelliteId =
   | 'EXTERNAL_MARKET_SAT'
   | 'BUSINESS_ADS_SAT'
   | 'MAP_SAT'
-  | 'COMMUNITY_RESCUE_SAT'
+  | 'SOCCORSO_SAT'
   | 'ACTIONFLOW_SAT'
-  | 'DEFIANCE_PULSE_SAT'
-  | 'RADAR_SAT';
+  | 'DEFIANCE_PULSE_SAT';
 
 export type PresetType =
   | 'ACCENDI_TUTTI'
@@ -166,7 +165,7 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
     isActive: true,
   },
   {
-    id: 'COMMUNITY_RESCUE_SAT',
+    id: 'SOCCORSO_SAT',
     name: 'SOCCORSO — Emergenze & Mutuo Aiuto',
     codeName: 'COSPAS-SARSAT',
     category: 'COMUNITA',
@@ -216,23 +215,6 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
     targetComponent: 'DefiancePulseHub',
     isActive: true,
   },
-  {
-    id: 'RADAR_SAT',
-    name: 'RADAR — Scansione Prossimità Territoriale',
-    codeName: 'RADAR-SCAN',
-    category: 'TERRITORIO',
-    icon: '📡',
-    color: '#f59e0b',
-    foilColor: 0xd4af37,
-    altitudeKm: 800,
-    orbitMultiplier: 1.25,
-    speed: 0.0010,
-    inclination: 0.3,
-    startAngle: 5.9,
-    h2wRole: 'Scansione radar di prossimità 35 km, marker territoriali locali, geolocalizzazione P2P',
-    targetComponent: 'RadarProximityModal',
-    isActive: true,
-  },
 ];
 
 // ============================================================================
@@ -252,7 +234,6 @@ export const SATELLITE_TO_CHANNEL: Record<SatelliteId, string> = {
   COMMUNITY_RESCUE_SAT: 'EMERGENCY',
   ACTIONFLOW_SAT: 'ACTIONFLOW',
   DEFIANCE_PULSE_SAT: 'DEFIANCE_PULSE',
-  RADAR_SAT: 'RADAR',
 };
 
 export const SATELLITE_TO_COMPONENT: Record<SatelliteId, string> = {
@@ -263,10 +244,9 @@ export const SATELLITE_TO_COMPONENT: Record<SatelliteId, string> = {
   EXTERNAL_MARKET_SAT: 'ExternalListings',
   BUSINESS_ADS_SAT: 'BusinessSponsorModal',
   MAP_SAT: 'MapView3DContainer',
-  COMMUNITY_RESCUE_SAT: 'WorldEmergencyModal',
+  SOCCORSO_SAT: 'WorldEmergencyModal',
   ACTIONFLOW_SAT: 'ActionFlowHubModal',
   DEFIANCE_PULSE_SAT: 'DefiancePulseHub',
-  RADAR_SAT: 'RadarProximityModal',
 };
 
 // Risolve il canale UI associato a un SatelliteId (wrapper sulla mappa canonica)

@@ -588,16 +588,6 @@ export default function MapView3DContainer({
         const txt = ((item.category || '') + ' ' + (item.title || '')).toLowerCase();
         return txt.includes('missione') || txt.includes('ricompens') || txt.includes('azione') || txt.includes('premio');
       });
-    } else if (activeSatellite === 'RADAR') {
-      // RADAR: Scansione radar di prossimità territoriale (raggio 35 km)
-      if (targetCoords && typeof targetCoords.lat === 'number' && typeof targetCoords.lng === 'number') {
-        result = result.filter((item) => {
-          if (typeof item.lat !== 'number' || typeof item.lng !== 'number') return false;
-          const dLat = (item.lat - targetCoords.lat) * 111;
-          const dLng = (item.lng - targetCoords.lng) * 111 * Math.cos(targetCoords.lat * (Math.PI / 180));
-          return Math.hypot(dLat, dLng) <= 35;
-        });
-      }
     }
 
     return result;
@@ -922,18 +912,6 @@ export default function MapView3DContainer({
                   break;
 
                 case 'RADAR_SAT':
-                case 'RADAR':
-                  if (activeSatellite === 'RADAR') {
-                    setActiveSatellite(null);
-                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
-                    toast.info('📡 RADAR-SCAN: Scansione Prossimità Disattivata', { duration: 1800 });
-                  } else {
-                    setActiveSatellite('RADAR');
-                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('RADAR');
-                    toast.success('📡 RADAR-SCAN: Scansione Prossimità Territoriale 35 km Attiva');
-                  }
-                  break;
-
                 default:
                   setInspectorTab('INSPECTOR');
                   setScientificSatellite(satIdentifier);
@@ -1558,33 +1536,6 @@ export default function MapView3DContainer({
               <Zap className="w-16 h-16 mx-auto mb-4 text-violet-500/50" />
               <p className="text-sm">DefiancePulseHub — CREATOR • MUSIC • VIDEO • PROMOTION</p>
               <p className="text-xs mt-2">Generazione client-side (CPU utente), no API esterne, no costi</p>
-            </div>
-          </div>
-        </div>
-      )}
-      {activeSatellite === 'RADAR' && (
-        <div className="fixed inset-0 z-50 bg-slate-950 overflow-y-auto animate-in fade-in duration-200">
-          <div className="sticky top-0 z-40 bg-slate-900/95 border-b border-slate-800 px-4 py-3 flex items-center justify-between backdrop-blur-md">
-            <div className="flex items-center gap-2">
-              <span className="text-lg">📡</span>
-              <span className="text-xs font-black text-amber-400 uppercase tracking-wider">
-                RADAR — SCANSIONE PROSSIMITÀ TERRITORIALE
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={handleCloseSatelliteModal}
-              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-              <span>Chiudi</span>
-            </button>
-          </div>
-          <div className="max-w-7xl mx-auto p-4">
-            <div className="text-center py-12 text-zinc-400">
-              <Satellite className="w-16 h-16 mx-auto mb-4 text-amber-500/50" />
-              <p className="text-sm">RadarProximityModal — Scansione 35 km, Marker Territoriali</p>
-              <p className="text-xs mt-2">Geolocalizzazione P2P, prossimità locale attiva</p>
             </div>
           </div>
         </div>
