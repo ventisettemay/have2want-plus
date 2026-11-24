@@ -16,7 +16,6 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { SAMPLE_GLOBAL_CARPOOLS } from '@/data/carpoolTrips';
-import { PRACTICAL_MEMORY_GUIDES } from '@/data/craftMemoryGuides';
 import { toast } from 'sonner';
 import { getListingOriginBadge } from '@/lib/listingOrigin';
 

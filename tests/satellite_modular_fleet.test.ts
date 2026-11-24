@@ -17,22 +17,24 @@ describe('Satellite Modular Fleet Engine – HAVE2WANT PLUS', () => {
     satelliteEngine.applyPreset('RIPRISTINA_TUTTI');
   });
 
-  it('Dovrebbe contenere esattamente gli 8 identificativi satellite ufficiali', () => {
-    const EXPECTED_8_IDS: SatelliteId[] = [
-      'METEO_SAT',
+  it('Dovrebbe contenere esattamente i 10 identificativi satellite canonici', () => {
+    const EXPECTED_10_IDS: SatelliteId[] = [
       'KM0_SAT',
-      'STREET_360_SAT',
-      'PI_CHAT_SAT',
-      'GLOBAL_MARKET_SAT',
+      'MAP_SAT',
       'EXTERNAL_MARKET_SAT',
-      'COMMUNITY_RESCUE_SAT',
+      'METEO_SAT',
+      'PI_CHAT_SAT',
       'BUSINESS_ADS_SAT',
+      'GLOBAL_MARKET_SAT',
+      'COMMUNITY_RESCUE_SAT',
+      'ACTIONFLOW_SAT',
+      'DEFIANCE_PULSE_SAT',
     ];
 
-    expect(INITIAL_SATELLITES_CATALOG).toHaveLength(8);
+    expect(INITIAL_SATELLITES_CATALOG).toHaveLength(10);
     const catalogIds = INITIAL_SATELLITES_CATALOG.map((s) => s.id);
 
-    EXPECTED_8_IDS.forEach((expectedId) => {
+    EXPECTED_10_IDS.forEach((expectedId) => {
       expect(catalogIds).toContain(expectedId);
     });
   });
@@ -79,7 +81,7 @@ describe('Satellite Modular Fleet Engine – HAVE2WANT PLUS', () => {
     INITIAL_SATELLITES_CATALOG.forEach((sat) => {
       expect(satelliteEngine.isSatelliteActive(sat.id)).toBe(true);
     });
-    expect(satelliteEngine.getActiveCount()).toBe(8);
+    expect(satelliteEngine.getActiveCount()).toBe(10);
   });
 
   it('Dovrebbe applicare il preset SOLO_METEO (lasciando acceso solo METEO_SAT)', () => {
@@ -134,7 +136,7 @@ describe('Satellite Modular Fleet Engine – HAVE2WANT PLUS', () => {
     satelliteEngine.applyPreset('SOLO_TERRITORIO');
     const expectedTerritory: SatelliteId[] = [
       'KM0_SAT',
-      'STREET_360_SAT',
+      'MAP_SAT',
       'BUSINESS_ADS_SAT',
     ];
 

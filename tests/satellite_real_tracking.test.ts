@@ -38,18 +38,18 @@ const METEOSAT_12_OMM: CelesTrakOmmRecord = {
   MEAN_MOTION_DOT: 1.6e-7,
 };
 
-const WORLDVIEW_3_OMM: CelesTrakOmmRecord = {
-  OBJECT_NAME: 'WORLDVIEW-3 (WV-3)',
-  OBJECT_ID: '2014-048A',
+const SENTINEL_2B_OMM: CelesTrakOmmRecord = {
+  OBJECT_NAME: 'SENTINEL-2B',
+  OBJECT_ID: '2017-013A',
   EPOCH: '2026-11-21T14:59:32.957664',
-  MEAN_MOTION: 14.84929614,
-  ECCENTRICITY: 0.00017746,
-  INCLINATION: 97.8617,
+  MEAN_MOTION: 14.30818914,
+  ECCENTRICITY: 0.00012746,
+  INCLINATION: 98.5681,
   RA_OF_ASC_NODE: 38.1744,
   ARG_OF_PERICENTER: 92.2749,
   MEAN_ANOMALY: 267.8669,
-  NORAD_CAT_ID: 40115,
-  MEAN_MOTION_DOT: 6.0e-6,
+  NORAD_CAT_ID: 42063,
+  MEAN_MOTION_DOT: 1.8e-6,
 };
 
 const STARLINK_3109_OMM: CelesTrakOmmRecord = {
@@ -97,7 +97,7 @@ const GALILEO_23_OMM: CelesTrakOmmRecord = {
 const OMM_BY_NORAD: Record<number, CelesTrakOmmRecord> = {
   54743: METEOSAT_12_OMM,
   40697: SENTINEL_2A_OMM,
-  40115: WORLDVIEW_3_OMM,
+  42063: SENTINEL_2B_OMM,
   49143: STARLINK_3109_OMM,
   43562: TELSTAR_19V_OMM,
   43566: GALILEO_23_OMM,
@@ -108,13 +108,13 @@ describe('Satellite Real CelesTrak Orbital Tracking – HAVE2WANT PLUS', () => {
     satelliteTelemetryStore.resetForTests();
   });
 
-  it('Distingue esattamente i 6 satelliti fisici NORAD dai 2 canali logici senza inventare NORAD ID', () => {
-    expect(INITIAL_SATELLITES_CATALOG).toHaveLength(8);
+  it('Distingue esattamente i 6 satelliti fisici NORAD dai 4 canali logici senza inventare NORAD ID', () => {
+    expect(INITIAL_SATELLITES_CATALOG).toHaveLength(10);
     const physical = INITIAL_SATELLITES_CATALOG.filter((s) => s.isPhysicalSpacecraft);
     const logical = INITIAL_SATELLITES_CATALOG.filter((s) => !s.isPhysicalSpacecraft);
 
     expect(physical).toHaveLength(6);
-    expect(logical).toHaveLength(2);
+    expect(logical).toHaveLength(4);
     physical.forEach((s) => {
       expect(typeof s.noradId).toBe('number');
       expect(TRACKABLE_SATELLITES_METADATA[s.id].noradId).toBe(s.noradId);
@@ -122,7 +122,12 @@ describe('Satellite Real CelesTrak Orbital Tracking – HAVE2WANT PLUS', () => {
     logical.forEach((s) => {
       expect(s.noradId).toBeNull();
       expect(s.altitudeKm).toBeNull();
-      expect(['EXTERNAL_MARKET_SAT', 'BUSINESS_ADS_SAT']).toContain(s.id);
+      expect([
+        'EXTERNAL_MARKET_SAT',
+        'BUSINESS_ADS_SAT',
+        'ACTIONFLOW_SAT',
+        'DEFIANCE_PULSE_SAT',
+      ]).toContain(s.id);
     });
   });
 
@@ -208,7 +213,7 @@ describe('Satellite Real CelesTrak Orbital Tracking – HAVE2WANT PLUS', () => {
     expect(snap.BUSINESS_ADS_SAT.lat).toBeNull();
   });
 
-  it('Popola lo store reale per tutti i 6 satelliti fisici quando CelesTrak risponde e mantiene logici i 2 canali H2W', async () => {
+  it('Popola lo store reale per tutti i 6 satelliti fisici quando CelesTrak risponde e mantiene logici i 4 canali H2W', async () => {
     const mockCelesTrakFetch: typeof fetch = async (input) => {
       const url = String(input);
       const match = url.match(/CATNR=(\d+)/);
@@ -222,7 +227,7 @@ describe('Satellite Real CelesTrak Orbital Tracking – HAVE2WANT PLUS', () => {
 
     const snap = await satelliteTelemetryStore.refreshAll(true, mockCelesTrakFetch);
 
-    (['METEO_SAT', 'KM0_SAT', 'STREET_360_SAT', 'PI_CHAT_SAT', 'GLOBAL_MARKET_SAT', 'COMMUNITY_RESCUE_SAT'] as const).forEach(
+    (['METEO_SAT', 'KM0_SAT', 'MAP_SAT', 'PI_CHAT_SAT', 'GLOBAL_MARKET_SAT', 'COMMUNITY_RESCUE_SAT'] as const).forEach(
       (id) => {
         expect(snap[id].status).toBe('live');
         expect(typeof snap[id].lat).toBe('number');
@@ -232,9 +237,11 @@ describe('Satellite Real CelesTrak Orbital Tracking – HAVE2WANT PLUS', () => {
       }
     );
 
-    expect(snap.EXTERNAL_MARKET_SAT.status).toBe('logical_channel');
-    expect(snap.EXTERNAL_MARKET_SAT.lat).toBeNull();
-    expect(snap.BUSINESS_ADS_SAT.status).toBe('logical_channel');
-    expect(snap.BUSINESS_ADS_SAT.lat).toBeNull();
+    (['EXTERNAL_MARKET_SAT', 'BUSINESS_ADS_SAT', 'ACTIONFLOW_SAT', 'DEFIANCE_PULSE_SAT'] as const).forEach(
+      (id) => {
+        expect(snap[id].status).toBe('logical_channel');
+        expect(snap[id].lat).toBeNull();
+      }
+    );
   });
 });

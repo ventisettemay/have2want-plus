@@ -38,6 +38,11 @@ describe('Urbano 3D Hybrid Architecture (Option A) – DEM, OSM Buildings, GLB &
       expect(serialized).toContain('building:material');
       expect(serialized).toContain('roof:colour');
       expect(serialized).toContain('roof:shape');
+      if (style === 'vector3d') {
+        expect(serialized).toContain('#dfd5c3');
+        expect(serialized).toContain('#cfa88e');
+        expect(serialized).toContain('#bc7158');
+      }
     }
   });
 

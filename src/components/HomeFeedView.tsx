@@ -656,6 +656,14 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
           if (catKey) setNewCategory(catKey as any);
           setShowCreateModal(true);
         }}
+        onOpenWeather={() => {
+          setDedicatedCategory(null);
+          onNavigate?.('universe');
+        }}
+        onOpenCraftKnowledge={() => {
+          setDedicatedCategory(null);
+          onNavigate?.('salvavatutto');
+        }}
       />
     );
   }

@@ -36,6 +36,7 @@ interface DedicatedCategoryPageProps {
   onTriggerHandshake: (listing: HaveWantListing) => void;
   onOpenCreateListing: (preselectedCategory?: string) => void;
   onOpenWeather?: () => void;
+  onOpenCraftKnowledge?: () => void;
 }
 
 export const DedicatedCategoryPage: React.FC<DedicatedCategoryPageProps> = ({
@@ -47,6 +48,7 @@ export const DedicatedCategoryPage: React.FC<DedicatedCategoryPageProps> = ({
   onTriggerHandshake,
   onOpenCreateListing,
   onOpenWeather,
+  onOpenCraftKnowledge,
 }) => {
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>('ALL');
   const [selectedIntent, setSelectedIntent] = useState<'ALL' | 'VENDO' | 'BARATTO_SCAMBIO' | 'ACQUISTO_CERCO'>('ALL');
@@ -152,10 +154,13 @@ export const DedicatedCategoryPage: React.FC<DedicatedCategoryPageProps> = ({
             setSelectedSubcategory('ALL');
             setSelectedIntent('ALL');
             setSearchQuery('');
+          } else if (item.key === 'CONOSCENZE_MESTIERI' && onOpenCraftKnowledge) {
+            onOpenCraftKnowledge();
           }
         }}
         listingsCounts={categoryCounts}
         onOpenWeather={onOpenWeather}
+        onOpenCraftKnowledge={onOpenCraftKnowledge}
       />
 
       {/* 3. HERO BANNER SPECIFICO CON FOTOGRAFIA REALE (MAI DISEGNINI O ICONCINE) */}

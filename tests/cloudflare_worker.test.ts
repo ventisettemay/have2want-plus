@@ -31,7 +31,8 @@ describe('Cloudflare Pages + Worker + Urbano3D Security & TDZ Suite', () => {
 
   it('Urbano3D renderizza in modo sincrono senza errore TDZ su allMerchants', () => {
     const html = renderToStaticMarkup(React.createElement(Urbano3D));
-    expect(html).toContain('Avvia Navigazione');
+    expect(html).toContain('btn-urbano-toggle-route');
+    expect(html).not.toContain('urbano-route-transport-bar');
 
     const pinTypes = new Set(INITIAL_PI_MERCHANTS.map((m) => classifyMerchantPin(m).type));
     expect(pinTypes.has('PI_ACCEPTED')).toBe(true);

@@ -19,6 +19,7 @@ const SHOPS_COLLECTION = 'shops';
 const WALLETS_COLLECTION = 'wallets';
 const GUIDES_COLLECTION = 'guides';
 const ABUSE_REPORTS_COLLECTION = 'abuse_reports';
+const ORDERS_COLLECTION = 'marketplace_orders';
 
 const knownExistingCloudWallets = new Set<string>();
 
@@ -670,5 +671,59 @@ export function subscribeRtcSignals(
     );
   } catch {
     return () => {};
+  }
+}
+
+export async function saveMarketplaceOrderToCloud(order: Record<string, any>): Promise<boolean> {
+  const authenticatedUid = auth.currentUser?.uid;
+  const orderId = String(order?.id || '').trim();
+  if (!authenticatedUid || !orderId) {
+    return false;
+  }
+  const path = `${ORDERS_COLLECTION}/${orderId}`;
+  try {
+    await setDoc(
+      doc(db, ORDERS_COLLECTION, orderId),
+      cleanData({
+        ...order,
+        id: orderId,
+        buyerUid: authenticatedUid,
+        updatedAt: new Date().toISOString(),
+        serverTimestamp: serverTimestamp(),
+      }),
+      { merge: true }
+    );
+    return true;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path, { silentReturn: true });
+    return false;
+  }
+}
+
+export async function updateMarketplaceOrderInCloud(
+  orderId: string,
+  updates: Record<string, any>
+): Promise<boolean> {
+  const authenticatedUid = auth.currentUser?.uid;
+  const safeOrderId = String(orderId || '').trim();
+  if (!authenticatedUid || !safeOrderId) {
+    return false;
+  }
+  const path = `${ORDERS_COLLECTION}/${safeOrderId}`;
+  try {
+    await setDoc(
+      doc(db, ORDERS_COLLECTION, safeOrderId),
+      cleanData({
+        ...updates,
+        id: safeOrderId,
+        updatedAt: new Date().toISOString(),
+        serverTimestamp: serverTimestamp(),
+      }),
+      { merge: true }
+    );
+    return true;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path, { silentReturn: true });
+    return false;
   }
 }

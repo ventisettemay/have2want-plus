@@ -35,6 +35,7 @@ import {
   Mountain,
   Camera,
   Building2,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import WorldNavigatorModal from './WorldNavigatorModal';
@@ -155,6 +156,79 @@ export function computeGpsCameraEaseOptions({
   return options;
 }
 
+function RouteWeatherSparkline({ points = [] }) {
+  if (!Array.isArray(points) || points.length === 0) return null;
+  const temps = points.map((p) => Number(p.temp ?? p.temperature ?? 15));
+  const minT = Math.min(...temps);
+  const maxT = Math.max(...temps);
+  const rangeT = Math.max(1, maxT - minT);
+  const svgW = 240;
+  const svgH = 44;
+  const padX = 14;
+  const coords = points.map((pt, i) => {
+    const x =
+      points.length === 1
+        ? svgW / 2
+        : padX + (i / (points.length - 1)) * (svgW - padX * 2);
+    const t = Number(pt.temp ?? pt.temperature ?? 15);
+    const y = 30 - ((t - minT) / rangeT) * 18;
+    const wind = Math.min(20, Math.max(3, Math.round((Number(pt.windSpeed ?? 8) / 45) * 18)));
+    return { x, y, wind, pt, t };
+  });
+  const polylinePoints = coords.map((c) => `${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(' ');
+
+  return (
+    <div className="w-full rounded-xl bg-black/55 border border-sky-500/30 p-2 space-y-1.5">
+      <div className="flex items-center justify-between text-[10px]">
+        <span className="font-black text-sky-300 uppercase tracking-wider">
+          Grafico Meteo Tratta (Temp °C / Vento)
+        </span>
+        <span className="font-mono text-zinc-400">
+          {minT.toFixed(0)}°C – {maxT.toFixed(0)}°C
+        </span>
+      </div>
+      <svg
+        viewBox={`0 0 ${svgW} ${svgH}`}
+        className="w-full h-11 overflow-visible"
+        aria-label="Grafico meteo lungo il percorso"
+      >
+        <polyline
+          fill="none"
+          stroke="#38bdf8"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          points={polylinePoints}
+        />
+        {coords.map((c, idx) => (
+          <g key={idx}>
+            <rect
+              x={c.x - 4}
+              y={svgH - c.wind}
+              width="8"
+              height={c.wind}
+              rx="2"
+              fill={c.pt.isRain || c.pt.precipProb > 45 ? '#60a5fa' : '#00ff66'}
+              opacity="0.45"
+            />
+            <circle cx={c.x} cy={c.y} r="3.2" fill="#00ff66" stroke="#020617" strokeWidth="1" />
+            <text
+              x={c.x}
+              y={Math.max(9, c.y - 6)}
+              textAnchor="middle"
+              fill="#e2e8f0"
+              fontSize="8.5"
+              fontWeight="bold"
+            >
+              {Math.round(c.t)}°
+            </text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
 export default function Urbano3D({
   centroLat,
   centroLng,
@@ -247,6 +321,8 @@ export default function Urbano3D({
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
+  const [showRoutePlanner, setShowRoutePlanner] = useState(false);
+  const [isUrbanToolsOpen, setIsUrbanToolsOpen] = useState(false);
   const [isGpsFollowPaused, setIsGpsFollowPaused] = useState(false);
   const [navProfile, setNavProfile] = useState('driving'); // 'driving' | 'walking' | 'cycling'
   const navProfileRef = useRef('driving');
@@ -626,7 +702,7 @@ export default function Urbano3D({
 
     const osmBuildingLayers = buildOsmBuildingLayers({
       mode: mapStyleMode,
-      showBuildings3D: showBuildings3D && activeChannel !== 'STRADARIO',
+      showBuildings3D,
     });
 
     const layersConfig = isSatellite
@@ -728,12 +804,12 @@ export default function Urbano3D({
           map.setTerrain({ source: 'terrain-dem', exaggeration: 1.8 });
         }
 
-        // 2. Luce Direzionale 3D (Crea ombre realistiche sulle facciate e sui tetti)
+        // 2. Luce Direzionale 3D calda ad alto contrasto (ombre e rilievi definiti su facciate e tetti)
         map.setLight({
           anchor: 'viewport',
-          color: '#ffffff',
-          intensity: 0.75,
-          position: [1.5, 210, 50],
+          color: '#fff7ed',
+          intensity: 0.88,
+          position: [1.45, 215, 42],
         });
 
         // 3. Atmosfera e Orizzonte Aereo Blu Profondo Google Earth (Senza foschia sbiancante al suolo)
@@ -756,7 +832,7 @@ export default function Urbano3D({
             map.addLayer(threeLayer);
           }
           threeLayer.setEntities(threeSceneEntitiesRef.current || []);
-          threeLayer.setVisible(showBuildings3D && activeChannel !== 'STRADARIO');
+          threeLayer.setVisible(showBuildings3D);
         }
 
         // 5. Ripristina l'eventuale rotta OSRM attiva dopo cambio stile mappa
@@ -853,9 +929,9 @@ export default function Urbano3D({
     };
   }, [mapStyleMode, hasValidCoords]);
 
-  // Gestione dinamica visibilità Palazzi OSM + Modelli GLB 3D (nascosti temporaneamente se il filtro STRADARIO mostra solo le strade)
+  // Gestione dinamica visibilità Palazzi OSM + Modelli GLB 3D
   useEffect(() => {
-    const isVisible = showBuildings3D && activeChannel !== 'STRADARIO';
+    const isVisible = showBuildings3D;
     if (threeLayerRef.current) {
       threeLayerRef.current.setVisible(isVisible);
     }
@@ -1289,6 +1365,19 @@ export default function Urbano3D({
         el.appendChild(solidRing);
       }
 
+      if (typeof document !== 'undefined' && !document.getElementById('h2w-ad-pin-pulse-style')) {
+        const styleEl = document.createElement('style');
+        styleEl.id = 'h2w-ad-pin-pulse-style';
+        styleEl.textContent = `
+          @keyframes h2wAdPinPulse {
+            0%, 62%, 100% { transform: scale(1); }
+            78% { transform: scale(1.36); }
+            88% { transform: scale(1.08); }
+          }
+        `;
+        document.head.appendChild(styleEl);
+      }
+
       const dot = document.createElement('div');
       dot.style.position = 'relative';
       dot.style.height = '36px';
@@ -1307,6 +1396,7 @@ export default function Urbano3D({
         dot.style.boxShadow = '0 6px 20px rgba(0,0,0,0.92), 0 0 16px rgba(255, 215, 0, 0.85)';
         dot.style.color = '#ffd700';
         dot.style.fontSize = '14px';
+        dot.style.animation = 'h2wAdPinPulse 3.6s ease-in-out infinite';
         dot.innerHTML = '<span style="font-family:serif;font-weight:900;color:#ffffff">π</span><span style="font-size:13px">🏪</span>';
       } else if (pinType.type === 'PI_ACCEPTED') {
         dot.style.background = 'linear-gradient(135deg, #6b21a8 0%, #9333ea 100%)';
@@ -1321,6 +1411,7 @@ export default function Urbano3D({
         dot.style.border = '2.5px solid #ffffff';
         dot.style.boxShadow = '0 6px 20px rgba(0,0,0,0.85), 0 0 14px rgba(251, 191, 36, 0.85)';
         dot.style.fontSize = '16px';
+        dot.style.animation = 'h2wAdPinPulse 3.6s ease-in-out infinite';
         dot.innerHTML = '<span>🏪</span>';
       }
 
@@ -1363,16 +1454,24 @@ export default function Urbano3D({
         tooltip.style.opacity = '0';
       });
 
-      // Al click su un pin commerciante -> apre sempre MerchantDetailModal
+      // Filtro click: apre MerchantDetailModal SOLO per inserzionisti paganti (hasAd === true).
+      // Se accetta solo Pi senza pubblicità pagante, mostra SOLO la posizione geografica.
       el.addEventListener('click', (e) => {
         e.stopPropagation();
         setSelectedSponsor(null);
-        setSelectedMerchantModal(biz);
         map.easeTo({
           center: [bizLng, bizLat],
           zoom: Math.max(map.getZoom(), 17.0),
           duration: 600,
         });
+        if (pinType.hasAd) {
+          setSelectedMerchantModal(biz);
+        } else {
+          setSelectedMerchantModal(null);
+          toast.info(`📍 ${biz.name}`, {
+            description: `Posizione geografica: ${biz.city || selectedCity} (${bizLat.toFixed(4)}, ${bizLng.toFixed(4)}) • Accetta Pi Network`,
+          });
+        }
       });
 
       const bizMarker = new maplibregl.Marker({
@@ -1687,6 +1786,7 @@ export default function Urbano3D({
     const startLng = startCoords?.lng ?? userLocation?.lng ?? effectiveLng;
     if (!isValidCoord(startLat, startLng)) return null;
 
+    setShowRoutePlanner(true);
     setIsCalculatingRoute(true);
     try {
       const routes = await calculateRealRoutes(startLat, startLng, destLat, destLng, customProfile, true);
@@ -1788,6 +1888,7 @@ export default function Urbano3D({
     userHasPannedRef.current = false;
     setIsGpsFollowPaused(false);
     setIsNavigating(false);
+    setShowRoutePlanner(false);
     toast.info('🛑 Navigazione terminata');
   };
 
@@ -1808,6 +1909,7 @@ export default function Urbano3D({
 
   const startTurnByTurnNavigation = async (targetDest = null, forcedProfile = null) => {
     if (!mapRef.current || !hasValidCoords) return;
+    setShowRoutePlanner(true);
     const profileToUse = forcedProfile || navProfile;
 
     // Determina destinazione reale (niente offset +0.004 inventati)
@@ -1978,6 +2080,7 @@ export default function Urbano3D({
     setActiveRoute(null);
     setRouteWeather(null);
     setNavDestination(null);
+    setShowRoutePlanner(false);
     if (mapRef.current && mapRef.current.getSource('real-route-source')) {
       mapRef.current.getSource('real-route-source').setData({
         type: 'FeatureCollection',
@@ -2162,14 +2265,17 @@ export default function Urbano3D({
             </div>
           </div>
           {routeWeather?.points?.length > 0 && (
-            <div className="flex items-center gap-2 flex-wrap text-[10px] text-zinc-300 border-t border-white/10 pt-1.5">
-              <span className="text-sky-300 font-bold">Meteo percorso:</span>
-              {routeWeather.points.map((pt, i) => (
-                <span key={i} className="bg-black/40 px-1.5 py-0.5 rounded border border-white/10">
-                  {pt.label} {pt.icon || pt.condition?.icon || '🌤️'} {pt.temp ?? pt.temperature ?? '--'}°C
-                </span>
-              ))}
-              <span className="text-zinc-500 ml-auto">Traffico live: non disponibile</span>
+            <div className="space-y-1.5 border-t border-white/10 pt-1.5">
+              <RouteWeatherSparkline points={routeWeather.points} />
+              <div className="flex items-center gap-2 flex-wrap text-[10px] text-zinc-300">
+                <span className="text-sky-300 font-bold">Meteo percorso:</span>
+                {routeWeather.points.map((pt, i) => (
+                  <span key={i} className="bg-black/40 px-1.5 py-0.5 rounded border border-white/10">
+                    {pt.label} {pt.icon || pt.condition?.icon || '🌤️'} {pt.temp ?? pt.temperature ?? '--'}°C
+                  </span>
+                ))}
+                <span className="text-zinc-500 ml-auto">Traffico live: non disponibile</span>
+              </div>
             </div>
           )}
         </div>
@@ -2239,13 +2345,16 @@ export default function Urbano3D({
           </div>
 
           {routeWeather?.points?.length > 0 && (
-            <div className="flex items-center gap-2 flex-wrap text-[10px] text-zinc-300">
-              <span className="text-sky-400 font-bold">Open-Meteo tratta:</span>
-              {routeWeather.points.map((pt, i) => (
-                <span key={i} className="bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800">
-                  {pt.label}: {pt.icon || pt.condition?.icon || '🌤️'} {pt.temp ?? pt.temperature ?? '--'}°C ({pt.windSpeed ?? '--'} km/h)
-                </span>
-              ))}
+            <div className="space-y-1.5">
+              <RouteWeatherSparkline points={routeWeather.points} />
+              <div className="flex items-center gap-2 flex-wrap text-[10px] text-zinc-300">
+                <span className="text-sky-400 font-bold">Open-Meteo tratta:</span>
+                {routeWeather.points.map((pt, i) => (
+                  <span key={i} className="bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800">
+                    {pt.label}: {pt.icon || pt.condition?.icon || '🌤️'} {pt.temp ?? pt.temperature ?? '--'}°C ({pt.windSpeed ?? '--'} km/h)
+                  </span>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -2341,51 +2450,6 @@ export default function Urbano3D({
         </div>
       )}
 
-      {/* BARRA RAPIDA AVVIO / MODALITÀ NAVIGAZIONE GPS SEMPRE ACCESSIBILE IN BASSO A SINISTRA */}
-      {!isNavigating && (
-        <div className="absolute bottom-12 left-3 sm:left-4 z-30 pointer-events-auto flex items-center gap-1 bg-black/90 border border-zinc-800 rounded-xl p-1 shadow-xl">
-          <button
-            type="button"
-            onClick={() => setNavProfile('walking')}
-            className={`px-2 py-1 rounded-lg text-[10px] font-black cursor-pointer transition-colors ${
-              navProfile === 'walking' ? 'bg-sky-500 text-slate-950' : 'text-zinc-300 hover:bg-zinc-900'
-            }`}
-            title="Modalità navigazione a piedi"
-          >
-            🚶 Piedi
-          </button>
-          <button
-            type="button"
-            onClick={() => setNavProfile('cycling')}
-            className={`px-2 py-1 rounded-lg text-[10px] font-black cursor-pointer transition-colors ${
-              navProfile === 'cycling' ? 'bg-sky-500 text-slate-950' : 'text-zinc-300 hover:bg-zinc-900'
-            }`}
-            title="Modalità navigazione in bicicletta"
-          >
-            🚲 Bici
-          </button>
-          <button
-            type="button"
-            onClick={() => setNavProfile('driving')}
-            className={`px-2 py-1 rounded-lg text-[10px] font-black cursor-pointer transition-colors ${
-              navProfile === 'driving' ? 'bg-sky-500 text-slate-950' : 'text-zinc-300 hover:bg-zinc-900'
-            }`}
-            title="Modalità navigazione in auto"
-          >
-            🚗 Auto
-          </button>
-          <button
-            id="btn-quick-start-navigation"
-            type="button"
-            onClick={() => startTurnByTurnNavigation()}
-            disabled={isCalculatingRoute}
-            className="px-2.5 py-1 rounded-lg bg-[#00ff66] hover:bg-[#00e65c] text-black text-[10px] font-black flex items-center gap-1 cursor-pointer shadow-md"
-          >
-            <Navigation className="w-3 h-3" />
-            <span>{isCalculatingRoute ? 'Calcolo...' : 'Avvia Navigazione'}</span>
-          </button>
-        </div>
-      )}
       {/* 1. LAYER MAPPA SATELLITARE WEBGL (FULL SCREEN) */}
       <div ref={mapContainerRef} className={`absolute inset-0 w-full h-full z-0 ${mapStyleMode === 'night3d' ? 'bg-[#0b1120]' : 'bg-[#e2e8f0]'}`} />
 
@@ -2440,8 +2504,8 @@ export default function Urbano3D({
 
       {/* 2. AREA MAPPA PULITA: La barra superiore ordinata con il ritorno al Globo e il selettore delle 20 Regioni è gestita dal container */}
 
-      {/* 3. DOCK CONTROLLI GOOGLE MAPS / GOOGLE EARTH SUL LATO DESTRO */}
-      <div className="absolute right-2.5 sm:right-4 top-2.5 z-20 flex flex-col items-center gap-1.5 pointer-events-auto">
+      {/* 3. DOCK CONTROLLI GOOGLE MAPS / GOOGLE EARTH SUL LATO DESTRO (COMPATTO E SCROLLABILE) */}
+      <div className="absolute right-2.5 sm:right-3 top-2.5 z-20 flex flex-col items-center gap-1 pointer-events-auto max-h-[calc(100%-1.5rem)] overflow-y-auto scrollbar-none pb-1">
         {/* PULSANTE ALLARGA CARTINA A TUTTO SCHERMO */}
         {onToggleFullscreen && (
           <button
@@ -2473,43 +2537,6 @@ export default function Urbano3D({
           <span className="text-[8px] font-mono leading-none opacity-85 font-black">{pitch}°</span>
         </button>
 
-        {/* PRESET INCLINAZIONE RAPIDA (0° PIANA / 50° AEREA / 60° 3D / 75° SKYLINE) */}
-        <button
-          id="btn-pitch-preset"
-          onClick={cycle3DPerspective}
-          className="w-10 h-10 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/80 shadow-xl backdrop-blur-xl flex flex-col items-center justify-center cursor-pointer transition-all active:scale-90 text-[10px] font-black"
-          title={`Inclinazione attuale: ${pitch}°. Clicca per cambiare angolo (2D 0° / Aerea 50° / 3D 60° / Skyline 75°)`}
-        >
-          <span>📐</span>
-          <span className="text-[8px] text-emerald-400 font-bold">{pitch}°</span>
-        </button>
-
-        {/* BUSSOLA NORD (0°) */}
-        <button
-          id="btn-reset-compass"
-          onClick={resetCompass}
-          className="w-10 h-10 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/80 shadow-xl backdrop-blur-xl flex items-center justify-center cursor-pointer transition-all active:scale-90"
-          title={`Bussola: ${bearing}°. Clicca per puntare a Nord (0°)`}
-        >
-          <Compass
-            className="w-5 h-5 text-red-400 transition-transform duration-200"
-            style={{ transform: `rotate(${-bearing}deg)` }}
-          />
-        </button>
-
-        {/* PULSANTE RADDRIZZA RAPIDO (SE INCLINATA O RUOTATA) */}
-        {(bearing !== 0 || pitch !== 0) && (
-          <button
-            id="btn-straighten-map"
-            onClick={straightenMap}
-            className="w-10 h-10 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/50 shadow-xl backdrop-blur-xl flex flex-col items-center justify-center cursor-pointer transition-all active:scale-90 text-[8px] font-black"
-            title="Raddrizza: orienta a Nord e imposta vista ortogonale piana (0°)"
-          >
-            <span>🧭</span>
-            <span className="text-[7px]">DRITTO</span>
-          </button>
-        )}
-
         {/* LOCALIZZAMI */}
         <button
           id="btn-locate-me"
@@ -2520,112 +2547,20 @@ export default function Urbano3D({
           <Navigation className="w-4 h-4 text-emerald-400" />
         </button>
 
-        {/* ORBITA 360° */}
+        {/* PIANIFICA PERCORSO (Mostra/Nasconde la barra Piedi | Bici | Auto) */}
         <button
-          id="btn-orbit-360"
-          onClick={() => setIsOrbiting(!isOrbiting)}
-          className={`w-10 h-10 rounded-xl shadow-xl flex items-center justify-center cursor-pointer transition-all border ${
-            isOrbiting
-              ? 'bg-blue-500 text-white border-blue-300 animate-spin shadow-blue-500/25'
-              : 'bg-slate-900/90 text-slate-200 border-slate-700/80 hover:bg-slate-800'
+          id="btn-urbano-toggle-route"
+          type="button"
+          onClick={() => setShowRoutePlanner((prev) => !prev)}
+          className={`w-10 h-10 rounded-xl shadow-xl flex flex-col items-center justify-center cursor-pointer transition-all border active:scale-90 font-black text-[7px] ${
+            showRoutePlanner || Boolean(activeRoute) || isNavigating
+              ? 'bg-[#00ff66] text-black border-[#00ff66]'
+              : 'bg-slate-900/90 text-sky-300 border-slate-700/80 hover:bg-slate-800'
           }`}
-          title={isOrbiting ? 'Ferma Volo 360°' : 'Volo Panoramico Orbitale 360°'}
+          title="Pianifica percorso e mezzi (Piedi / Bici / Auto)"
         >
-          {isOrbiting ? <Pause className="w-4 h-4" /> : <RotateCw className="w-4 h-4" />}
-        </button>
-
-        {/* CICLO STILE CARTOGRAFICO: STRADALE 3D -> SATELLITE -> NOTTE */}
-        <button
-          id="btn-urbano-style-mode"
-          type="button"
-          onClick={() => {
-            setMapStyleMode((prev) => {
-              const next = prev === 'vector3d' ? 'satellite' : prev === 'satellite' ? 'night3d' : 'vector3d';
-              toast.info(
-                next === 'satellite'
-                  ? '🛰️ Vista Satellitare + Edifici OSM 3D'
-                  : next === 'night3d'
-                  ? '🌙 Vista Notturna Urbana 3D'
-                  : '🗺️ Vista Stradale Architettonica 3D'
-              );
-              return next;
-            });
-          }}
-          className="w-10 h-10 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/80 shadow-xl backdrop-blur-xl flex flex-col items-center justify-center cursor-pointer transition-all active:scale-90 font-black text-[8px]"
-          title="Cambia stile cartografico (Stradale 3D / Satellite / Notte)"
-        >
-          <Layers className="w-4 h-4 text-[#00ff66]" />
-          <span className="leading-none mt-0.5 uppercase">
-            {mapStyleMode === 'satellite' ? 'SAT' : mapStyleMode === 'night3d' ? 'NOTTE' : 'MAPPA'}
-          </span>
-        </button>
-
-        {/* TOGGLE RILIEVO OROGRAFICO TERRARIUM DEM 3D */}
-        <button
-          id="btn-urbano-terrain-dem"
-          type="button"
-          onClick={() => setShowTerrain3D((prev) => !prev)}
-          className={`w-10 h-10 rounded-xl shadow-xl flex flex-col items-center justify-center cursor-pointer transition-all border active:scale-90 font-black text-[8px] ${
-            showTerrain3D
-              ? 'bg-emerald-500 text-slate-950 border-emerald-300 shadow-emerald-500/30'
-              : 'bg-slate-900/90 text-emerald-300 border-slate-700/80 hover:bg-slate-800'
-          }`}
-          title="Attiva/Disattiva rilievo orografico reale DEM Terrarium"
-        >
-          <Mountain className="w-4 h-4" />
-          <span className="leading-none mt-0.5">DEM</span>
-        </button>
-
-        {/* TOGGLE GOOGLE PHOTOREALISTIC 3D TILES OPZIONALE (GATED DA CHIAVE API) */}
-        <button
-          id="btn-urbano-photorealistic"
-          type="button"
-          onClick={() => {
-            const hasKey = Boolean(getConfiguredGoogleMapsKey());
-            if (!useGooglePhotorealistic && !hasKey) {
-              toast.info('Google Photorealistic 3D Tiles richiede VITE_GOOGLE_MAPS_API_KEY', {
-                description: 'Apro l’informativa sicura a costo zero con fallback Open-Data 3D.',
-              });
-            }
-            setUseGooglePhotorealistic((prev) => !prev);
-          }}
-          className={`w-10 h-10 rounded-xl shadow-xl flex flex-col items-center justify-center cursor-pointer transition-all border active:scale-90 font-black text-[8px] ${
-            useGooglePhotorealistic
-              ? 'bg-[#00ff66] text-black border-[#00ff66] shadow-[#00ff66]/30'
-              : 'bg-slate-900/90 text-amber-300 border-slate-700/80 hover:bg-slate-800'
-          }`}
-          title="Google Photorealistic 3D Tiles (Opzionale con API Key)"
-        >
-          <Building2 className="w-4 h-4" />
-          <span className="leading-none mt-0.5">FOTO3D</span>
-        </button>
-
-        {/* WEBCAM LIVE WINDY V3 */}
-        <button
-          id="btn-urbano-webcams"
-          type="button"
-          onClick={() => setShowWebcamsModal(true)}
-          className="w-10 h-10 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-sky-300 border border-slate-700/80 shadow-xl backdrop-blur-xl flex flex-col items-center justify-center cursor-pointer transition-all active:scale-90 font-black text-[8px]"
-          title="Webcam Live territoriali (Windy Webcams API v3)"
-        >
-          <Camera className="w-4 h-4" />
-          <span className="leading-none mt-0.5">CAM</span>
-        </button>
-
-        {/* TOGGLE RADAR PRECIPITAZIONI RAINVIEWER SU MAPPA */}
-        <button
-          id="btn-urbano-radar"
-          type="button"
-          onClick={() => setRadarOverlayEnabled((prev) => !prev)}
-          className={`w-10 h-10 rounded-xl shadow-xl flex flex-col items-center justify-center cursor-pointer transition-all border active:scale-90 font-black text-[9px] ${
-            radarOverlayEnabled
-              ? 'bg-sky-500 text-slate-950 border-sky-300 shadow-sky-500/30'
-              : 'bg-slate-900/90 text-sky-400 border-slate-700/80 hover:bg-slate-800'
-          }`}
-          title="Mostra/Nascondi radar meteorologico reale RainViewer sulla mappa"
-        >
-          <Radar className="w-4 h-4" />
-          <span className="text-[7px] leading-none mt-0.5">RADAR</span>
+          <Compass className="w-4 h-4" />
+          <span className="leading-none mt-0.5">ROTTA</span>
         </button>
 
         {/* STREET VIEW 360° & NAVIGAZIONE STRADALE INTEGRATA */}
@@ -2644,11 +2579,176 @@ export default function Urbano3D({
         >
           <span>360°</span>
         </button>
+
+        {/* PULSANTE COMPATTO STRUMENTI SECONDARI (Inclinazione, DEM, FOTO3D, CAM, RADAR, Stili) */}
+        <button
+          id="btn-urbano-toggle-tools"
+          type="button"
+          onClick={() => setIsUrbanToolsOpen((prev) => !prev)}
+          className={`w-10 h-10 rounded-xl shadow-xl flex flex-col items-center justify-center cursor-pointer transition-all border active:scale-90 font-black text-[7px] ${
+            isUrbanToolsOpen
+              ? 'bg-[#00ff66] text-black border-[#00ff66]'
+              : 'bg-slate-900/90 text-slate-200 border-slate-700/80 hover:bg-slate-800'
+          }`}
+          title={isUrbanToolsOpen ? 'Chiudi strumenti mappa secondari' : 'Apri strumenti mappa (Inclinazione, DEM, Foto3D, Cam, Radar, Stili)'}
+        >
+          <SlidersHorizontal className="w-4 h-4" />
+          <span className="leading-none mt-0.5">EXTRA</span>
+        </button>
+
+        {isUrbanToolsOpen && (
+          <>
+            {/* PRESET INCLINAZIONE RAPIDA (0° PIANA / 50° AEREA / 60° 3D / 75° SKYLINE) */}
+            <button
+              id="btn-pitch-preset"
+              onClick={cycle3DPerspective}
+              className="w-10 h-10 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/80 shadow-xl backdrop-blur-xl flex flex-col items-center justify-center cursor-pointer transition-all active:scale-90 text-[10px] font-black"
+              title={`Inclinazione attuale: ${pitch}°. Clicca per cambiare angolo (2D 0° / Aerea 50° / 3D 60° / Skyline 75°)`}
+            >
+              <span>📐</span>
+              <span className="text-[8px] text-emerald-400 font-bold">{pitch}°</span>
+            </button>
+
+            {/* BUSSOLA NORD (0°) */}
+            <button
+              id="btn-reset-compass"
+              onClick={resetCompass}
+              className="w-10 h-10 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/80 shadow-xl backdrop-blur-xl flex items-center justify-center cursor-pointer transition-all active:scale-90"
+              title={`Bussola: ${bearing}°. Clicca per puntare a Nord (0°)`}
+            >
+              <Compass
+                className="w-5 h-5 text-red-400 transition-transform duration-200"
+                style={{ transform: `rotate(${-bearing}deg)` }}
+              />
+            </button>
+
+            {/* PULSANTE RADDRIZZA RAPIDO (SE INCLINATA O RUOTATA) */}
+            {(bearing !== 0 || pitch !== 0) && (
+              <button
+                id="btn-straighten-map"
+                onClick={straightenMap}
+                className="w-10 h-10 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/50 shadow-xl backdrop-blur-xl flex flex-col items-center justify-center cursor-pointer transition-all active:scale-90 text-[8px] font-black"
+                title="Raddrizza: orienta a Nord e imposta vista ortogonale piana (0°)"
+              >
+                <span>🧭</span>
+                <span className="text-[7px]">DRITTO</span>
+              </button>
+            )}
+
+            {/* ORBITA 360° */}
+            <button
+              id="btn-orbit-360"
+              onClick={() => setIsOrbiting(!isOrbiting)}
+              className={`w-10 h-10 rounded-xl shadow-xl flex items-center justify-center cursor-pointer transition-all border ${
+                isOrbiting
+                  ? 'bg-blue-500 text-white border-blue-300 animate-spin shadow-blue-500/25'
+                  : 'bg-slate-900/90 text-slate-200 border-slate-700/80 hover:bg-slate-800'
+              }`}
+              title={isOrbiting ? 'Ferma Volo 360°' : 'Volo Panoramico Orbitale 360°'}
+            >
+              {isOrbiting ? <Pause className="w-4 h-4" /> : <RotateCw className="w-4 h-4" />}
+            </button>
+
+            {/* CICLO STILE CARTOGRAFICO: STRADALE 3D -> SATELLITE -> NOTTE */}
+            <button
+              id="btn-urbano-style-mode"
+              type="button"
+              onClick={() => {
+                setMapStyleMode((prev) => {
+                  const next = prev === 'vector3d' ? 'satellite' : prev === 'satellite' ? 'night3d' : 'vector3d';
+                  toast.info(
+                    next === 'satellite'
+                      ? '🛰️ Vista Satellitare + Edifici OSM 3D'
+                      : next === 'night3d'
+                      ? '🌙 Vista Notturna Urbana 3D'
+                      : '🗺️ Vista Stradale Architettonica 3D'
+                  );
+                  return next;
+                });
+              }}
+              className="w-10 h-10 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/80 shadow-xl backdrop-blur-xl flex flex-col items-center justify-center cursor-pointer transition-all active:scale-90 font-black text-[8px]"
+              title="Cambia stile cartografico (Stradale 3D / Satellite / Notte)"
+            >
+              <Layers className="w-4 h-4 text-[#00ff66]" />
+              <span className="leading-none mt-0.5 uppercase">
+                {mapStyleMode === 'satellite' ? 'SAT' : mapStyleMode === 'night3d' ? 'NOTTE' : 'MAPPA'}
+              </span>
+            </button>
+
+            {/* TOGGLE RILIEVO OROGRAFICO TERRARIUM DEM 3D */}
+            <button
+              id="btn-urbano-terrain-dem"
+              type="button"
+              onClick={() => setShowTerrain3D((prev) => !prev)}
+              className={`w-10 h-10 rounded-xl shadow-xl flex flex-col items-center justify-center cursor-pointer transition-all border active:scale-90 font-black text-[8px] ${
+                showTerrain3D
+                  ? 'bg-emerald-500 text-slate-950 border-emerald-300 shadow-emerald-500/30'
+                  : 'bg-slate-900/90 text-emerald-300 border-slate-700/80 hover:bg-slate-800'
+              }`}
+              title="Attiva/Disattiva rilievo orografico reale DEM Terrarium"
+            >
+              <Mountain className="w-4 h-4" />
+              <span className="leading-none mt-0.5">DEM</span>
+            </button>
+
+            {/* TOGGLE GOOGLE PHOTOREALISTIC 3D TILES OPZIONALE (GATED DA CHIAVE API) */}
+            <button
+              id="btn-urbano-photorealistic"
+              type="button"
+              onClick={() => {
+                const hasKey = Boolean(getConfiguredGoogleMapsKey());
+                if (!useGooglePhotorealistic && !hasKey) {
+                  toast.info('Google Photorealistic 3D Tiles richiede VITE_GOOGLE_MAPS_API_KEY', {
+                    description: 'Apro l’informativa sicura a costo zero con fallback Open-Data 3D.',
+                  });
+                }
+                setUseGooglePhotorealistic((prev) => !prev);
+              }}
+              className={`w-10 h-10 rounded-xl shadow-xl flex flex-col items-center justify-center cursor-pointer transition-all border active:scale-90 font-black text-[8px] ${
+                useGooglePhotorealistic
+                  ? 'bg-[#00ff66] text-black border-[#00ff66] shadow-[#00ff66]/30'
+                  : 'bg-slate-900/90 text-amber-300 border-slate-700/80 hover:bg-slate-800'
+              }`}
+              title="Google Photorealistic 3D Tiles (Opzionale con API Key)"
+            >
+              <Building2 className="w-4 h-4" />
+              <span className="leading-none mt-0.5">FOTO3D</span>
+            </button>
+
+            {/* WEBCAM LIVE WINDY V3 */}
+            <button
+              id="btn-urbano-webcams"
+              type="button"
+              onClick={() => setShowWebcamsModal(true)}
+              className="w-10 h-10 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-sky-300 border border-slate-700/80 shadow-xl backdrop-blur-xl flex flex-col items-center justify-center cursor-pointer transition-all active:scale-90 font-black text-[8px]"
+              title="Webcam Live territoriali (Windy Webcams API v3)"
+            >
+              <Camera className="w-4 h-4" />
+              <span className="leading-none mt-0.5">CAM</span>
+            </button>
+
+            {/* TOGGLE RADAR PRECIPITAZIONI RAINVIEWER SU MAPPA */}
+            <button
+              id="btn-urbano-radar"
+              type="button"
+              onClick={() => setRadarOverlayEnabled((prev) => !prev)}
+              className={`w-10 h-10 rounded-xl shadow-xl flex flex-col items-center justify-center cursor-pointer transition-all border active:scale-90 font-black text-[9px] ${
+                radarOverlayEnabled
+                  ? 'bg-sky-500 text-slate-950 border-sky-300 shadow-sky-500/30'
+                  : 'bg-slate-900/90 text-sky-400 border-slate-700/80 hover:bg-slate-800'
+              }`}
+              title="Mostra/Nascondi radar meteorologico reale RainViewer sulla mappa"
+            >
+              <Radar className="w-4 h-4" />
+              <span className="text-[7px] leading-none mt-0.5">RADAR</span>
+            </button>
+          </>
+        )}
       </div>
 
       {/* CONTROLLO TIMELINE RADAR METEO IN MAPPA URBANA QUANDO ATTIVO */}
       {radarOverlayEnabled && (
-        <div className="absolute bottom-14 right-14 z-30 pointer-events-auto bg-black/90 backdrop-blur-md border border-sky-500/50 rounded-xl px-2.5 py-1.5 text-[10px] text-white shadow-xl flex items-center gap-2">
+        <div className="absolute bottom-3 right-14 z-25 pointer-events-auto bg-black/90 backdrop-blur-md border border-sky-500/50 rounded-xl px-2.5 py-1.5 text-[10px] text-white shadow-xl flex items-center gap-2 max-w-[calc(100%-5rem)]">
           <CloudRain className="w-3.5 h-3.5 text-sky-400 shrink-0" />
           {radarLoading ? (
             <span className="text-zinc-300">Caricamento radar RainViewer...</span>
@@ -2656,7 +2756,7 @@ export default function Urbano3D({
             <span className="text-amber-300">Radar RainViewer non disponibile</span>
           ) : (
             <>
-              <span className="text-sky-200 font-bold">
+              <span className="text-sky-200 font-bold truncate">
                 {radarSourceLabel} •{' '}
                 {radarFrames[radarFrameIdx]?.time
                   ? new Date(radarFrames[radarFrameIdx].time * 1000).toLocaleTimeString('it-IT', {
@@ -2669,7 +2769,7 @@ export default function Urbano3D({
                 <button
                   type="button"
                   onClick={() => setRadarPlaying((prev) => !prev)}
-                  className="px-1.5 py-0.5 rounded bg-sky-500 text-slate-950 font-black flex items-center gap-1 cursor-pointer"
+                  className="px-1.5 py-0.5 rounded bg-sky-500 text-slate-950 font-black flex items-center gap-1 cursor-pointer shrink-0"
                 >
                   {radarPlaying ? <Pause className="w-2.5 h-2.5" /> : <Play className="w-2.5 h-2.5" />}
                   <span>{radarFrameIdx + 1}/{radarFrames.length}</span>
@@ -2680,66 +2780,124 @@ export default function Urbano3D({
         </div>
       )}
 
-      {/* FOOTER INFORMATIVO & TELEMETRIA 3D IN BASSO A SINISTRA */}
-      <div className="absolute bottom-2 left-4 z-20 pointer-events-auto text-[10px] text-slate-300 font-medium flex flex-wrap items-center gap-2 bg-slate-950/90 px-3.5 py-1.5 rounded-2xl backdrop-blur-md border border-slate-800 shadow-2xl">
-        <span className="flex items-center gap-1.5 font-bold text-white">
-          <span className="text-xs">{currentPlace.flag || '📍'}</span>
-          <span>{currentPlace.name}</span>
-          <span className="text-slate-400 font-normal">({currentPlace.countryName})</span>
-        </span>
-        <span className="text-slate-600">•</span>
-        <button
-          onClick={() => setShowCurrencyModal(true)}
-          className="hover:text-emerald-300 cursor-pointer flex items-center gap-1 transition-colors text-sky-300 font-semibold"
-          title="Lingua del luogo (clicca per ascoltare)"
-        >
-          <Languages className="w-3 h-3" />
-          <span>{currentPlace.language?.name || 'Lingua Locale'}</span>
-        </button>
-        <span className="text-slate-600">•</span>
-        <button
-          onClick={() => setShowCurrencyModal(true)}
-          className="hover:text-amber-200 cursor-pointer flex items-center gap-1 transition-colors text-amber-300 font-semibold"
-          title="Valuta del luogo (clicca per convertitore)"
-        >
-          <Coins className="w-3 h-3" />
-          <span>{currentPlace.currency?.code} ({currentPlace.currency?.symbol})</span>
-        </button>
-        {weatherData ? (
-          <>
-            <span className="text-slate-600">•</span>
+      {/* CONTENITORE IMPILATO IN BASSO A SINISTRA (BARRA MEZZI VISIBILE SOLO QUANDO SI PIANIFICA/AVVIA UN PERCORSO) */}
+      <div className="absolute bottom-2.5 left-3 right-14 sm:right-auto z-20 pointer-events-none flex flex-col items-start gap-1.5">
+        {!isNavigating && (showRoutePlanner || isCalculatingRoute || Boolean(activeRoute)) && (
+          <div id="urbano-route-transport-bar" className="pointer-events-auto flex flex-wrap items-center gap-1 bg-black/90 border border-zinc-800 rounded-xl p-1 shadow-xl">
             <button
-              onClick={() => setShowWeatherModal(true)}
-              className="hover:text-sky-300 cursor-pointer flex items-center gap-1 transition-colors text-slate-300 font-semibold"
-              title="Meteo in tempo reale (clicca per dettagli)"
+              type="button"
+              onClick={() => setNavProfile('walking')}
+              className={`px-2 py-1 rounded-lg text-[10px] font-black cursor-pointer transition-colors ${
+                navProfile === 'walking' ? 'bg-sky-500 text-slate-950' : 'text-zinc-300 hover:bg-zinc-900'
+              }`}
+              title="Modalità navigazione a piedi"
             >
-              <span>{weatherData.condition?.icon || '🌤️'}</span>
-              <span>{weatherData.temperature}°C</span>
-              <span className="text-slate-400 hidden sm:inline">({weatherData.condition?.label})</span>
+              🚶 Piedi
             </button>
-          </>
-        ) : (
-          <>
-            <span className="text-slate-600">•</span>
             <button
-              onClick={() => setShowWeatherModal(true)}
-              className="hover:text-sky-300 cursor-pointer flex items-center gap-1 transition-colors text-slate-400 font-semibold"
-              title="Apri pannello meteo Open-Meteo"
+              type="button"
+              onClick={() => setNavProfile('cycling')}
+              className={`px-2 py-1 rounded-lg text-[10px] font-black cursor-pointer transition-colors ${
+                navProfile === 'cycling' ? 'bg-sky-500 text-slate-950' : 'text-zinc-300 hover:bg-zinc-900'
+              }`}
+              title="Modalità navigazione in bicicletta"
             >
-              <CloudSun className="w-3 h-3 text-sky-400" />
-              <span>Meteo</span>
+              🚲 Bici
             </button>
-          </>
+            <button
+              type="button"
+              onClick={() => setNavProfile('driving')}
+              className={`px-2 py-1 rounded-lg text-[10px] font-black cursor-pointer transition-colors ${
+                navProfile === 'driving' ? 'bg-sky-500 text-slate-950' : 'text-zinc-300 hover:bg-zinc-900'
+              }`}
+              title="Modalità navigazione in auto"
+            >
+              🚗 Auto
+            </button>
+            <button
+              id="btn-quick-start-navigation"
+              type="button"
+              onClick={() => startTurnByTurnNavigation()}
+              disabled={isCalculatingRoute}
+              className="px-2.5 py-1 rounded-lg bg-[#00ff66] hover:bg-[#00e65c] text-black text-[10px] font-black flex items-center gap-1 cursor-pointer shadow-md"
+            >
+              <Navigation className="w-3 h-3" />
+              <span>{isCalculatingRoute ? 'Calcolo...' : 'Avvia Navigazione'}</span>
+            </button>
+            {!activeRoute && !isCalculatingRoute && (
+              <button
+                type="button"
+                onClick={() => setShowRoutePlanner(false)}
+                className="p-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
+                title="Chiudi barra percorso"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
         )}
-        <span className="text-slate-600 hidden sm:inline">•</span>
-        <span className="text-slate-400 hidden sm:flex items-center gap-1">
-          <Clock className="w-3 h-3 text-indigo-400" />
-          <span>{getLocalTimeString(currentPlace.timezone)}</span>
-        </span>
-        <span className="text-slate-600">•</span>
-        <span className="text-emerald-400 font-semibold">
-          {pitch}° 3D
-        </span>
+
+        {/* FOOTER INFORMATIVO & TELEMETRIA 3D */}
+        <div className="pointer-events-auto text-[10px] text-slate-300 font-medium flex flex-wrap items-center gap-x-2 gap-y-1 bg-slate-950/90 px-3 py-1.5 rounded-2xl backdrop-blur-md border border-slate-800 shadow-2xl">
+          <span className="flex items-center gap-1.5 font-bold text-white">
+            <span className="text-xs">{currentPlace.flag || '📍'}</span>
+            <span>{currentPlace.name}</span>
+            <span className="text-slate-400 font-normal">({currentPlace.countryName})</span>
+          </span>
+          <span className="text-slate-600">•</span>
+          <button
+            onClick={() => setShowCurrencyModal(true)}
+            className="hover:text-emerald-300 cursor-pointer flex items-center gap-1 transition-colors text-sky-300 font-semibold"
+            title="Lingua del luogo (clicca per ascoltare)"
+          >
+            <Languages className="w-3 h-3" />
+            <span>{currentPlace.language?.name || 'Lingua Locale'}</span>
+          </button>
+          <span className="text-slate-600">•</span>
+          <button
+            onClick={() => setShowCurrencyModal(true)}
+            className="hover:text-amber-200 cursor-pointer flex items-center gap-1 transition-colors text-amber-300 font-semibold"
+            title="Valuta del luogo (clicca per convertitore)"
+          >
+            <Coins className="w-3 h-3" />
+            <span>{currentPlace.currency?.code} ({currentPlace.currency?.symbol})</span>
+          </button>
+          {weatherData ? (
+            <>
+              <span className="text-slate-600">•</span>
+              <button
+                onClick={() => setShowWeatherModal(true)}
+                className="hover:text-sky-300 cursor-pointer flex items-center gap-1 transition-colors text-slate-300 font-semibold"
+                title="Meteo in tempo reale (clicca per dettagli)"
+              >
+                <span>{weatherData.condition?.icon || '🌤️'}</span>
+                <span>{weatherData.temperature}°C</span>
+                <span className="text-slate-400 hidden sm:inline">({weatherData.condition?.label})</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="text-slate-600">•</span>
+              <button
+                onClick={() => setShowWeatherModal(true)}
+                className="hover:text-sky-300 cursor-pointer flex items-center gap-1 transition-colors text-slate-400 font-semibold"
+                title="Apri pannello meteo Open-Meteo"
+              >
+                <CloudSun className="w-3 h-3 text-sky-400" />
+                <span>Meteo</span>
+              </button>
+            </>
+          )}
+          <span className="text-slate-600 hidden sm:inline">•</span>
+          <span className="text-slate-400 hidden sm:flex items-center gap-1">
+            <Clock className="w-3 h-3 text-indigo-400" />
+            <span>{getLocalTimeString(currentPlace.timezone)}</span>
+          </span>
+          <span className="text-slate-600">•</span>
+          <span className="text-emerald-400 font-semibold">
+            {pitch}° 3D
+          </span>
+        </div>
       </div>
 
       {/* MODALE DI NAVIGAZIONE MONDO (QUALSIASI CITTÀ, STATO O REGIONE) */}

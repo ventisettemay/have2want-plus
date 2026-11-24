@@ -1,17 +1,18 @@
-// SATELLITE MODULAR ENGINE – HAVE2WANT PLUS
-// Registro centrale e centro di controllo degli 8 satelliti tridimensionali.
-// Gestisce l'attivazione/disattivazione autonoma (ON/OFF), le orbite, i preset
-// e la persistenza locale/cloud, preservando l'integrità di tutti i servizi esistenti.
+// MOTORE INGEGNERISTICO MODULARE SATELLITI – HAVE2WANT PLUS
+// Flotta Canonica: 10 Satelliti (6 veicoli fisici reali NORAD a licenza libera + 4 canali logici HAVE2WANT)
+// Unica fonte di verità per catalogo 3D, interruttori ON/OFF, preset, canali UI e componenti target.
 
 export type SatelliteId =
-  | 'METEO_SAT'
   | 'KM0_SAT'
-  | 'STREET_360_SAT'
-  | 'PI_CHAT_SAT'
-  | 'GLOBAL_MARKET_SAT'
+  | 'MAP_SAT'
   | 'EXTERNAL_MARKET_SAT'
+  | 'METEO_SAT'
+  | 'PI_CHAT_SAT'
+  | 'BUSINESS_ADS_SAT'
+  | 'GLOBAL_MARKET_SAT'
   | 'COMMUNITY_RESCUE_SAT'
-  | 'BUSINESS_ADS_SAT';
+  | 'ACTIONFLOW_SAT'
+  | 'DEFIANCE_PULSE_SAT';
 
 export type PresetType =
   | 'ACCENDI_TUTTI'
@@ -27,357 +28,380 @@ export interface SatelliteConfig {
   id: SatelliteId;
   name: string;
   codeName: string;
-  noradId: number | null;
   officialDesignation: string;
-  isPhysicalSpacecraft: boolean;
-  trackingSourceLabel: string;
-  category: 'TERRITORIO' | 'METEO' | 'MERCATI' | 'COMUNICAZIONE' | 'COMUNITA';
   icon: string;
-  color: string;
-  foilColor: number; // Colore lamina termica (oro 0xd4af37, argento 0xe2e8f0, titanio 0x64748b)
-  altitudeKm: number | null;
   orbitMultiplier: number;
   speed: number;
-  inclination: number; // Inclinazione orbitale nominale in radianti
+  inclination: number;
   startAngle: number;
+  color: string;
+  solarPanelColor: string;
   h2wRole: string;
   targetComponent: string;
-  isActive: boolean;
+  isPhysicalSpacecraft: boolean;
+  noradId: number | null;
+  altitudeKm?: number | null;
+  category: 'TERRITORIO' | 'METEO' | 'MERCATI' | 'COMUNICAZIONE' | 'COMUNITA';
 }
 
-// Configurazione Ingegneristica degli 8 Satelliti (6 veicoli fisici reali NORAD + 2 canali logici H2W)
 export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
   {
-    id: 'METEO_SAT',
-    name: 'Meteo & Clima Live',
-    codeName: 'METEOSAT-12',
-    noradId: 54743,
-    officialDesignation: 'METEOSAT-12 (MTG-I1)',
-    isPhysicalSpacecraft: true,
-    trackingSourceLabel: 'CelesTrak GP/OMM (NORAD 54743)',
-    category: 'METEO',
-    icon: '🌦️',
-    color: '#38bdf8',
-    foilColor: 0xe2e8f0,
-    altitudeKm: 35786,
-    orbitMultiplier: 1.66,
-    speed: 0.0006,
-    inclination: 0.08,
-    startAngle: 0.0,
-    h2wRole: 'Previsioni climatologiche Open-Meteo per ogni comune e regione',
-    targetComponent: 'LiveWeatherModal',
-    isActive: true,
-  },
-  {
     id: 'KM0_SAT',
-    name: 'Produttori a Km 0',
+    name: 'KM 0',
     codeName: 'SENTINEL-2A',
-    noradId: 40697,
-    officialDesignation: 'SENTINEL-2A (ESA Copernicus)',
-    isPhysicalSpacecraft: true,
-    trackingSourceLabel: 'CelesTrak GP/OMM (NORAD 40697)',
-    category: 'TERRITORIO',
+    officialDesignation: 'ESA Copernicus Sentinel-2A (Open License)',
     icon: '🌾',
-    color: '#10b981',
-    foilColor: 0xd4af37,
-    altitudeKm: 786,
-    orbitMultiplier: 1.20,
-    speed: 0.0011,
-    inclination: 1.35,
-    startAngle: 0.785,
-    h2wRole: 'Botteghe locali, agricoltori e filiera corta a chilometro zero',
+    orbitMultiplier: 1.54,
+    speed: 0.00055,
+    inclination: 0.56,
+    startAngle: 0.2,
+    color: '#00ff66',
+    solarPanelColor: '#047857',
+    h2wRole: 'Produttori agricoli locali, artigiani e botteghe Km 0 entro 100 km (distinto da Lavoro P2P).',
     targetComponent: 'VetrinaKmZero',
-    isActive: true,
-  },
-  {
-    id: 'STREET_360_SAT',
-    name: 'Stradario & Vista 360°',
-    codeName: 'WORLDVIEW-3',
-    noradId: 40115,
-    officialDesignation: 'WORLDVIEW-3 (WV-3)',
     isPhysicalSpacecraft: true,
-    trackingSourceLabel: 'CelesTrak GP/OMM (NORAD 40115)',
+    noradId: 40697,
     category: 'TERRITORIO',
-    icon: '🧭',
-    color: '#06b6d4',
-    foilColor: 0x18181b,
-    altitudeKm: 617,
-    orbitMultiplier: 1.26,
-    speed: 0.0008,
-    inclination: 0.75,
-    startAngle: 1.57,
-    h2wRole: 'Navigazione urbana tridimensionale, passeggiata stradale e incroci',
-    targetComponent: 'StreetView360Modal',
-    isActive: true,
   },
   {
-    id: 'PI_CHAT_SAT',
-    name: 'Chat Vocale & Video',
-    codeName: 'STARLINK-3109',
-    noradId: 49143,
-    officialDesignation: 'STARLINK-3109 (SpaceX)',
+    id: 'MAP_SAT',
+    name: 'MAPPA 3D',
+    codeName: 'SENTINEL-2B',
+    officialDesignation: 'ESA Copernicus Sentinel-2B (Open License)',
+    icon: '🗺️',
+    orbitMultiplier: 1.48,
+    speed: 0.00058,
+    inclination: -0.46,
+    startAngle: 1.15,
+    color: '#ffffff',
+    solarPanelColor: '#0369a1',
+    h2wRole: 'Mappa mondiale 3D, navigazione GPS/OSRM reale, Stradario 360°, Webcam Live e Meteo percorso.',
+    targetComponent: 'MapView3DContainer',
     isPhysicalSpacecraft: true,
-    trackingSourceLabel: 'CelesTrak GP/OMM (NORAD 49143)',
-    category: 'COMUNICAZIONE',
-    icon: '🎙️',
-    color: '#22c55e',
-    foilColor: 0x18181b,
-    altitudeKm: 550,
-    orbitMultiplier: 1.22,
-    speed: 0.0010,
-    inclination: -0.92,
-    startAngle: 2.356,
-    h2wRole: 'Messaggistica discreta, note vocali da microfono e videochiamata diretta',
-    targetComponent: 'VoiceNoteChat',
-    isActive: true,
-  },
-  {
-    id: 'GLOBAL_MARKET_SAT',
-    name: 'Marketplace Globale',
-    codeName: 'TELSTAR 19V',
-    noradId: 43562,
-    officialDesignation: 'TELSTAR 19V (Telesat)',
-    isPhysicalSpacecraft: true,
-    trackingSourceLabel: 'CelesTrak GP/OMM (NORAD 43562)',
-    category: 'MERCATI',
-    icon: '🌐',
-    color: '#a855f7',
-    foilColor: 0xd4af37,
-    altitudeKm: 35786,
-    orbitMultiplier: 1.60,
-    speed: 0.00065,
-    inclination: 0.22,
-    startAngle: 3.141,
-    h2wRole: 'Supermarket mondiale con prezzi in valuta locale e conversione Pi Network reale',
-    targetComponent: 'GlobalMarketplaceView',
-    isActive: true,
+    noradId: 42063,
+    category: 'TERRITORIO',
   },
   {
     id: 'EXTERNAL_MARKET_SAT',
-    name: 'Marketplace Esterni',
-    codeName: 'GATEWAY-RELAIS',
-    noradId: null,
-    officialDesignation: 'Canale logico HAVE2WANT (nessun satellite fisico)',
-    isPhysicalSpacecraft: false,
-    trackingSourceLabel: 'Nessun tracciamento orbitale fisico previsto',
-    category: 'MERCATI',
+    name: 'MARKETPLACE ESTERNI',
+    codeName: 'H2W-EXT-CRYPTO',
+    officialDesignation: 'Canale Logico Marketplace Esterni (Solo Crypto)',
     icon: '🛒',
-    color: '#f97316',
-    foilColor: 0xd4af37,
-    altitudeKm: null,
-    orbitMultiplier: 1.44,
-    speed: 0.00075,
-    inclination: -0.62,
-    startAngle: 3.927,
-    h2wRole: 'Articoli da canali esterni (Amazon, eBay, AliExpress) con guadagno per l\'app',
+    orbitMultiplier: 1.72,
+    speed: 0.00038,
+    inclination: 0.32,
+    startAngle: 1.95,
+    color: '#38bdf8',
+    solarPanelColor: '#1e3a8a',
+    h2wRole: 'Cataloghi Amazon, eBay e negozi esterni separati dal mercato interno; pagamenti solo in criptovalute.',
     targetComponent: 'ExternalListings',
-    isActive: true,
+    isPhysicalSpacecraft: false,
+    noradId: null,
+    altitudeKm: null,
+    category: 'MERCATI',
   },
   {
-    id: 'COMMUNITY_RESCUE_SAT',
-    name: 'Comunità & Soccorso',
-    codeName: 'GALILEO-SAR',
-    noradId: 43566,
-    officialDesignation: 'GSAT0219 (GALILEO 23 · Cospas-Sarsat SAR)',
-    isPhysicalSpacecraft: true,
-    trackingSourceLabel: 'CelesTrak GP/OMM (NORAD 43566)',
-    category: 'COMUNITA',
-    icon: '🤝',
+    id: 'METEO_SAT',
+    name: 'METEO LIVE',
+    codeName: 'MTG-I1',
+    officialDesignation: 'Meteosat-12 Third Generation (EUMETSAT Open)',
+    icon: '🌩️',
+    orbitMultiplier: 1.84,
+    speed: 0.00045,
+    inclination: 0.14,
+    startAngle: 2.55,
     color: '#ef4444',
-    foilColor: 0xe2e8f0,
-    altitudeKm: 23222,
-    orbitMultiplier: 1.52,
-    speed: 0.0007,
-    inclination: 1.10,
-    startAngle: 4.712,
-    h2wRole: 'Numeri di emergenza civica mondiali, carpooling solidale e mutuo aiuto',
-    targetComponent: 'WorldEmergencyModal',
-    isActive: true,
+    solarPanelColor: '#0284c7',
+    h2wRole: 'Previsioni reali Open-Meteo, onde marine, venti globali, precipitazioni 3D e radar RainViewer.',
+    targetComponent: 'LiveWeatherModal',
+    isPhysicalSpacecraft: true,
+    noradId: 54743,
+    category: 'METEO',
+  },
+  {
+    id: 'PI_CHAT_SAT',
+    name: 'CHAT E VIDEO',
+    codeName: 'STARLINK-3109',
+    officialDesignation: 'Open LEO Telemetry Mesh (NORAD 49143)',
+    icon: '💬',
+    orbitMultiplier: 1.36,
+    speed: 0.00068,
+    inclination: 0.34,
+    startAngle: 0.4,
+    color: '#10b981',
+    solarPanelColor: '#0f766e',
+    h2wRole: 'Chat privata, note vocali, Videochat separata e gruppi di quartiere geolocalizzati.',
+    targetComponent: 'VoiceNoteChat',
+    isPhysicalSpacecraft: true,
+    noradId: 49143,
+    category: 'COMUNICAZIONE',
   },
   {
     id: 'BUSINESS_ADS_SAT',
-    name: 'Pubblicità Esercenti',
-    codeName: 'BEACON-BUSINESS',
-    noradId: null,
-    officialDesignation: 'Canale logico HAVE2WANT (nessun satellite fisico)',
-    isPhysicalSpacecraft: false,
-    trackingSourceLabel: 'Nessun tracciamento orbitale fisico previsto',
-    category: 'TERRITORIO',
-    icon: '🏪',
-    color: '#e11d48',
-    foilColor: 0xd4af37,
-    altitudeKm: null,
-    orbitMultiplier: 1.34,
-    speed: 0.0009,
-    inclination: -0.38,
-    startAngle: 5.497,
-    h2wRole: 'Locandine e spazi pubblicitari per negozi ed esercenti con Quota X (0.25 π)',
+    name: 'CREAZIONE PUBBLICITÀ',
+    codeName: 'H2W-ADS-RELAY',
+    officialDesignation: 'Canale Logico Inserzioni & Volantini Multicanale',
+    icon: '📢',
+    orbitMultiplier: 1.66,
+    speed: 0.00041,
+    inclination: -0.28,
+    startAngle: 3.45,
+    color: '#fbbf24',
+    solarPanelColor: '#b45309',
+    h2wRole: 'Creazione, gestione e pubblicazione di volantini e spilli pubblicitari 3D (Pi / USDT / Crediti).',
     targetComponent: 'BusinessSponsorModal',
-    isActive: true,
+    isPhysicalSpacecraft: false,
+    noradId: null,
+    altitudeKm: null,
+    category: 'COMUNICAZIONE',
+  },
+  {
+    id: 'GLOBAL_MARKET_SAT',
+    name: 'PRODOTTI DEL MONDO',
+    codeName: 'TELSTAR-19V',
+    officialDesignation: 'Telstar 19V Global Marketplace Relay',
+    icon: '🌍',
+    orbitMultiplier: 1.60,
+    speed: 0.0005,
+    inclination: -0.52,
+    startAngle: 4.5,
+    color: '#06b6d4',
+    solarPanelColor: '#1d4ed8',
+    h2wRole: 'Marketplace internazionale, Baratto / Cerco / Acquisto e Bacheca Lavoro P2P integrata.',
+    targetComponent: 'GlobalMarketplaceView',
+    isPhysicalSpacecraft: true,
+    noradId: 43562,
+    category: 'MERCATI',
+  },
+  {
+    id: 'COMMUNITY_RESCUE_SAT',
+    name: 'SOCCORSO',
+    codeName: 'GALILEO-23',
+    officialDesignation: 'Galileo GSAT0219 Search & Rescue (ESA Open)',
+    icon: '🚨',
+    orbitMultiplier: 1.90,
+    speed: 0.00044,
+    inclination: 0.72,
+    startAngle: 5.05,
+    color: '#f97316',
+    solarPanelColor: '#9a3412',
+    h2wRole: 'Soccorso e numeri di emergenza mondiali dedicati (separato dal Carpool e dalle chat).',
+    targetComponent: 'WorldEmergencyModal',
+    isPhysicalSpacecraft: true,
+    noradId: 43566,
+    category: 'COMUNITA',
+  },
+  {
+    id: 'ACTIONFLOW_SAT',
+    name: 'ACTIONFLOW HUB',
+    codeName: 'H2W-ACTIONFLOW',
+    officialDesignation: 'Canale Logico Hub Applicazioni Esterne ActionFlow',
+    icon: '⚡',
+    orbitMultiplier: 1.42,
+    speed: 0.00062,
+    inclination: -0.64,
+    startAngle: 5.55,
+    color: '#22c55e',
+    solarPanelColor: '#065f46',
+    h2wRole: 'Collegamento alle applicazioni esterne ActionFlow con 3 slot configurabili pronti all’uso.',
+    targetComponent: 'ActionFlowHubModal',
+    isPhysicalSpacecraft: false,
+    noradId: null,
+    altitudeKm: null,
+    category: 'COMUNICAZIONE',
+  },
+  {
+    id: 'DEFIANCE_PULSE_SAT',
+    name: 'DEFIANCE PULSE',
+    codeName: 'H2W-DEFIANCE',
+    officialDesignation: 'Canale Logico Creator, Musica, Video & Promozione',
+    icon: '🎙️',
+    orbitMultiplier: 1.78,
+    speed: 0.00048,
+    inclination: 0.48,
+    startAngle: 5.95,
+    color: '#c084fc',
+    solarPanelColor: '#6b21a8',
+    h2wRole: 'Piattaforma Defiance Pulse con sezioni Creator, Musica, Video e Promozione interna.',
+    targetComponent: 'DefiancePulseHub',
+    isPhysicalSpacecraft: false,
+    noradId: null,
+    altitudeKm: null,
+    category: 'COMUNICAZIONE',
   },
 ];
 
-const STORAGE_KEY = 'h2w_satellites_modular_state_v2';
+// Mappa canonica Satellite -> Canale UI e Componente target
+export const SATELLITE_TO_CHANNEL: Record<SatelliteId, string> = {
+  KM0_SAT: 'KMZERO',
+  MAP_SAT: 'MAP',
+  EXTERNAL_MARKET_SAT: 'EXTERNAL',
+  METEO_SAT: 'WEATHER',
+  PI_CHAT_SAT: 'CHAT',
+  BUSINESS_ADS_SAT: 'BUSINESS_ADS',
+  GLOBAL_MARKET_SAT: 'SUPERMARKET',
+  COMMUNITY_RESCUE_SAT: 'EMERGENCY',
+  ACTIONFLOW_SAT: 'ACTIONFLOW',
+  DEFIANCE_PULSE_SAT: 'DEFIANCE_PULSE',
+};
+
+export const SATELLITE_TO_COMPONENT: Record<SatelliteId, string> = {
+  KM0_SAT: 'VetrinaKmZero',
+  MAP_SAT: 'MapView3DContainer',
+  EXTERNAL_MARKET_SAT: 'ExternalListings',
+  METEO_SAT: 'LiveWeatherModal',
+  PI_CHAT_SAT: 'VoiceNoteChat',
+  BUSINESS_ADS_SAT: 'BusinessSponsorModal',
+  GLOBAL_MARKET_SAT: 'GlobalMarketplaceView',
+  COMMUNITY_RESCUE_SAT: 'WorldEmergencyModal',
+  ACTIONFLOW_SAT: 'ActionFlowHubModal',
+  DEFIANCE_PULSE_SAT: 'DefiancePulseHub',
+};
+
+const LEGACY_CHANNEL_ALIASES: Record<string, string> = {
+  STRADARIO: 'MAP',
+  STREET_360: 'MAP',
+  STREET_360_SAT: 'MAP',
+  WEBCAM: 'MAP',
+  METEO_ROUTE: 'MAP',
+  MONDO: 'SUPERMARKET',
+  P2P: 'SUPERMARKET',
+  LAVORO: 'SUPERMARKET',
+  COMUNITA: 'EMERGENCY',
+  SOCCORSO: 'EMERGENCY',
+};
+
+export function resolveSatelliteChannel(satIdOrChannel: SatelliteId | string): string {
+  const fromSat = (SATELLITE_TO_CHANNEL as Record<string, string>)[satIdOrChannel];
+  if (fromSat) return fromSat;
+  return LEGACY_CHANNEL_ALIASES[satIdOrChannel] || satIdOrChannel;
+}
+
+const STORAGE_KEY_STATES = 'have2want_satellite_states_v3';
+
+function createDefaultStates(active = true): Record<SatelliteId, boolean> {
+  const map = {} as Record<SatelliteId, boolean>;
+  for (const sat of INITIAL_SATELLITES_CATALOG) {
+    map[sat.id] = active;
+  }
+  return map;
+}
+
+function loadInitialStates(): Record<SatelliteId, boolean> {
+  const defaults = createDefaultStates(true);
+  try {
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      return defaults;
+    }
+    const raw = localStorage.getItem(STORAGE_KEY_STATES);
+    if (!raw) return defaults;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return defaults;
+    for (const sat of INITIAL_SATELLITES_CATALOG) {
+      if (typeof parsed[sat.id] === 'boolean') {
+        defaults[sat.id] = parsed[sat.id];
+      }
+    }
+    return defaults;
+  } catch {
+    return defaults;
+  }
+}
 
 class SatelliteModularEngine {
-  private state: Record<SatelliteId, boolean>;
-  private listeners: Set<(state: Record<SatelliteId, boolean>) => void> = new Set();
+  private states: Record<SatelliteId, boolean>;
+  private listeners = new Set<(states: Record<SatelliteId, boolean>) => void>();
 
   constructor() {
-    this.state = this.loadState();
+    this.states = loadInitialStates();
   }
 
-  private loadState(): Record<SatelliteId, boolean> {
-    const defaultState: Record<SatelliteId, boolean> = {} as any;
-    INITIAL_SATELLITES_CATALOG.forEach((sat) => {
-      defaultState[sat.id] = sat.isActive;
-    });
-
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          INITIAL_SATELLITES_CATALOG.forEach((sat) => {
-            if (typeof parsed[sat.id] === 'boolean') {
-              defaultState[sat.id] = parsed[sat.id];
-            }
-          });
-        }
-      } catch (err) {
-        console.warn('Impossibile caricare stato satelliti da localStorage:', err);
+  private persistAndNotify() {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(STORAGE_KEY_STATES, JSON.stringify(this.states));
       }
+    } catch {
+      // ignore storage errors
     }
-    return defaultState;
-  }
-
-  private saveState() {
-    if (typeof window !== 'undefined') {
+    const snapshot = { ...this.states };
+    this.listeners.forEach((cb) => {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
+        cb(snapshot);
       } catch (err) {
-        console.warn('Impossibile salvare stato satelliti su localStorage:', err);
-      }
-    }
-    this.notify();
-  }
-
-  private notify() {
-    this.listeners.forEach((listener) => {
-      try {
-        listener({ ...this.state });
-      } catch (err) {
-        console.error('Errore listener satellite:', err);
+        console.warn('Satellite listener error:', err);
       }
     });
   }
 
   public isSatelliteActive(id: SatelliteId): boolean {
-    return Boolean(this.state[id]);
+    return Boolean(this.states[id]);
+  }
+
+  public getStates(): Record<SatelliteId, boolean> {
+    return { ...this.states };
   }
 
   public getActiveCount(): number {
-    return Object.values(this.state).filter(Boolean).length;
+    return INITIAL_SATELLITES_CATALOG.filter((s) => Boolean(this.states[s.id])).length;
   }
 
-  public getTotalCount(): number {
-    return INITIAL_SATELLITES_CATALOG.length;
-  }
-
-  public getAllSatellites(): (SatelliteConfig & { isActive: boolean })[] {
-    return INITIAL_SATELLITES_CATALOG.map((sat) => ({
-      ...sat,
-      isActive: Boolean(this.state[sat.id]),
-    }));
-  }
-
-  public getActiveSatellites(): SatelliteConfig[] {
-    return INITIAL_SATELLITES_CATALOG.filter((sat) => Boolean(this.state[sat.id]));
+  public setSatelliteActive(id: SatelliteId, active: boolean): boolean {
+    this.states = {
+      ...this.states,
+      [id]: active,
+    };
+    this.persistAndNotify();
+    return active;
   }
 
   public toggleSatellite(id: SatelliteId): boolean {
-    const current = Boolean(this.state[id]);
-    this.state[id] = !current;
-    this.saveState();
-    return this.state[id];
+    const next = !this.states[id];
+    return this.setSatelliteActive(id, next);
   }
 
-  public setSatelliteActive(id: SatelliteId, active: boolean) {
-    if (this.state[id] !== active) {
-      this.state[id] = active;
-      this.saveState();
-    }
-  }
-
-  // Applicazione dei Sette Preset Concordati
-  public applyPreset(preset: PresetType) {
-    const newState: Record<SatelliteId, boolean> = {} as any;
-
+  public applyPreset(preset: PresetType): Record<SatelliteId, boolean> {
+    let next = createDefaultStates(false);
     switch (preset) {
       case 'ACCENDI_TUTTI':
       case 'RIPRISTINA_TUTTI':
-        INITIAL_SATELLITES_CATALOG.forEach((sat) => {
-          newState[sat.id] = true;
-        });
+        next = createDefaultStates(true);
         break;
-
       case 'SPEGNI_TUTTI':
-        INITIAL_SATELLITES_CATALOG.forEach((sat) => {
-          newState[sat.id] = false;
-        });
+        next = createDefaultStates(false);
         break;
-
       case 'SOLO_METEO':
-        INITIAL_SATELLITES_CATALOG.forEach((sat) => {
-          newState[sat.id] = sat.id === 'METEO_SAT';
-        });
+        next.METEO_SAT = true;
         break;
-
       case 'SOLO_CHAT':
-        INITIAL_SATELLITES_CATALOG.forEach((sat) => {
-          newState[sat.id] = sat.id === 'PI_CHAT_SAT';
-        });
+        next.PI_CHAT_SAT = true;
         break;
-
       case 'KM0_METEO':
-        INITIAL_SATELLITES_CATALOG.forEach((sat) => {
-          newState[sat.id] = sat.id === 'KM0_SAT' || sat.id === 'METEO_SAT';
-        });
+        next.KM0_SAT = true;
+        next.METEO_SAT = true;
         break;
-
       case 'SOLO_MERCATI':
-        INITIAL_SATELLITES_CATALOG.forEach((sat) => {
-          newState[sat.id] =
-            sat.id === 'GLOBAL_MARKET_SAT' ||
-            sat.id === 'EXTERNAL_MARKET_SAT';
-        });
+        next.GLOBAL_MARKET_SAT = true;
+        next.EXTERNAL_MARKET_SAT = true;
         break;
-
       case 'SOLO_TERRITORIO':
-        INITIAL_SATELLITES_CATALOG.forEach((sat) => {
-          newState[sat.id] =
-            sat.id === 'KM0_SAT' ||
-            sat.id === 'STREET_360_SAT' ||
-            sat.id === 'BUSINESS_ADS_SAT';
-        });
+        next.KM0_SAT = true;
+        next.MAP_SAT = true;
+        next.BUSINESS_ADS_SAT = true;
         break;
-
-      default:
-        return;
     }
-
-    this.state = newState;
-    this.saveState();
+    this.states = next;
+    this.persistAndNotify();
+    return { ...this.states };
   }
 
-  public subscribe(listener: (state: Record<SatelliteId, boolean>) => void): () => void {
-    this.listeners.add(listener);
-    listener({ ...this.state });
+  public subscribe(cb: (states: Record<SatelliteId, boolean>) => void): () => void {
+    this.listeners.add(cb);
+    cb({ ...this.states });
     return () => {
-      this.listeners.delete(listener);
+      this.listeners.delete(cb);
     };
   }
 }
 
-// Istanza Singleton del Motore Modulare
 export const satelliteEngine = new SatelliteModularEngine();

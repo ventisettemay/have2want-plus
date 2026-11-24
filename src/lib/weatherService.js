@@ -332,7 +332,7 @@ export async function getGlobalHubWeatherSnapshots() {
   try {
     const lats = GLOBAL_WEATHER_HUBS.map((h) => h.lat).join(',');
     const lngs = GLOBAL_WEATHER_HUBS.map((h) => h.lng).join(',');
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&current=temperature_2m,weather_code,rain,snowfall,is_day`;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&current=temperature_2m,weather_code,rain,snowfall,wind_speed_10m,wind_direction_10m,is_day`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`Open-Meteo Batch HTTP ${res.status}`);
     const json = await res.json();
@@ -351,6 +351,8 @@ export async function getGlobalHubWeatherSnapshots() {
       const isSnow = snowCm > 0 || cond.category === 'snow';
       const isStorm = cond.category === 'thunderstorm';
       const isRain = !isSnow && !isStorm && (rainMm > 0 || cond.category === 'rain' || cond.category === 'drizzle');
+      const windSpeed = typeof cur.wind_speed_10m === 'number' ? Math.round(cur.wind_speed_10m) : 14;
+      const windDirectionDeg = typeof cur.wind_direction_10m === 'number' ? Math.round(cur.wind_direction_10m) : 250;
 
       let badgeType = 'clear';
       let shortLabel = cond.label;
@@ -383,6 +385,8 @@ export async function getGlobalHubWeatherSnapshots() {
         isRain,
         isSnow,
         isStorm,
+        windSpeed,
+        windDirectionDeg,
       };
     }).filter(Boolean);
 

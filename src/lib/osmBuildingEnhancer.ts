@@ -45,15 +45,44 @@ export function buildOsmBuildingLayers({ mode, showBuildings3D }: OsmArchitectur
       [
         'coalesce',
         ['get', 'roof:height'],
-        ['case', ['in', ['coalesce', ['get', 'roof:shape'], 'flat'], ['literal', ['gabled', 'hipped', 'pyramidal', 'dome', 'pitched']]], 3.2, 0.9],
+        ['case', ['in', ['coalesce', ['get', 'roof:shape'], 'flat'], ['literal', ['gabled', 'hipped', 'pyramidal', 'dome', 'pitched']]], 3.6, 1.15],
       ],
-      0.8,
+      1.05,
     ],
     ['*', rawTotalHeight, 0.35],
   ];
 
   const facadeTopHeight: any = ['max', ['-', rawTotalHeight, roofHeightExpr], ['+', safeMinHeight, 4.5]];
-  const roofTopHeight: any = ['max', rawTotalHeight, ['+', facadeTopHeight, 0.8]];
+  const roofTopHeight: any = ['max', rawTotalHeight, ['+', facadeTopHeight, 1.0]];
+
+  // Variazione deterministica architettonica per edifici senza building:material esplicito (evita blocchi grigi identici)
+  const heightSeedExpr: any = [
+    '%',
+    [
+      'round',
+      [
+        '+',
+        ['*', rawTotalHeight, 3],
+        ['*', ['coalesce', ['get', 'building:levels'], 2], 7],
+      ],
+    ],
+    5,
+  ];
+
+  const variedArchitecturalTone: any = [
+    'case',
+    ['>=', rawTotalHeight, 36],
+    isNight ? '#164e63' : isSatellite ? '#648cb0' : '#5884ad',
+    [
+      'match',
+      heightSeedExpr,
+      0, isNight ? '#243247' : isSatellite ? '#e5dccb' : '#dfd5c3', // Pietra chiara / Travertino
+      1, isNight ? '#33292a' : isSatellite ? '#d4b49c' : '#cfa88e', // Arenaria / Ocra calda
+      2, isNight ? '#3d2826' : isSatellite ? '#c47b62' : '#bc7158', // Laterizio / Terracotta sobria
+      3, isNight ? '#1e293b' : isSatellite ? '#c8d1dc' : '#bcc7d4', // Intonaco caldo chiaro
+      isNight ? '#263548' : isSatellite ? '#d8cfc0' : '#d2cabd',    // Calcare naturale
+    ],
+  ];
 
   // Palette architettonica reale guidata da OSM `building:colour` e `building:material`
   const materialFallbackColor: any = [
@@ -67,16 +96,7 @@ export function buildOsmBuildingLayers({ mode, showBuildings3D }: OsmArchitectur
     'concrete', isNight ? '#334155' : '#aeb8c4',
     'wood', isNight ? '#4a3525' : '#9c714e',
     'plaster', isNight ? '#3e4c5e' : '#e8dfd1',
-    // Fallback per fascia altimetrica architettonica sobria (zero blocchi fluo artificiali)
-    [
-      'interpolate',
-      ['linear'],
-      rawTotalHeight,
-      0, isNight ? '#1e293b' : isSatellite ? '#dcd6cb' : '#cfd6de',
-      14, isNight ? '#283548' : isSatellite ? '#cfc6b8' : '#b9c3cf',
-      35, isNight ? '#1e3a5f' : isSatellite ? '#9fb3c8' : '#8ea6bd',
-      90, isNight ? '#164e63' : isSatellite ? '#7395b5' : '#6389ad',
-    ],
+    variedArchitecturalTone,
   ];
 
   const facadeColorExpr: any = [
@@ -96,17 +116,17 @@ export function buildOsmBuildingLayers({ mode, showBuildings3D }: OsmArchitectur
       'copper', isNight ? '#115e59' : '#2f857a',
       'slate', isNight ? '#1f2937' : '#475569',
       'metal', isNight ? '#334155' : '#64748b',
-      'concrete', isNight ? '#334155' : '#94a3b8',
+      'concrete', isNight ? '#334155' : '#7c8b9e',
       [
         'case',
         ['in', ['coalesce', ['get', 'roof:shape'], 'flat'], ['literal', ['gabled', 'hipped', 'pyramidal', 'pitched']]],
         isNight ? '#5c2d24' : '#9b4a36',
-        isNight ? '#0f172a' : '#64748b',
+        isNight ? '#0f172a' : '#526071',
       ],
     ],
   ];
 
-  const plinthColor = isNight ? '#0f172a' : '#6b7280';
+  const plinthColor = isNight ? '#090d16' : '#3f4756';
 
   return [
     // 1. Basamento/Zoccolatura architettonica al piede dell'edificio
@@ -121,8 +141,8 @@ export function buildOsmBuildingLayers({ mode, showBuildings3D }: OsmArchitectur
       paint: {
         'fill-extrusion-color': plinthColor,
         'fill-extrusion-base': 0,
-        'fill-extrusion-height': ['interpolate', ['linear'], ['zoom'], 14, 0, 15, 1.4],
-        'fill-extrusion-opacity': 0.94,
+        'fill-extrusion-height': ['interpolate', ['linear'], ['zoom'], 14, 0, 15, 1.8],
+        'fill-extrusion-opacity': 0.96,
       },
     },
     // 2. Corpo facciata principale con materiali e colori OSM reali
@@ -145,7 +165,7 @@ export function buildOsmBuildingLayers({ mode, showBuildings3D }: OsmArchitectur
           16, facadeTopHeight,
         ],
         'fill-extrusion-base': safeMinHeight,
-        'fill-extrusion-opacity': isSatellite ? 0.92 : 0.95,
+        'fill-extrusion-opacity': isSatellite ? 0.93 : 0.96,
         'fill-extrusion-vertical-gradient': true,
       },
     },
@@ -168,7 +188,7 @@ export function buildOsmBuildingLayers({ mode, showBuildings3D }: OsmArchitectur
           13.5, facadeTopHeight,
           14.5, roofTopHeight,
         ],
-        'fill-extrusion-opacity': 0.96,
+        'fill-extrusion-opacity': 0.97,
         'fill-extrusion-vertical-gradient': false,
       },
     },

@@ -50,9 +50,18 @@ const VALIDATION_KEY =
   '41d098c27068bf811f67caeefe5dc094a6304c413d84b17e9e0c5ae364e3af4ac4086bc073ce287d5bdc3f21cdf45a09ea1f1a842d5a6ccd784777aae7a286b7';
 const PI_API_BASE = 'https://api.minepi.com/v2';
 const RAINVIEWER_MAPS_URL = 'https://api.rainviewer.com/public/weather-maps.json';
+const OVERPASS_CACHE_TTL_MS = 5 * 60 * 1000;
+const workerOverpassCache = new Map<string, { data: any; timestamp: number }>();
+const workerOverpassInFlight = new Map<string, Promise<any>>();
+
+const WORKER_ALLOWED_UPLOAD_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif']);
+const WORKER_FORBIDDEN_UPLOAD_MIME = [/html/i, /svg/i, /javascript/i, /ecmascript/i, /xml/i, /php/i, /x-sh/i];
+const WORKER_MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
 export function resetWorkerDeduplicationStateForTests() {
   resetMemoryIdempotencyForTests();
+  workerOverpassCache.clear();
+  workerOverpassInFlight.clear();
 }
 
 const PUBLIC_CORS_HEADERS: Record<string, string> = {
@@ -566,6 +575,75 @@ export async function handleWorkerRequest(
       return response;
     } catch (err: any) {
       return jsonResponse({ error: err?.message || 'Errore proxy CelesTrak OMM' }, 502);
+    }
+  }
+
+  // 3d. POST /api/osm/overpass (OpenStreetMap Overpass Proxy con cache 5 min e deduplicazione)
+  if (method === 'POST' && pathname === '/api/osm/overpass') {
+    const body = await parseJsonBody(request);
+    if (!body) {
+      return jsonResponse({ error: 'Body JSON non valido' }, 400);
+    }
+    const rawQuery = typeof body.query === 'string' ? body.query.trim() : '';
+    if (!rawQuery || rawQuery.length > 2048 || !rawQuery.includes('[out:json]')) {
+      return jsonResponse({ error: 'Query Overpass [out:json] non valida' }, 400);
+    }
+
+    const now = Date.now();
+    const cached = workerOverpassCache.get(rawQuery);
+    if (cached && now - cached.timestamp < OVERPASS_CACHE_TTL_MS) {
+      return jsonResponse(cached.data, 200, { 'Cache-Control': 'public, max-age=300' });
+    }
+
+    let pending = workerOverpassInFlight.get(rawQuery);
+    if (!pending) {
+      pending = (async () => {
+        const mirrors = [
+          'https://overpass.openstreetmap.fr/api/interpreter',
+          'https://overpass-api.de/api/interpreter',
+          'https://overpass.private.coffee/api/interpreter',
+        ];
+        let lastErr = 'Overpass mirror non raggiungibile';
+        for (const mirror of mirrors) {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 9000);
+          try {
+            const upstream = await fetch(mirror, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                Accept: 'application/json',
+                'User-Agent': 'HAVE2WANT-PLUS/1.0 (https://have2want.app)',
+              },
+              body: `data=${encodeURIComponent(rawQuery)}`,
+              signal: controller.signal,
+              redirect: 'error',
+            });
+            clearTimeout(timer);
+            if (!upstream.ok) {
+              lastErr = `Overpass HTTP ${upstream.status}`;
+              continue;
+            }
+            const data = await upstream.json();
+            workerOverpassCache.set(rawQuery, { data, timestamp: Date.now() });
+            return data;
+          } catch (err: any) {
+            clearTimeout(timer);
+            lastErr = err?.name === 'AbortError' ? 'Timeout Overpass API' : err?.message || lastErr;
+          }
+        }
+        throw new Error(lastErr);
+      })();
+      workerOverpassInFlight.set(rawQuery, pending);
+    }
+
+    try {
+      const data = await pending;
+      return jsonResponse(data, 200, { 'Cache-Control': 'public, max-age=300' });
+    } catch (err: any) {
+      return jsonResponse({ error: err?.message || 'Errore proxy Overpass OSM' }, 502);
+    } finally {
+      workerOverpassInFlight.delete(rawQuery);
     }
   }
 
@@ -1177,6 +1255,114 @@ export async function handleWorkerRequest(
   // 9. GET / POST /api/testnet/query (parità edge senza FS locale)
   if ((method === 'GET' || method === 'POST') && pathname === '/api/testnet/query') {
     return jsonResponse({ success: true, data: [], runtime: 'cloudflare-worker' }, 200, NO_CACHE_HEADERS);
+  }
+
+  // 9b. POST /api/testnet/publish (parità edge con validazione multipart/JSON, senza FS locale)
+  if (method === 'POST' && pathname === '/api/testnet/publish') {
+    try {
+      const contentType = String(request.headers.get('Content-Type') || '').toLowerCase();
+      let input: Record<string, any> = {};
+      let imageUrl: string | null = null;
+
+      if (contentType.includes('multipart/form-data')) {
+        const form = await request.formData();
+        for (const [key, value] of form.entries()) {
+          if (typeof value === 'string') {
+            input[key] = value.trim();
+          } else if (value && typeof value === 'object' && typeof (value as File).name === 'string') {
+            const file = value as File;
+            const fileName = file.name.trim();
+            if (!fileName) continue;
+            const dotIdx = fileName.lastIndexOf('.');
+            const ext = dotIdx >= 0 ? fileName.slice(dotIdx).toLowerCase() : '';
+            if (!WORKER_ALLOWED_UPLOAD_EXTENSIONS.has(ext)) {
+              return jsonResponse(
+                {
+                  success: false,
+                  error: `Estensione file non consentita (${ext || 'sconosciuta'}). Ammesse solo: .jpg, .jpeg, .png, .webp, .gif`,
+                },
+                400,
+                NO_CACHE_HEADERS
+              );
+            }
+            const mime = String(file.type || '').toLowerCase();
+            if (
+              mime &&
+              (!mime.startsWith('image/') ||
+                WORKER_FORBIDDEN_UPLOAD_MIME.some((rx) => rx.test(mime)))
+            ) {
+              return jsonResponse(
+                { success: false, error: `MIME type non consentito per upload immagine: ${mime}` },
+                400,
+                NO_CACHE_HEADERS
+              );
+            }
+            if (file.size <= 0 || file.size > WORKER_MAX_UPLOAD_BYTES) {
+              return jsonResponse(
+                {
+                  success: false,
+                  error: 'Dimensione file immagine non valida (consentito 1 B – 5 MB).',
+                },
+                400,
+                NO_CACHE_HEADERS
+              );
+            }
+            const safeName = fileName.replace(/[^a-zA-Z0-9_.-]/g, '_');
+            imageUrl = `/uploads/${Date.now()}_${safeName}`;
+          }
+        }
+      } else {
+        const parsed = await parseJsonBody(request);
+        if (!parsed) {
+          return jsonResponse({ success: false, error: 'Payload JSON non valido' }, 400, NO_CACHE_HEADERS);
+        }
+        input = parsed;
+      }
+
+      if (!imageUrl && typeof input.image_url === 'string' && input.image_url.trim()) {
+        imageUrl = input.image_url.trim();
+      }
+
+      const productName = String(
+        input.product_name || input.title || input.name || 'Nuovo Articolo'
+      ).trim();
+      const specsAnno = String(input.specs_anno || input.year || '2024').trim();
+      const userLat = parseFloat(String(input.user_lat ?? input.lat ?? 0)) || 0;
+      const userLng = parseFloat(String(input.user_lng ?? input.lng ?? 0)) || 0;
+      const is18Plus =
+        input.is_18_plus === true || String(input.is_18_plus).toLowerCase() === 'true';
+      const productId = `TXT-${Date.now().toString().slice(-6)}`;
+
+      const stored = {
+        product_id: productId,
+        product_name: productName,
+        current_category: String(input.current_category || input.category || 'Varie'),
+        is_18_plus: is18Plus,
+        technical_specs: { anno: specsAnno },
+        location: { latitude: userLat, longitude: userLng },
+        image_url: imageUrl,
+        ...(input.type ? { type: String(input.type) } : {}),
+      };
+
+      return jsonResponse(
+        {
+          status: 'success',
+          success: true,
+          product_id: productId,
+          image_url: imageUrl,
+          stored,
+          runtime: 'cloudflare-worker',
+        },
+        200,
+        NO_CACHE_HEADERS
+      );
+    } catch (err: any) {
+      return jsonResponse(
+        { success: false, error: err?.message || 'Errore publish testnet' },
+        500,
+        NO_CACHE_HEADERS
+      );
+    }
   }
 
   return jsonResponse({ error: 'Not Found' }, 404);

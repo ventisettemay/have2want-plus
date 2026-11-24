@@ -1,7 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Mic, Square, Play, Pause, Trash2, Send, X, Check, Store, AlertCircle } from 'lucide-react';
+import { Mic, Square, Play, Pause, Trash2, Send, X, Check, Store, AlertCircle, Video, Users, MessageCircle, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { sendChatMessageToCloud, subscribeToChatMessages } from '@/lib/firestoreService';
+
+const DEFAULT_NEIGHBORHOOD_GROUPS = [
+  { id: 'grp_centro_storico', name: 'Gruppo Quartiere Centro', area: 'Scambi & Avvisi Rionali' },
+  { id: 'grp_orto_km0', name: 'Gruppo Vicinato Km 0', area: 'Orti, Attrezzi & Surplus' },
+  { id: 'grp_riparazioni', name: 'Gruppo Riparazioni & Mestieri', area: 'Aiuto Reciproco Locale' },
+];
 
 export default function VoiceNoteChat({
   chatRoomId = '',
@@ -11,13 +17,24 @@ export default function VoiceNoteChat({
   isOpen = false,
   onClose = () => {},
   onSendVoiceNote = () => {},
+  onOpenVideoChat = null,
 }) {
+  const [chatScope, setChatScope] = useState('PRIVATE'); // 'PRIVATE' | 'GROUPS'
+  const [neighborhoodGroups, setNeighborhoodGroups] = useState(DEFAULT_NEIGHBORHOOD_GROUPS);
+  const [selectedGroupId, setSelectedGroupId] = useState(DEFAULT_NEIGHBORHOOD_GROUPS[0].id);
+  const [newGroupName, setNewGroupName] = useState('');
+
+  const activeGroup =
+    neighborhoodGroups.find((g) => g.id === selectedGroupId) || neighborhoodGroups[0];
+
   const effectiveRoomId =
-    chatRoomId ||
-    `room_${String(recipientName || 'pioneer')
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '_')
-      .slice(0, 48)}`;
+    chatScope === 'GROUPS'
+      ? `neighborhood_${selectedGroupId}`
+      : chatRoomId ||
+        `room_${String(recipientName || 'pioneer')
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '_')
+          .slice(0, 48)}`;
 
   const [isRecording, setIsRecording] = useState(false);
   const [recordDuration, setRecordDuration] = useState(0);
@@ -265,31 +282,130 @@ export default function VoiceNoteChat({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
       <div className="relative w-full max-w-lg bg-slate-900/95 border border-slate-700/80 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
         {/* Header Chat Vocale */}
-        <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/80">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-300 flex items-center justify-center text-slate-950 font-black shadow-lg shadow-amber-500/20">
-              <Store className="w-5 h-5" />
+        <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between gap-2 bg-slate-950/80">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-300 flex items-center justify-center text-slate-950 font-black shadow-lg shadow-amber-500/20 shrink-0">
+              {chatScope === 'GROUPS' ? <Users className="w-5 h-5" /> : <Store className="w-5 h-5" />}
             </div>
-            <div>
-              <h3 className="text-sm font-black text-white flex items-center gap-1.5">
-                <span>{recipientName}</span>
+            <div className="min-w-0">
+              <h3 className="text-sm font-black text-white flex items-center gap-1.5 flex-wrap">
+                <span className="truncate">
+                  {chatScope === 'GROUPS' ? activeGroup?.name : recipientName}
+                </span>
                 <span className="px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-bold">
-                  {recipientRole}
+                  {chatScope === 'GROUPS' ? 'Gruppo di Quartiere' : recipientRole}
                 </span>
               </h3>
               <p className="text-xs text-emerald-400 flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                <span>Chat &amp; Note Vocali Reali (Microfono Locale)</span>
+                <span>
+                  {chatScope === 'GROUPS'
+                    ? activeGroup?.area || 'Canale rionale condiviso'
+                    : 'Chat Privata & Note Vocali (Microfono Locale)'}
+                </span>
               </p>
             </div>
           </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {onOpenVideoChat && (
+              <button
+                type="button"
+                onClick={() => onOpenVideoChat({
+                  name: chatScope === 'GROUPS' ? activeGroup?.name : recipientName,
+                  roomId: effectiveRoomId,
+                })}
+                className="px-2.5 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-black flex items-center gap-1 cursor-pointer shadow-md"
+                title="Apri Videochat separata con questo contatto o gruppo"
+              >
+                <Video className="w-3.5 h-3.5" />
+                <span>Videochat</span>
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Separazione netta: Chat Privata vs Gruppi di Quartiere */}
+        <div className="px-4 py-2 bg-slate-950 border-b border-slate-800 flex items-center gap-2">
           <button
-            onClick={onClose}
-            className="p-2 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer"
+            type="button"
+            onClick={() => setChatScope('PRIVATE')}
+            className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${
+              chatScope === 'PRIVATE'
+                ? 'bg-[#00ff66] text-black'
+                : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
+            }`}
           >
-            <X className="w-4 h-4" />
+            <MessageCircle className="w-3.5 h-3.5" />
+            <span>Chat Privata</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setChatScope('GROUPS')}
+            className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${
+              chatScope === 'GROUPS'
+                ? 'bg-sky-400 text-slate-950'
+                : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>Gruppi di Quartiere</span>
           </button>
         </div>
+
+        {chatScope === 'GROUPS' && (
+          <div className="px-4 py-2.5 bg-slate-900/90 border-b border-slate-800 space-y-2">
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+              {neighborhoodGroups.map((grp) => (
+                <button
+                  key={grp.id}
+                  type="button"
+                  onClick={() => setSelectedGroupId(grp.id)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold shrink-0 cursor-pointer border ${
+                    selectedGroupId === grp.id
+                      ? 'bg-sky-500/20 text-sky-300 border-sky-400/60'
+                      : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
+                  }`}
+                >
+                  {grp.name}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="text"
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                placeholder="Crea nuovo gruppo di quartiere..."
+                className="flex-1 px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-white placeholder-slate-500 focus:outline-none focus:border-sky-400"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const trimmed = newGroupName.trim();
+                  if (!trimmed) return;
+                  const newId = `grp_${Date.now()}`;
+                  setNeighborhoodGroups((prev) => [
+                    ...prev,
+                    { id: newId, name: trimmed, area: 'Gruppo locale creato da te' },
+                  ]);
+                  setSelectedGroupId(newId);
+                  setNewGroupName('');
+                  toast.success(`Gruppo di quartiere "${trimmed}" attivo`);
+                }}
+                className="px-2.5 py-1 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 text-[11px] font-black flex items-center gap-1 cursor-pointer"
+              >
+                <Plus className="w-3 h-3" />
+                <span>Crea</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Avviso trasparente su persistenza Firestore / Kilo */}
         <div className="px-4 py-2 bg-amber-950/40 border-b border-amber-500/25 flex items-center gap-2 text-xs text-amber-200">

@@ -7,7 +7,7 @@ import { WORLD_COUNTRIES, findNearestCountry, findCountryByNameOrCode, isValidCo
 import { createPoliticalGlobeTexture } from '@/lib/politicalGlobeTexture';
 import { classifyMerchantPin } from '@/lib/merchantPinClassifier';
 import { ACTIVE_CHAT_USERS } from '@/data/chatUsers';
-import { Globe, RefreshCw, Compass, ZoomIn, ZoomOut, Eye, Sparkles, MapPin, ArrowRight, Layers, Plus, Minus, Disc, X, Maximize2, Minimize2, CloudRain, CloudSun, Play, Pause, Satellite, AlertTriangle, Radio } from 'lucide-react';
+import { Globe, RefreshCw, Compass, ZoomIn, ZoomOut, Eye, Sparkles, MapPin, ArrowRight, Layers, Plus, Minus, Disc, X, Maximize2, Minimize2, CloudRain, CloudSun, Satellite, AlertTriangle, Radio, SlidersHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { INITIAL_SATELLITES_CATALOG, satelliteEngine } from '@/lib/satelliteModularEngine';
@@ -159,121 +159,6 @@ export function resolveGlobeUrbanTarget({ activeZone, selectedCountryId, fallbac
   return null;
 }
 
-export const SATELLITES_CONFIG = [
-  {
-    type: 'KMZERO',
-    code: 'KM0',
-    name: 'Km 0',
-    label: 'Km 0',
-    sublabel: 'Produttori Locali',
-    desc: 'Accesso diretto ai produttori agricoli del territorio e filiera corta a Km 0',
-    color: '#10b981',
-    foilColor: 0xd4af37, // Oro termico MLI
-    orbitMultiplier: 1.22,
-    speed: 0.0012,
-    inclination: 0.65,
-    angle: 0.8,
-  },
-  {
-    type: 'WEATHER',
-    code: 'METEO',
-    name: 'Meteo Live',
-    label: 'Meteo Live',
-    sublabel: 'Clima in Tempo Reale',
-    desc: 'Previsioni e rilevamento meteorologico in tempo reale Open-Meteo per ogni territorio',
-    color: '#38bdf8',
-    foilColor: 0xe2e8f0,
-    orbitMultiplier: 1.30,
-    speed: 0.0007,
-    inclination: 0.12,
-    angle: 2.1,
-  },
-  {
-    type: 'MONDO',
-    code: 'MARKETPLACE',
-    name: 'Marketplace Globale',
-    label: 'Marketplace',
-    sublabel: 'Prodotti dal Mondo',
-    desc: 'Supermarket globale con compravendite internazionali, valute reali e spedizioni tracciate',
-    color: '#a855f7',
-    foilColor: 0xd4af37,
-    orbitMultiplier: 1.38,
-    speed: 0.0009,
-    inclination: -0.52,
-    angle: 3.5,
-  },
-  {
-    type: 'P2P',
-    code: 'LAVORO',
-    name: 'Lavoro P2P',
-    label: 'Lavoro P2P',
-    sublabel: 'Bacheca & Servizi',
-    desc: 'Rete autonoma di annunci, compravendite, offerte di lavoro e scambi tra privati',
-    color: '#00ff66',
-    foilColor: 0xe2e8f0,
-    orbitMultiplier: 1.46,
-    speed: 0.0011,
-    inclination: 0.40,
-    angle: 4.8,
-  },
-  {
-    type: 'RADAR',
-    code: 'RADAR',
-    name: 'Radar Territoriale',
-    label: 'Radar',
-    sublabel: 'Scansione di Prossimità',
-    desc: 'Scansione geografica locale e raggio di vicinanza P2P (Near You / Community)',
-    color: '#f59e0b',
-    foilColor: 0xd4af37,
-    orbitMultiplier: 1.54,
-    speed: 0.0008,
-    inclination: -0.25,
-    angle: 1.4,
-  },
-  {
-    type: 'COMUNITA',
-    code: 'COMUNITÀ',
-    name: 'Comunità & Soccorso',
-    label: 'Comunità',
-    sublabel: 'Mutuo Aiuto',
-    desc: 'Rete solidale di emergenza civica, soccorso mutuo e carpooling solidale',
-    color: '#ef4444',
-    foilColor: 0xe2e8f0,
-    orbitMultiplier: 1.62,
-    speed: 0.0010,
-    inclination: 0.55,
-    angle: 5.7,
-  },
-  {
-    type: 'BARATTO',
-    code: 'BARATTO',
-    name: 'Baratto Puro & WANT',
-    label: 'Baratto',
-    sublabel: 'Scambio Senza Denaro',
-    desc: 'Filtro esclusivo scambio merci reciproco e matching desideri WANT',
-    color: '#ec4899',
-    foilColor: 0xd4af37,
-    orbitMultiplier: 1.70,
-    speed: 0.0013,
-    inclination: -0.45,
-    angle: 0.2,
-  },
-  {
-    type: 'STRADARIO',
-    code: 'STRADARIO',
-    name: 'Stradario & 360°',
-    label: 'Stradario',
-    sublabel: 'Vista Panoramica Reale',
-    desc: 'Passeggiata stradale a 360 gradi, incroci e viabilità territoriale reale',
-    color: '#06b6d4',
-    foilColor: 0xe2e8f0,
-    orbitMultiplier: 1.78,
-    speed: 0.0006,
-    inclination: 0.35,
-    angle: 2.9,
-  },
-];
-
 export default function Globo3D({
   listings = [],
   allListings = [],
@@ -315,6 +200,9 @@ export default function Globo3D({
   const [isRotating, setIsRotating] = useState(true);
   const isRotatingRef = useRef(true);
   isRotatingRef.current = isRotating;
+
+  // Controlli secondari globo nascosti di default dietro pulsante compatto
+  const [isGlobeToolsOpen, setIsGlobeToolsOpen] = useState(false);
 
   // Modalità filtro territori nella barra: 'ITALIA' o 'MONDO'
   const [territoryTab, setTerritoryTab] = useState('ITALIA');
@@ -383,7 +271,6 @@ export default function Globo3D({
   const toggleWeatherRef = useRef(null);
   const [isPoliticalRevealed, setIsPoliticalRevealed] = useState(false);
   const [isWeatherActive, setIsWeatherActive] = useState(true);
-  const [showWeatherLegend, setShowWeatherLegend] = useState(true);
   const [radarMeta, setRadarMeta] = useState({
     status: 'loading',
     source: 'RainViewer • Open-Meteo',
@@ -869,7 +756,7 @@ export default function Globo3D({
 
     const sunNormalizedDir = sunLight.position.clone().normalize();
 
-    // Shader PBR fotorealistico Terra Giorno/Notte con coordinate mondiali, bump map normale e illuminazione solare astronomica
+    // Shader PBR fotorealistico Terra Giorno/Notte con coordinate mondiali, bump map normale, onde marine animate e illuminazione solare astronomica
     const initialGeo = Boolean(isGeoMode);
     const earthShaderDef = {
       uniforms: {
@@ -880,6 +767,8 @@ export default function Globo3D({
         uSunDirection: { value: sunNormalizedDir },
         uCameraWorldPos: { value: camera.position.clone() },
         uOpacity: { value: initialGeo ? 0.0 : 1.0 },
+        uTime: { value: 0.0 },
+        uWeatherActive: { value: initialGeo ? 0.0 : 1.0 },
       },
       vertexShader: `
         varying vec2 vUv;
@@ -904,6 +793,8 @@ export default function Globo3D({
         uniform vec3 uSunDirection;
         uniform vec3 uCameraWorldPos;
         uniform float uOpacity;
+        uniform float uTime;
+        uniform float uWeatherActive;
 
         varying vec2 vUv;
         varying vec3 vWorldNormal;
@@ -920,27 +811,30 @@ export default function Globo3D({
             perturbedNormal = worldNormal;
           }
 
-          // Orientamento solare
-          float sunDot = dot(perturbedNormal, uSunDirection);
-
           // Campionamento texture giorno e notte con fallback base anti-schermo nero
           vec4 daySample = texture2D(uDayTexture, vUv);
           vec3 dayColor = daySample.rgb;
-          // Se la texture sta ancora caricando, applica base colore oceanico/continentale immediata
           if (length(dayColor) < 0.04) {
             dayColor = vec3(0.06, 0.22, 0.42);
           }
 
           vec4 nightSample = texture2D(uNightTexture, vUv);
-          // Luci cittadine dorate NASA Black Marble
           vec3 cityLights = nightSample.rgb * vec3(1.6, 1.35, 0.90) * 3.2;
 
-          // Riflesso speculare marino naturale e riposante (luccichio oceanico elegante, mai disco bianco bruciato)
+          // Maschera marina e onde/increspature dinamiche sulle aree oceaniche
           float specMask = texture2D(uSpecularMap, vUv).r;
+          float waveA = sin(vUv.x * 260.0 + uTime * 1.9 + vUv.y * 90.0);
+          float waveB = cos(vUv.y * 220.0 - uTime * 1.5 + vUv.x * 110.0);
+          float oceanRipple = (waveA + waveB) * 0.5 * step(0.35, specMask) * uWeatherActive;
+          vec3 surfaceNormal = normalize(perturbedNormal + vec3(oceanRipple * 0.045, oceanRipple * 0.035, 0.0));
+
+          float sunDot = dot(surfaceNormal, uSunDirection);
+
           vec3 halfDir = normalize(uSunDirection + viewDir);
-          float specAngle = max(dot(perturbedNormal, halfDir), 0.0);
-          float spec = pow(specAngle, 72.0) * specMask * 0.40;
+          float specAngle = max(dot(surfaceNormal, halfDir), 0.0);
+          float spec = pow(specAngle, 72.0) * specMask * 0.42;
           vec3 specularColor = vec3(0.82, 0.92, 1.0) * spec * smoothstep(0.05, 0.35, sunDot);
+          vec3 waveCrestTint = vec3(0.08, 0.18, 0.28) * max(oceanRipple, 0.0) * smoothstep(-0.08, 0.45, sunDot);
 
           // Transizione fluida giorno/notte
           float dayFactor = smoothstep(-0.20, 0.22, sunDot);
@@ -949,11 +843,11 @@ export default function Globo3D({
           float twilight = clamp(1.0 - abs(sunDot) / 0.28, 0.0, 1.0);
           vec3 sunsetGlow = vec3(1.0, 0.52, 0.18) * pow(twilight, 2.5) * 0.60;
 
-          // Fondo oceanico notturno chiaramente leggibile (continenti e oceani sempre distinguibili anche di notte)
+          // Fondo oceanico notturno chiaramente leggibile
           vec3 deepNight = dayColor * vec3(0.46, 0.56, 0.78) + vec3(0.05, 0.09, 0.16);
 
-          // Superficie diurna illuminata dal sole, nitida e luminosa
-          vec3 sunlitDay = dayColor * (1.06 + 0.34 * max(sunDot, 0.0));
+          // Superficie diurna illuminata dal sole con riflessi d'onda
+          vec3 sunlitDay = dayColor * (1.06 + 0.34 * max(sunDot, 0.0)) + waveCrestTint;
 
           vec3 finalColor = mix(deepNight + cityLights, sunlitDay + specularColor + sunsetGlow, dayFactor);
 
@@ -1136,12 +1030,18 @@ export default function Globo3D({
     const radarInitTimeout = setTimeout(refreshRealRadarOverlay, 600);
     const radarRefreshInterval = setInterval(refreshRealRadarOverlay, 5 * 60 * 1000);
 
-    // Gruppo badge meteo live (☀️ Sole, ☁️ Nubi, 🌧️ Pioggia, ❄️ Neve, ⛈️ Temporale)
+    // Gruppo badge meteo live (☀️ Sole, ☁️ Nubi, 🌧️ Pioggia, ❄️ Neve, ⛈️ Temporale) + flussi vento e particelle 3D
     const weatherMarkersGroup = new THREE.Group();
+    const windStreamGroup = new THREE.Group();
+    const precipParticlesGroup = new THREE.Group();
     if (initialGeo) {
       weatherMarkersGroup.visible = false;
+      windStreamGroup.visible = false;
+      precipParticlesGroup.visible = false;
     }
     globeGroup.add(weatherMarkersGroup);
+    globeGroup.add(windStreamGroup);
+    globeGroup.add(precipParticlesGroup);
 
     // Weather state reference inside Three.js
     let weatherEnabled = true;
@@ -1149,10 +1049,14 @@ export default function Globo3D({
       const next = typeof forceValue === 'boolean' ? forceValue : !weatherEnabled;
       weatherEnabled = next;
       setIsWeatherActive(next);
-      if (next) setShowWeatherLegend(true);
       if (!isPoliticalActiveRef.current) {
         cloudsMesh.visible = next && hasRadarTiles;
         weatherMarkersGroup.visible = next;
+        windStreamGroup.visible = next;
+        precipParticlesGroup.visible = next;
+        if (globoMat.uniforms?.uWeatherActive) {
+          globoMat.uniforms.uWeatherActive.value = next ? 1.0 : 0.0;
+        }
       }
       return next;
     };
@@ -1177,6 +1081,8 @@ export default function Globo3D({
     if (initialGeo) {
       cloudsMesh.visible = false;
       weatherMarkersGroup.visible = false;
+      windStreamGroup.visible = false;
+      precipParticlesGroup.visible = false;
       atmosMesh.visible = false;
       sunLight.intensity = 0.95;
       spaceAmbient.intensity = 0.85;
@@ -1242,6 +1148,9 @@ export default function Globo3D({
           if (nextActive) {
             cloudsMesh.visible = false;
             weatherMarkersGroup.visible = false;
+            windStreamGroup.visible = false;
+            precipParticlesGroup.visible = false;
+            if (globoMat.uniforms?.uWeatherActive) globoMat.uniforms.uWeatherActive.value = 0.0;
             atmosMesh.visible = false;
             sunLight.intensity = 0.95;
             spaceAmbient.intensity = 0.85;
@@ -1249,6 +1158,9 @@ export default function Globo3D({
           } else {
             cloudsMesh.visible = weatherEnabled && hasRadarTiles;
             weatherMarkersGroup.visible = weatherEnabled;
+            windStreamGroup.visible = weatherEnabled;
+            precipParticlesGroup.visible = weatherEnabled;
+            if (globoMat.uniforms?.uWeatherActive) globoMat.uniforms.uWeatherActive.value = weatherEnabled ? 1.0 : 0.0;
             atmosMesh.visible = true;
             sunLight.intensity = 1.25;
             spaceAmbient.intensity = 0.75;
@@ -1283,30 +1195,54 @@ export default function Globo3D({
     const clickableNodes = [];
     const pulsingRings = [];
     const piBlinkingMaterials = [];
+    const adPulsePins = [];
+    const windStreamEntries = [];
+    const precipParticleEntries = [];
     const createdResources = [];
-    // 🛰️ COSTRUZIONE DELLA FLOTTA SPAZIALE INGEGNERISTICA (8 SATELLITI AUTONOMI 3D)
+    // 🛰️ COSTRUZIONE DELLA FLOTTA SPAZIALE INGEGNERISTICA (10 SATELLITI AUTONOMI 3D)
     // Ciascun veicolo spaziale possiede geometrie PBR dedicate (MLI oro/argento, celle solari blu, pannelli radar SAR, specchi Cassegrain, antenne a tromba)
     const sharedAerospaceMaterials = createSharedAerospaceMaterials();
     Object.values(sharedAerospaceMaterials).forEach((mat) => {
       createdResources.push({ mat });
     });
 
+    const computeRelayOrbitPos = (satEntry, angle) => {
+      const r = satEntry.orbitRadius || raggioGlobo * (satEntry.orbitMultiplier || 1.24);
+      const inc = satEntry.inclination || 0.4;
+      const yaw = satEntry.startAngle || 0;
+      const p = new THREE.Vector3(Math.cos(angle) * r, 0, Math.sin(angle) * r);
+      p.applyAxisAngle(new THREE.Vector3(1, 0, 0), inc);
+      p.applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+      return p;
+    };
+
+    const ensureCircularRelayOrbitGeometry = (satEntry) => {
+      if (!satEntry || !satEntry.orbitLine || satEntry.orbitMode === 'circular') return;
+      const pts = [];
+      const segments = 96;
+      for (let i = 0; i < segments; i++) {
+        pts.push(computeRelayOrbitPos(satEntry, (i / segments) * Math.PI * 2));
+      }
+      if (satEntry.orbitLine.geometry) satEntry.orbitLine.geometry.dispose();
+      satEntry.orbitLine.geometry = new THREE.BufferGeometry().setFromPoints(pts);
+      satEntry.orbitMode = 'circular';
+    };
+
     const activeSatellites = [];
     const satellitesData = INITIAL_SATELLITES_CATALOG.map((sat) => ({
       ...sat,
       orbitRadius: raggioGlobo * sat.orbitMultiplier,
+      angle: sat.startAngle || 0,
     }));
 
     const rebuildSatelliteOrbitGeometry = (satEntry, nowDate) => {
       if (!satEntry || !satEntry.orbitLine) return;
       const omm = satelliteTelemetryStore.getOmmRecord(satEntry.id);
       if (!omm) {
-        satEntry.orbitLine.visible = false;
         return;
       }
       const trackPoints = computeInstantaneousOrbitTrack(omm, nowDate, 96);
       if (!trackPoints || trackPoints.length < 3) {
-        satEntry.orbitLine.visible = false;
         return;
       }
       const vectors = trackPoints.map((pt) =>
@@ -1316,11 +1252,12 @@ export default function Globo3D({
         satEntry.orbitLine.geometry.dispose();
       }
       satEntry.orbitLine.geometry = new THREE.BufferGeometry().setFromPoints(vectors);
+      satEntry.orbitMode = 'live';
       satEntry.lastOrbitSyncMs = nowDate.getTime();
     };
 
     satellitesData.forEach((sat) => {
-      // 1. Traiettoria orbitale reale da CelesTrak OMM (nessuna orbita inventata: invisibile finché non arrivano dati reali)
+      // 1. Traiettoria orbitale (reale da CelesTrak OMM per NORAD live o orbita relay calibrata per nodi logici)
       const orbitGeo = new THREE.BufferGeometry();
       const orbitMat = new THREE.LineBasicMaterial({
         color: new THREE.Color(sat.color),
@@ -1332,7 +1269,7 @@ export default function Globo3D({
       globeGroup.add(orbitLine);
       createdResources.push({ mat: orbitMat });
 
-      // 2. Collegamento visivo Nadir (raggio verticale dal satellite alla sua esatta coordinata (lat, lng) sulla Terra)
+      // 2. Collegamento visivo Nadir (raggio verticale dal satellite alla sua proiezione sulla Terra)
       const nadirGeo = new THREE.BufferGeometry().setFromPoints([
         new THREE.Vector3(0, 0, 0),
         new THREE.Vector3(0, 1, 0),
@@ -1361,12 +1298,12 @@ export default function Globo3D({
       createdResources.push({ geo: footprintGeo, mat: footprintMat });
 
       // 3. Modello ingegneristico 3D del veicolo spaziale
-      const { craftGroup, clickables, strobeBeacons, radarPulse, lightMode } = buildEngineeredSpacecraft(
+      const { craftGroup, clickables, strobeBeacons, radarPulse, badgeSprite, lightMode } = buildEngineeredSpacecraft(
         sat,
         sharedAerospaceMaterials,
         textureLoader
       );
-      craftGroup.visible = false; // Visibile sul globo solo quando esistono coordinate reali tracciate
+      craftGroup.visible = false;
       globeGroup.add(craftGroup);
 
       clickables.forEach((mesh) => {
@@ -1381,7 +1318,9 @@ export default function Globo3D({
         nadirFootprint,
         strobeBeacons: strobeBeacons || [],
         radarPulse,
+        badgeSprite,
         lightMode,
+        orbitMode: 'none',
         lastOrbitSyncMs: 0,
       });
     });
@@ -1394,8 +1333,15 @@ export default function Globo3D({
       activeSatellites.forEach((sat) => {
         const engineActive = satelliteEngine.isSatelliteActive(sat.id);
         const telemetry = snap[sat.id];
+        if (!engineActive) {
+          sat.craftGroup.visible = false;
+          sat.orbitLine.visible = false;
+          sat.nadirLine.visible = false;
+          sat.nadirFootprint.visible = false;
+          return;
+        }
+
         const hasRealTrack =
-          engineActive &&
           telemetry &&
           telemetry.status === 'live' &&
           typeof telemetry.lat === 'number' &&
@@ -1407,16 +1353,16 @@ export default function Globo3D({
           const orbitR = altitudeKmToGlobeRadius(telemetry.altitudeKm, raggioGlobo);
           const pos = convertiCoordinate(telemetry.lat, telemetry.lng, orbitR);
           sat.craftGroup.position.copy(pos);
-          sat.craftGroup.visible = true;
-          sat.orbitLine.visible = true;
-          const isSelected = selectedSatelliteIdRef.current === sat.id;
-          sat.orbitLine.material.opacity = isSelected ? 0.72 : 0.20;
         } else {
-          sat.craftGroup.visible = false;
-          sat.orbitLine.visible = false;
-          sat.nadirLine.visible = false;
-          sat.nadirFootprint.visible = false;
+          ensureCircularRelayOrbitGeometry(sat);
+          const pos = computeRelayOrbitPos(sat, sat.angle || 0);
+          sat.craftGroup.position.copy(pos);
         }
+
+        sat.craftGroup.visible = true;
+        sat.orbitLine.visible = true;
+        const isSelected = selectedSatelliteIdRef.current === sat.id;
+        sat.orbitLine.material.opacity = isSelected ? 0.72 : 0.22;
       });
     };
 
@@ -1702,6 +1648,19 @@ export default function Globo3D({
       clickableNodes.push(sprite);
       createdResources.push({ texture, mat: material });
       globeMerchantGroupsRef.current.push({ group: merchantGroup, sprite });
+
+      // Animazione periodica di ingrandimento temporaneo e ritorno normale per inserzionisti paganti
+      if (pinVisual.hasAd) {
+        adPulsePins.push({
+          stemMesh,
+          pinHeadMesh,
+          sprite,
+          basePos: pos.clone(),
+          normal: normal.clone(),
+          stemHeight,
+          phase: adPulsePins.length * 0.9,
+        });
+      }
     });
 
     // D) CANALE CHAT: UTENTI ATTIVI PIONEER CON SIMBOLI 👨 E 👩
@@ -1755,10 +1714,10 @@ export default function Globo3D({
       globeChatGroupsRef.current.push({ group: chatGroup, sprite });
     });
 
-    // E) BADGE METEO LIVE SUI PRINCIPALI HUB MONDIALI E ITALIANI (☀️, ☁️, 🌧️, ❄️, ⛈️)
+    // E) BADGE METEO LIVE + FLUSSI VENTI & PRECIPITAZIONI 3D (☀️, ☁️, 🌧️, ❄️, ⛈️)
     getGlobalHubWeatherSnapshots().then((snapshots) => {
       if (!isAlive || !Array.isArray(snapshots)) return;
-      snapshots.forEach((snap) => {
+      snapshots.forEach((snap, sIdx) => {
         if (!isValidCoord(snap.lat, snap.lng)) return;
         const pos = convertiCoordinate(snap.lat, snap.lng, raggioGlobo);
         const normal = pos.clone().normalize();
@@ -1767,6 +1726,86 @@ export default function Globo3D({
         weatherMarkersGroup.add(sprite);
         clickableNodes.push(sprite);
         createdResources.push({ texture, mat: material });
+
+        // Flusso vento 3D direzionale lungo l'arco locale
+        const windDirRad = ((snap.windDirectionDeg ?? (sIdx * 45)) * Math.PI) / 180;
+        const eastVec = new THREE.Vector3(0, 1, 0).cross(normal).normalize();
+        const northVec = normal.clone().cross(eastVec).normalize();
+        const flowDir = eastVec
+          .clone()
+          .multiplyScalar(Math.sin(windDirRad))
+          .add(northVec.clone().multiplyScalar(Math.cos(windDirRad)))
+          .normalize();
+        const windArcPts = [];
+        for (let step = 0; step <= 8; step++) {
+          const t = (step / 8 - 0.5) * 6.5;
+          const arcPt = pos
+            .clone()
+            .add(flowDir.clone().multiplyScalar(t))
+            .normalize()
+            .multiplyScalar(raggioGlobo + 1.35 + Math.sin((step / 8) * Math.PI) * 0.45);
+          windArcPts.push(arcPt);
+        }
+        const windGeo = new THREE.BufferGeometry().setFromPoints(windArcPts);
+        const windSpeedNorm = Math.min(1, Math.max(0.25, (snap.windSpeed || 14) / 45));
+        const windMat = new THREE.LineBasicMaterial({
+          color: snap.isStorm ? 0xa855f7 : 0x38bdf8,
+          transparent: true,
+          opacity: 0.42 + windSpeedNorm * 0.35,
+        });
+        const windLine = new THREE.Line(windGeo, windMat);
+        windStreamGroup.add(windLine);
+        windStreamEntries.push({
+          mat: windMat,
+          phase: sIdx * 0.7,
+          speed: 1.5 + windSpeedNorm * 2.5,
+          baseOpacity: 0.35 + windSpeedNorm * 0.35,
+        });
+        createdResources.push({ geo: windGeo, mat: windMat });
+
+        // Particelle 3D di pioggia / temporale / neve sopra gli hub perturbati
+        if (snap.isRain || snap.isStorm || snap.isSnow) {
+          const particleCount = 18;
+          const pPositions = new Float32Array(particleCount * 3);
+          const pOffsets = [];
+          for (let p = 0; p < particleCount; p++) {
+            const offE = ((p % 5) - 2) * 0.7;
+            const offN = (Math.floor(p / 5) - 1.5) * 0.7;
+            const alt = 0.9 + ((p * 0.37) % 2.8);
+            pOffsets.push({ offE, offN, alt });
+            const worldPt = pos
+              .clone()
+              .add(eastVec.clone().multiplyScalar(offE))
+              .add(northVec.clone().multiplyScalar(offN))
+              .normalize()
+              .multiplyScalar(raggioGlobo + alt);
+            pPositions[p * 3] = worldPt.x;
+            pPositions[p * 3 + 1] = worldPt.y;
+            pPositions[p * 3 + 2] = worldPt.z;
+          }
+          const pGeo = new THREE.BufferGeometry();
+          pGeo.setAttribute('position', new THREE.BufferAttribute(pPositions, 3));
+          const pMat = new THREE.PointsMaterial({
+            color: snap.isSnow ? 0xe0f2fe : snap.isStorm ? 0xc084fc : 0x38bdf8,
+            size: snap.isSnow ? 0.55 : 0.45,
+            transparent: true,
+            opacity: 0.88,
+            depthWrite: false,
+          });
+          const pPoints = new THREE.Points(pGeo, pMat);
+          precipParticlesGroup.add(pPoints);
+          precipParticleEntries.push({
+            geo: pGeo,
+            mat: pMat,
+            basePos: pos.clone(),
+            eastVec: eastVec.clone(),
+            northVec: northVec.clone(),
+            offsets: pOffsets,
+            fallSpeed: snap.isSnow ? 0.015 : 0.045,
+            isStorm: Boolean(snap.isStorm),
+          });
+          createdResources.push({ geo: pGeo, mat: pMat });
+        }
       });
     }).catch(() => {});
 
@@ -1912,49 +1951,46 @@ export default function Globo3D({
     };
     flyToCountryRef.current = flyToCountry;
 
-    // Funzione Fly-To su un satellite specifico nello spazio con posizione geografica reale CelesTrak
+    // Funzione Fly-To su un satellite specifico nello spazio (live CelesTrak o nodo orbitale logico)
     const flyToSatellite = (satIdOrType, launchChannelOnArrive = false) => {
       const sat = activeSatellites.find((s) => s.id === satIdOrType || s.type === satIdOrType || s.legacyType === satIdOrType);
       if (!sat || !sat.craftGroup) return;
 
       setSelectedSatelliteSynced(sat.id);
-
-      const telemetry = satelliteTelemetryStore.getSatelliteTelemetry(sat.id, new Date());
-      if (telemetry.status !== 'live' || typeof telemetry.lat !== 'number' || typeof telemetry.lng !== 'number') {
-        if (telemetry.status === 'logical_channel') {
-          toast.info(`🛰️ ${sat.name} (${sat.codeName})`, {
-            description: telemetry.unavailableReason || 'Canale logico HAVE2WANT senza tracciamento orbitale fisico.',
-          });
-        } else {
-          toast.warning(`🛰️ ${sat.name}: telemetria reale non disponibile`, {
-            description: telemetry.unavailableReason || 'Nessuna orbita o coordinata inventata.',
-          });
-        }
-        return;
-      }
-
       if (!satelliteEngine.isSatelliteActive(sat.id)) {
         satelliteEngine.setSatelliteActive(sat.id, true);
       }
       syncSatellitesRealState();
 
+      const telemetry = satelliteTelemetryStore.getSatelliteTelemetry(sat.id, new Date());
       zoneReticleGroup.visible = false;
       setActiveZoneSynced(null);
 
-      // Posizione reale propagata in coordinate Three.js e trasformata in mondo
       globeGroup.updateMatrixWorld(true);
-      const orbitR = altitudeKmToGlobeRadius(telemetry.altitudeKm, raggioGlobo);
-      const localSatPos = convertiCoordinate(telemetry.lat, telemetry.lng, orbitR);
+      let localSatPos;
+      if (telemetry.status === 'live' && typeof telemetry.lat === 'number' && typeof telemetry.lng === 'number') {
+        const orbitR = altitudeKmToGlobeRadius(telemetry.altitudeKm, raggioGlobo);
+        localSatPos = convertiCoordinate(telemetry.lat, telemetry.lng, orbitR);
+      } else {
+        localSatPos = computeRelayOrbitPos(sat, sat.angle || 0);
+      }
       sat.craftGroup.position.copy(localSatPos);
       const satWorldPos = globeGroup.localToWorld(localSatPos.clone());
       const dir = satWorldPos.clone().normalize();
       const camPos = satWorldPos.clone().add(dir.clone().multiplyScalar(28)).add(new THREE.Vector3(0, 8, 12));
 
-      flyTo(camPos, satWorldPos, 950, () => {
-        toast.info(`🛰️ ${sat.codeName} • ${formatCoordLat(telemetry.lat)}, ${formatCoordLng(telemetry.lng)}`, {
-          description: `Quota reale ${telemetry.altitudeKm?.toFixed(1)} km • ${telemetry.source}`,
-          duration: 3500,
-        });
+      flyTo(camPos, satWorldPos, 420, () => {
+        if (telemetry.status === 'live') {
+          toast.info(`🛰️ ${sat.codeName} • ${formatCoordLat(telemetry.lat)}, ${formatCoordLng(telemetry.lng)}`, {
+            description: `Quota reale ${telemetry.altitudeKm?.toFixed(1)} km • ${telemetry.source}`,
+            duration: 3000,
+          });
+        } else {
+          toast.info(`🛰️ ${sat.name} (${sat.codeName})`, {
+            description: telemetry.unavailableReason || 'Canale logico HAVE2WANT in orbita sul Globo 3D.',
+            duration: 3000,
+          });
+        }
         if (launchChannelOnArrive && onOpenSatelliteRef.current) {
           onOpenSatelliteRef.current(sat.id || sat.type);
         }
@@ -2080,22 +2116,26 @@ export default function Globo3D({
 
       let targetCountryData = null;
 
-      // 1. Priorità: se l'utente ha toccato direttamente un marker annuncio o un badge nazione
+      // 1. Priorità assoluta: se l'utente ha toccato direttamente uno dei 10 satelliti (o il suo badge/hitbox), apri subito il canale
       if (nodeHits.length > 0) {
+        const satHit = nodeHits.find(
+          (h) =>
+            h.object?.userData?.isSatellite &&
+            !(earthHits.length > 0 && earthHits[0].distance < h.distance - 0.5)
+        );
+        if (satHit) {
+          const satMeta = satHit.object.userData;
+          const satId = satMeta.satelliteId || satMeta.satelliteType;
+          flyToSatellite(satId, true);
+          return;
+        }
+
         const hit = nodeHits[0];
 
         // Se la superficie terrestre è intersecata a distanza inferiore rispetto al marker,
         // significa che il marker si trova sul retro o dietro la curva del globo: scarta l'interazione!
         if (!(earthHits.length > 0 && earthHits[0].distance < hit.distance - 0.5)) {
           const markerObj = hit.object;
-
-          // Se è un satellite orbitante (uno degli 8 satelliti dello spazio H2W)
-          if (markerObj.userData && markerObj.userData.isSatellite) {
-            const satMeta = markerObj.userData;
-            const satId = satMeta.satelliteId || satMeta.satelliteType;
-            flyToSatellite(satId, false);
-            return;
-          }
 
           // Se è un marker di un annuncio reale (Listing)
           if (markerObj.userData && markerObj.userData.isListingMarker && markerObj.userData.listing) {
@@ -2116,22 +2156,28 @@ export default function Globo3D({
             return;
           }
 
-          // Se è un marker di un'attività commerciale / sponsor (3 categorie: Doppio Anello, Viola Pi, Oro Puro)
+          // Se è un marker di un'attività commerciale / sponsor (Filtro: apre scheda interna SOLO per inserzionisti paganti)
           if (markerObj.userData && markerObj.userData.isMerchantPin && markerObj.userData.biz) {
             const biz = markerObj.userData.biz;
             const pinVisual = markerObj.userData.pinVisual;
-            toast.success(`${pinVisual.icon} ${biz.name}`, {
-              description: `${pinVisual.badgeLabel} • ${biz.city}`,
-            });
-            if (onSelectSponsorRef.current) {
-              onSelectSponsorRef.current(biz);
+            if (pinVisual.hasAd) {
+              toast.success(`${pinVisual.icon} ${biz.name}`, {
+                description: `${pinVisual.badgeLabel} • ${biz.city}`,
+              });
+              if (onSelectSponsorRef.current) {
+                onSelectSponsorRef.current(biz);
+              }
+            } else {
+              toast.info(`📍 ${biz.name}`, {
+                description: `Posizione geografica: ${biz.city} (${biz.lat.toFixed(2)}, ${biz.lng.toFixed(2)}) • Accetta Pi`,
+              });
             }
             flyToCountry({
               lat: biz.lat,
               lng: biz.lng,
               name: biz.name,
               flag: pinVisual.icon,
-              description: `${biz.city} • ${pinVisual.badgeLabel}`,
+              description: `${biz.city} • ${pinVisual.hasAd ? pinVisual.badgeLabel : 'Solo posizione geografica'}`,
             });
             return;
           }
@@ -2430,7 +2476,59 @@ export default function Globo3D({
         }
       }
 
-      // Movimento orbitale REALE degli 8 satelliti da elementi CelesTrak GP/OMM (nessuna orbita inventata)
+      // Aggiorna shader marino e layer meteo 3D in tempo reale
+      const elapsedSec = Date.now() * 0.001;
+      if (globoMat.uniforms.uTime) {
+        globoMat.uniforms.uTime.value = elapsedSec % 1000.0;
+      }
+
+      if (weatherEnabled && !isPoliticalActiveRef.current) {
+        for (let wIdx = 0; wIdx < windStreamEntries.length; wIdx++) {
+          const w = windStreamEntries[wIdx];
+          w.mat.opacity = Math.max(0.18, w.baseOpacity + Math.sin(elapsedSec * w.speed + w.phase) * 0.25);
+        }
+        for (let pIdx = 0; pIdx < precipParticleEntries.length; pIdx++) {
+          const pe = precipParticleEntries[pIdx];
+          const posAttr = pe.geo.getAttribute('position');
+          if (posAttr) {
+            for (let j = 0; j < pe.offsets.length; j++) {
+              const off = pe.offsets[j];
+              off.alt -= pe.fallSpeed;
+              if (off.alt < 0.7) off.alt = 3.6;
+              const worldPt = pe.basePos
+                .clone()
+                .add(pe.eastVec.clone().multiplyScalar(off.offE))
+                .add(pe.northVec.clone().multiplyScalar(off.offN))
+                .normalize()
+                .multiplyScalar(raggioGlobo + off.alt);
+              posAttr.setXYZ(j, worldPt.x, worldPt.y, worldPt.z);
+            }
+            posAttr.needsUpdate = true;
+          }
+          if (pe.isStorm) {
+            pe.mat.opacity = Math.sin(elapsedSec * 9.0) > 0.85 ? 1.0 : 0.72;
+          }
+        }
+      }
+
+      // Animazione periodica di ingrandimento temporaneo e ritorno normale per pin inserzionisti paganti
+      if (adPulsePins.length > 0) {
+        for (let i = 0; i < adPulsePins.length; i++) {
+          const item = adPulsePins[i];
+          const wave = Math.pow(Math.max(0, Math.sin(elapsedSec * 1.45 + item.phase)), 8);
+          const s = 1.0 + 0.42 * wave;
+          item.pinHeadMesh.scale.setScalar(s);
+          item.pinHeadMesh.position.copy(
+            item.basePos.clone().add(item.normal.clone().multiplyScalar(item.stemHeight * s))
+          );
+          item.stemMesh.scale.set(1.0 + 0.2 * wave, s, 1.0 + 0.2 * wave);
+          item.stemMesh.position.copy(
+            item.basePos.clone().add(item.normal.clone().multiplyScalar(item.stemHeight * 0.5 * s))
+          );
+        }
+      }
+
+      // Movimento orbitale dei 10 satelliti (telemetria reale CelesTrak + orbite calibrate per canali logici)
       const strobeTime = Date.now() * 0.007;
       const strobeOn = Math.sin(strobeTime) > 0;
       const nowDate = new Date();
@@ -2439,17 +2537,9 @@ export default function Globo3D({
 
       activeSatellites.forEach((sat) => {
         const engineActive = satelliteEngine.isSatelliteActive(sat.id);
-        const telemetry = satelliteTelemetryStore.getSatelliteTelemetry(sat.id, nowDate);
-        const isLive =
-          engineActive &&
-          telemetry.status === 'live' &&
-          typeof telemetry.lat === 'number' &&
-          typeof telemetry.lng === 'number' &&
-          typeof telemetry.altitudeKm === 'number';
-
         if (!sat.craftGroup) return;
 
-        if (!isLive) {
+        if (!engineActive) {
           sat.craftGroup.visible = false;
           if (sat.orbitLine) sat.orbitLine.visible = false;
           if (sat.nadirLine) sat.nadirLine.visible = false;
@@ -2457,24 +2547,57 @@ export default function Globo3D({
           return;
         }
 
+        const telemetry = satelliteTelemetryStore.getSatelliteTelemetry(sat.id, nowDate);
+        const isLive =
+          telemetry.status === 'live' &&
+          typeof telemetry.lat === 'number' &&
+          typeof telemetry.lng === 'number' &&
+          typeof telemetry.altitudeKm === 'number';
+
         sat.craftGroup.visible = true;
         if (sat.orbitLine) {
           sat.orbitLine.visible = true;
-          sat.orbitLine.material.opacity = selectedSatelliteIdRef.current === sat.id ? 0.72 : 0.20;
-          if (nowDate.getTime() - (sat.lastOrbitSyncMs || 0) > 60000) {
+          sat.orbitLine.material.opacity = selectedSatelliteIdRef.current === sat.id ? 0.72 : 0.22;
+          if (isLive && nowDate.getTime() - (sat.lastOrbitSyncMs || 0) > 60000) {
             rebuildSatelliteOrbitGeometry(sat, nowDate);
+          } else if (!isLive) {
+            ensureCircularRelayOrbitGeometry(sat);
           }
         }
 
-        const orbitR = altitudeKmToGlobeRadius(telemetry.altitudeKm, raggioGlobo);
-        const pos = convertiCoordinate(telemetry.lat, telemetry.lng, orbitR);
+        let pos;
+        let nextPosForVelocity = null;
+        if (isLive) {
+          const orbitR = altitudeKmToGlobeRadius(telemetry.altitudeKm, raggioGlobo);
+          pos = convertiCoordinate(telemetry.lat, telemetry.lng, orbitR);
+          const nextTelemetry = satelliteTelemetryStore.getSatelliteTelemetry(sat.id, lookAheadDate);
+          if (
+            nextTelemetry.status === 'live' &&
+            typeof nextTelemetry.lat === 'number' &&
+            typeof nextTelemetry.lng === 'number' &&
+            typeof nextTelemetry.altitudeKm === 'number'
+          ) {
+            nextPosForVelocity = convertiCoordinate(
+              nextTelemetry.lat,
+              nextTelemetry.lng,
+              altitudeKmToGlobeRadius(nextTelemetry.altitudeKm, raggioGlobo)
+            );
+          }
+        } else {
+          sat.angle = (sat.angle || sat.startAngle || 0) + (sat.speed || 0.0022);
+          pos = computeRelayOrbitPos(sat, sat.angle);
+          nextPosForVelocity = computeRelayOrbitPos(sat, sat.angle + 0.05);
+        }
+
         sat.craftGroup.position.copy(pos);
 
         // Collegamento visivo Nadir al suolo per il satellite selezionato
         const isSelectedSat = selectedSatelliteIdRef.current === sat.id;
         if (sat.nadirLine && sat.nadirFootprint) {
           if (isSelectedSat) {
-            const groundPos = convertiCoordinate(telemetry.lat, telemetry.lng, raggioGlobo + 0.35);
+            const groundPos = isLive
+              ? convertiCoordinate(telemetry.lat, telemetry.lng, raggioGlobo + 0.35)
+              : pos.clone().normalize().multiplyScalar(raggioGlobo + 0.35);
             const groundNormal = groundPos.clone().normalize();
             const posAttr = sat.nadirLine.geometry.getAttribute('position');
             if (posAttr) {
@@ -2494,22 +2617,10 @@ export default function Globo3D({
           }
         }
 
-        // Orientamento reale lungo vettore velocità (o prua orbitale) con asse nadir verso il centro Terra
-        const nextTelemetry = satelliteTelemetryStore.getSatelliteTelemetry(sat.id, lookAheadDate);
         const up = pos.clone().normalize();
         let forward;
-        if (
-          nextTelemetry.status === 'live' &&
-          typeof nextTelemetry.lat === 'number' &&
-          typeof nextTelemetry.lng === 'number' &&
-          typeof nextTelemetry.altitudeKm === 'number'
-        ) {
-          const nextPos = convertiCoordinate(
-            nextTelemetry.lat,
-            nextTelemetry.lng,
-            altitudeKmToGlobeRadius(nextTelemetry.altitudeKm, raggioGlobo)
-          );
-          const diff = nextPos.sub(pos);
+        if (nextPosForVelocity) {
+          const diff = nextPosForVelocity.sub(pos);
           forward = diff.lengthSq() > 1e-6 ? diff.normalize() : new THREE.Vector3(0, 1, 0).cross(up).normalize();
         } else {
           forward = new THREE.Vector3(0, 1, 0).cross(up).normalize();
@@ -2537,6 +2648,39 @@ export default function Globo3D({
             b.visible = shouldBlink ? strobeOn : true;
           });
         }
+      });
+
+      // Separazione dinamica delle targhette satellitari sullo schermo (zero sovrapposizione badge)
+      const projectedBadges = [];
+      const tmpSatWorld = new THREE.Vector3();
+      activeSatellites.forEach((sat) => {
+        if (!sat.craftGroup?.visible || !sat.badgeSprite) return;
+        sat.craftGroup.getWorldPosition(tmpSatWorld);
+        const ndc = tmpSatWorld.clone().project(camera);
+        if (ndc.z < 1) {
+          projectedBadges.push({ sat, nx: ndc.x, ny: ndc.y });
+        }
+      });
+      projectedBadges.sort((a, b) => a.ny - b.ny);
+      const placedBadgeCoords = [];
+      projectedBadges.forEach((item) => {
+        let tier = 0;
+        let xShift = 0;
+        let candX = item.nx;
+        let candY = item.ny;
+        for (let attempt = 0; attempt < 4; attempt++) {
+          const collides = placedBadgeCoords.some(
+            (p) => Math.abs(p.x - candX) < 0.28 && Math.abs(p.y - candY) < 0.15
+          );
+          if (!collides) break;
+          tier += 1;
+          xShift = tier % 2 === 1 ? 6.6 : -6.6;
+          candX = item.nx + xShift * 0.016;
+          candY = item.ny + tier * 0.13;
+        }
+        placedBadgeCoords.push({ x: candX, y: candY });
+        const baseY = item.sat.badgeSprite.userData?.baseLocalY ?? 13.8;
+        item.sat.badgeSprite.position.set(xShift, baseY + tier * 5.6, 0);
       });
 
       controls.update();
@@ -2611,6 +2755,10 @@ export default function Globo3D({
 
       activeSatellites.forEach((sat) => {
         if (sat.orbitLine?.geometry) sat.orbitLine.geometry.dispose();
+        if (sat.badgeSprite?.material) {
+          sat.badgeSprite.material.map?.dispose();
+          sat.badgeSprite.material.dispose();
+        }
       });
 
       createdResources.forEach((res) => {
@@ -2730,51 +2878,6 @@ export default function Globo3D({
 
 
 
-      {/* LEGENDA METEO + TIMELINE RAINVIEWER IN ALTO A SINISTRA */}
-      {isWeatherActive && !isPoliticalRevealed && showWeatherLegend && (
-        <div className="absolute top-3 left-3 z-20 pointer-events-auto flex flex-col gap-1 bg-black/85 border border-zinc-800 rounded-xl px-2.5 py-1.5 text-[10px] font-bold text-zinc-200 shadow-lg max-w-[78vw]">
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-            <span className="text-amber-400 whitespace-nowrap">☀️ Sole</span>
-            <span className="text-zinc-600">•</span>
-            <span className="text-slate-300 whitespace-nowrap">☁️ Nubi</span>
-            <span className="text-zinc-600">•</span>
-            <span className="text-sky-400 whitespace-nowrap">🌧️ Pioggia</span>
-            <span className="text-zinc-600">•</span>
-            <span className="text-sky-100 whitespace-nowrap">❄️ Neve</span>
-            <span className="text-zinc-600">•</span>
-            <span className="text-purple-400 whitespace-nowrap">⛈️ Temporale</span>
-            <button
-              type="button"
-              onClick={() => setShowWeatherLegend(false)}
-              className="ml-1 text-zinc-400 hover:text-white cursor-pointer"
-              title="Nascondi legenda meteo"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          </div>
-          <div className="flex items-center justify-between gap-2 text-[9px] text-zinc-400 border-t border-zinc-800/80 pt-1">
-            <span className="truncate">
-              {radarMeta.status === 'live'
-                ? `🛰️ ${radarMeta.source} • Agg. ${radarMeta.updatedAt ? new Date(radarMeta.updatedAt * 1000).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : 'Live'}`
-                : radarMeta.status === 'loading'
-                ? '🛰️ Caricamento radar RainViewer...'
-                : '🛰️ Radar RainViewer non disponibile'}
-            </span>
-            {radarMeta.frames.length > 1 && (
-              <button
-                type="button"
-                onClick={() => setRadarMeta((prev) => ({ ...prev, isPlaying: !prev.isPlaying }))}
-                className="px-1.5 py-0.5 rounded bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 text-sky-300 font-black flex items-center gap-1 cursor-pointer shrink-0"
-                title={radarMeta.isPlaying ? 'Pausa animazione radar' : 'Anima frame radar RainViewer'}
-              >
-                {radarMeta.isPlaying ? <Pause className="w-2.5 h-2.5" /> : <Play className="w-2.5 h-2.5" />}
-                <span>{radarMeta.frameIdx + 1}/{radarMeta.frames.length}</span>
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* DOCK VERTICALE ESSENZIALE (IN ALTO A DESTRA, NERO/BIANCO/NEON SENZA CORNICI APPESANTITE) */}
       <div className="absolute top-4 right-3 sm:right-4 z-20 pointer-events-auto flex flex-col items-center gap-1.5 bg-black/90 p-1.5 rounded-xl border border-zinc-900 shadow-xl">
         {/* Toggle Espandi Schermo Intero / Allarga Cartina */}
@@ -2793,9 +2896,7 @@ export default function Globo3D({
           </button>
         )}
 
-
-
-        {/* Controllo Flotta 8 Satelliti Spaziali & Preset */}
+        {/* Controllo Flotta 10 Satelliti Spaziali & Preset */}
         <button
           id="btn-globe-satellites-fleet"
           onClick={() => {
@@ -2804,7 +2905,7 @@ export default function Globo3D({
             }
           }}
           className="w-8 h-8 rounded-lg bg-zinc-950 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 border border-zinc-800 hover:border-emerald-500 flex items-center justify-center text-sm transition-colors cursor-pointer active:scale-95 shadow-md shadow-emerald-500/10"
-          title="Centro Controllo Flotta Spaziale: Interruttori ON/OFF degli 8 Satelliti, 7 Preset & Dati di Volo"
+          title="Centro Controllo Flotta Spaziale: Interruttori ON/OFF dei 10 Satelliti, 7 Preset & Dati di Volo"
         >
           <span>🛰️</span>
         </button>
@@ -2832,120 +2933,139 @@ export default function Globo3D({
           <span>🏙️</span>
         </button>
 
-        {/* Centra Italia */}
+        {/* Pulsante compatto Strumenti (espande/nasconde i controlli extra del globo) */}
         <button
-          id="btn-globe-flyto-italy"
-          onClick={() => {
-            const italy = COUNTRIES.find((c) => c.id === 'it');
-            if (italy && flyToCountryRef.current) {
-              flyToCountryRef.current(italy);
-            }
-          }}
-          className="w-8 h-8 rounded-lg bg-zinc-950 hover:bg-[#00ff66]/20 text-white flex items-center justify-center text-sm transition-colors cursor-pointer active:scale-95"
-          title="Centra istantaneamente sull'Italia e le sue 20 Regioni"
-        >
-          <span>🇮🇹</span>
-        </button>
-
-        {/* Vista Macro Mondo */}
-        <button
-          id="btn-globe-flyto-world"
-          onClick={() => {
-            if (flyToResetRef.current) {
-              flyToResetRef.current(true);
-            }
-          }}
-          className="w-8 h-8 rounded-lg bg-zinc-950 hover:bg-zinc-800 text-white flex items-center justify-center text-sm transition-colors cursor-pointer active:scale-95"
-          title="Reset telecamera: Torna alla vista macro globale intera"
-        >
-          <span>🌍</span>
-        </button>
-
-        {/* Pulsante Selettore Mappa: Fotografica vs Geopolitica (Sulla stessa identica sfera) */}
-        <button
-          id="btn-globe-toggle-political-layer"
-          onClick={() => {
-            if (togglePoliticalRevealRef.current) {
-              const active = togglePoliticalRevealRef.current();
-              if (active) {
-                toast.success("🗺️ Mappa Geopolitica attivata", {
-                  description: "Confini degli Stati e territori mondiali",
-                  duration: 2000,
-                });
-              } else {
-                toast.info("🌍 Mappa Fotografica 3D ripristinata", {
-                  description: "Superficie fotorealistica attiva",
-                  duration: 2000,
-                });
-              }
-            }
-          }}
+          id="btn-globe-toggle-tools"
+          type="button"
+          onClick={() => setIsGlobeToolsOpen((prev) => !prev)}
           className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer active:scale-95 border ${
-            isPoliticalRevealed
-              ? 'bg-[#00ff66] text-black font-black border-[#00ff66]'
+            isGlobeToolsOpen
+              ? 'bg-[#00ff66] text-black border-[#00ff66]'
               : 'bg-zinc-950 text-zinc-300 hover:text-white border-zinc-800'
           }`}
-          title={isPoliticalRevealed ? 'Torna a Mappa Fotografica 3D' : 'Attiva Mappa Geopolitica (Stati e territori)'}
+          title={isGlobeToolsOpen ? 'Chiudi strumenti secondari' : 'Apri strumenti mappa (Italia, Mondo, Geopolitica, Meteo, Rotazione)'}
         >
-          <Layers className="w-4 h-4" />
+          <SlidersHorizontal className="w-3.5 h-3.5" />
         </button>
 
-        {/* Toggle Meteo Dinamico: Nuvole & Pioggia 3D (Satellite 1) */}
-        <button
-          id="btn-globe-toggle-weather"
-          onClick={() => {
-            if (toggleWeatherRef.current) {
-              const active = toggleWeatherRef.current();
-              if (active) {
-                toast.success("⛅ Meteo Dinamico Attivato", {
-                  description: "Nuvole troposferiche e precipitazioni 3D attive",
-                  duration: 2500,
-                });
-              } else {
-                toast.info("☀️ Meteo Disabilitato", {
-                  description: "Cielo limpido e superficie visibile al 100%",
-                  duration: 2000,
-                });
-              }
-            }
-          }}
-          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer active:scale-95 border ${
-            isWeatherActive
-              ? 'bg-sky-500 text-white font-black border-sky-400'
-              : 'bg-zinc-950 text-zinc-400 hover:text-white border-zinc-800'
-          }`}
-          title={isWeatherActive ? "Disabilita Nuvole & Pioggia Dinamica" : "Attiva Nuvole & Pioggia Dinamica"}
-        >
-          {isWeatherActive ? <CloudRain className="w-4 h-4" /> : <CloudSun className="w-4 h-4" />}
-        </button>
+        {isGlobeToolsOpen && (
+          <>
+            {/* Centra Italia */}
+            <button
+              id="btn-globe-flyto-italy"
+              onClick={() => {
+                const italy = COUNTRIES.find((c) => c.id === 'it');
+                if (italy && flyToCountryRef.current) {
+                  flyToCountryRef.current(italy);
+                }
+              }}
+              className="w-8 h-8 rounded-lg bg-zinc-950 hover:bg-[#00ff66]/20 text-white flex items-center justify-center text-sm transition-colors cursor-pointer active:scale-95"
+              title="Centra istantaneamente sull'Italia e le sue 20 Regioni"
+            >
+              <span>🇮🇹</span>
+            </button>
 
-        {/* Pausa / Attiva Rotazione Asse Terrestre Reale (Inclinazione 23.44°) */}
-        <button
-          id="btn-globe-toggle-rotation"
-          onClick={() => {
-            const next = !isRotating;
-            setIsRotating(next);
-            if (next) {
-              toast.success("🌍 Rotazione Asse Terrestre Attiva", {
-                description: "Inclinazione astronomica reale di 23.44°",
-                duration: 2500,
-              });
-            } else {
-              toast.info("⏸️ Rotazione Terrestre in Pausa", {
-                description: "Visuale fissa per esplorazione statica",
-                duration: 2000,
-              });
-            }
-          }}
-          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer active:scale-95 ${
-            isRotating
-              ? 'bg-[#00ff66] text-black font-black'
-              : 'bg-zinc-950 text-zinc-400 hover:text-white'
-          }`}
-          title={isRotating ? 'Pausa rotazione asse terrestre (23.44°)' : 'Attiva rotazione naturale asse terrestre (23.44°)'}
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isRotating ? 'animate-spin' : ''}`} style={{ animationDuration: '8s' }} />
-        </button>
+            {/* Vista Macro Mondo */}
+            <button
+              id="btn-globe-flyto-world"
+              onClick={() => {
+                if (flyToResetRef.current) {
+                  flyToResetRef.current(true);
+                }
+              }}
+              className="w-8 h-8 rounded-lg bg-zinc-950 hover:bg-zinc-800 text-white flex items-center justify-center text-sm transition-colors cursor-pointer active:scale-95"
+              title="Reset telecamera: Torna alla vista macro globale intera"
+            >
+              <span>🌍</span>
+            </button>
+
+            {/* Pulsante Selettore Mappa: Fotografica vs Geopolitica (Sulla stessa identica sfera) */}
+            <button
+              id="btn-globe-toggle-political-layer"
+              onClick={() => {
+                if (togglePoliticalRevealRef.current) {
+                  const active = togglePoliticalRevealRef.current();
+                  if (active) {
+                    toast.success("🗺️ Mappa Geopolitica attivata", {
+                      description: "Confini degli Stati e territori mondiali",
+                      duration: 2000,
+                    });
+                  } else {
+                    toast.info("🌍 Mappa Fotografica 3D ripristinata", {
+                      description: "Superficie fotorealistica attiva",
+                      duration: 2000,
+                    });
+                  }
+                }
+              }}
+              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer active:scale-95 border ${
+                isPoliticalRevealed
+                  ? 'bg-[#00ff66] text-black font-black border-[#00ff66]'
+                  : 'bg-zinc-950 text-zinc-300 hover:text-white border-zinc-800'
+              }`}
+              title={isPoliticalRevealed ? 'Torna a Mappa Fotografica 3D' : 'Attiva Mappa Geopolitica (Stati e territori)'}
+            >
+              <Layers className="w-4 h-4" />
+            </button>
+
+            {/* Toggle Meteo Dinamico: Nuvole & Pioggia 3D (Satellite 1) */}
+            <button
+              id="btn-globe-toggle-weather"
+              onClick={() => {
+                if (toggleWeatherRef.current) {
+                  const active = toggleWeatherRef.current();
+                  if (active) {
+                    toast.success("⛅ Meteo Dinamico Attivato", {
+                      description: "Nuvole troposferiche e precipitazioni 3D attive",
+                      duration: 2500,
+                    });
+                  } else {
+                    toast.info("☀️ Meteo Disabilitato", {
+                      description: "Cielo limpido e superficie visibile al 100%",
+                      duration: 2000,
+                    });
+                  }
+                }
+              }}
+              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer active:scale-95 border ${
+                isWeatherActive
+                  ? 'bg-sky-500 text-white font-black border-sky-400'
+                  : 'bg-zinc-950 text-zinc-400 hover:text-white border-zinc-800'
+              }`}
+              title={isWeatherActive ? "Disabilita Nuvole & Pioggia Dinamica" : "Attiva Nuvole & Pioggia Dinamica"}
+            >
+              {isWeatherActive ? <CloudRain className="w-4 h-4" /> : <CloudSun className="w-4 h-4" />}
+            </button>
+
+            {/* Pausa / Attiva Rotazione Asse Terrestre Reale (Inclinazione 23.44°) */}
+            <button
+              id="btn-globe-toggle-rotation"
+              onClick={() => {
+                const next = !isRotating;
+                setIsRotating(next);
+                if (next) {
+                  toast.success("🌍 Rotazione Asse Terrestre Attiva", {
+                    description: "Inclinazione astronomica reale di 23.44°",
+                    duration: 2500,
+                  });
+                } else {
+                  toast.info("⏸️ Rotazione Terrestre in Pausa", {
+                    description: "Visuale fissa per esplorazione statica",
+                    duration: 2000,
+                  });
+                }
+              }}
+              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer active:scale-95 ${
+                isRotating
+                  ? 'bg-[#00ff66] text-black font-black'
+                  : 'bg-zinc-950 text-zinc-400 hover:text-white'
+              }`}
+              title={isRotating ? 'Pausa rotazione asse terrestre (23.44°)' : 'Attiva rotazione naturale asse terrestre (23.44°)'}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRotating ? 'animate-spin' : ''}`} style={{ animationDuration: '8s' }} />
+            </button>
+          </>
+        )}
       </div>
 
       {/* Scheda Telemetria Orbitale Reale del Satellite Selezionato */}

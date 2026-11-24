@@ -1,5 +1,5 @@
 // SPACECRAFT INSPECTOR & PANNELLO CONTROLLO SATELLITI – HAVE2WANT PLUS
-// Permette all'utente di ispezionare visivamente gli 8 veicoli spaziali in 3D,
+// Permette all'utente di ispezionare visivamente i 10 satelliti in 3D,
 // accendere/spegnere ciascun satellite (ON/OFF), attivare i 7 preset concordati
 // e lanciare direttamente il relativo servizio applicativo senza uscire dal flusso.
 
@@ -353,7 +353,7 @@ export default function SpacecraftInspectorModal({
                   {onFocusSatelliteOnGlobe && (
                     <button
                       type="button"
-                      disabled={currentTelemetry?.status !== 'live'}
+                      disabled={currentTelemetry?.status !== 'live' && currentTelemetry?.status !== 'logical_channel'}
                       onClick={() => {
                         if (!isCurrentActive) {
                           satelliteEngine.setSatelliteActive(currentSat.id, true);
@@ -362,16 +362,16 @@ export default function SpacecraftInspectorModal({
                         onFocusSatelliteOnGlobe(currentSat.id);
                       }}
                       className={`sm:flex-1 py-3 px-4 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 border transition-all ${
-                        currentTelemetry?.status === 'live'
+                        currentTelemetry?.status === 'live' || currentTelemetry?.status === 'logical_channel'
                           ? 'bg-zinc-900 hover:bg-zinc-800 text-white border-zinc-700 hover:border-[#00ff66] cursor-pointer'
                           : 'bg-zinc-950 text-zinc-500 border-zinc-800 cursor-not-allowed'
                       }`}
                     >
                       <MapPin className="w-4 h-4 text-[#00ff66]" />
                       <span>
-                        {currentTelemetry?.status === 'live'
+                        {currentTelemetry?.status === 'live' || currentTelemetry?.status === 'logical_channel'
                           ? 'Mostra Posizione sul Globo 3D'
-                          : 'Posizione 3D non disponibile'}
+                          : 'Posizione 3D in caricamento'}
                       </span>
                     </button>
                   )}
@@ -396,11 +396,11 @@ export default function SpacecraftInspectorModal({
                 </div>
               </div>
 
-              {/* NAVIGAZIONE RAPIDA TRA GLI 8 SATELLITI */}
+              {/* NAVIGAZIONE RAPIDA TRA I 10 SATELLITI */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
-                    Flotta Completa (8 Satelliti • {liveTrackedCount}/6 Tracciati Live CelesTrak)
+                    Flotta Completa (10 Satelliti • {liveTrackedCount}/6 Tracciati Live CelesTrak · 4 Canali Logici)
                   </span>
                   <div className="flex items-center gap-1 text-xs">
                     <button
@@ -540,10 +540,10 @@ export default function SpacecraftInspectorModal({
                 </div>
               </div>
 
-              {/* LISTA DEGLI 8 SATELLITI CON INTERRUTTORE ON/OFF */}
+              {/* LISTA DEI 10 SATELLITI CON INTERRUTTORE ON/OFF */}
               <div className="space-y-2">
                 <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block mb-1">
-                  Interruttori Individuali degli 8 Satelliti
+                  Interruttori Individuali dei 10 Satelliti
                 </span>
                 <div className="space-y-2">
                   {INITIAL_SATELLITES_CATALOG.map((sat) => {

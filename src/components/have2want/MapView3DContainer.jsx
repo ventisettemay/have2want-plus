@@ -7,14 +7,16 @@ import { PioneerRewardsHubModal } from './PioneerRewardsHubModal';
 import BusinessSponsorModal from './BusinessSponsorModal';
 import WorldEmergencyModal from './WorldEmergencyModal';
 import GlobalCarpoolModal from './GlobalCarpoolModal';
-import CraftMemoryModal from './CraftMemoryModal';
 import ExternalPlaceDetailModal from './ExternalPlaceDetailModal';
 import VetrinaKmZero from './VetrinaKmZero';
 import { GlobalMarketplaceView } from './GlobalMarketplaceView';
-import BachecaLavoroP2P from './BachecaLavoroP2P';
 import LiveWeatherModal from './LiveWeatherModal';
 import StreetView360Modal from './StreetView360Modal';
 import SpacecraftInspectorModal from './SpacecraftInspectorModal';
+import ActionFlowHubModal from './ActionFlowHubModal';
+import DefiancePulseHub from './DefiancePulseHub';
+import VideoChatModal from './VideoChatModal';
+import { SATELLITE_TO_CHANNEL, resolveSatelliteChannel } from '@/lib/satelliteModularEngine';
 import { ExternalListings } from './ExternalListings';
 import { COUNTRIES } from '@/data/countries';
 import { SPONSORED_BUSINESSES, ITALIAN_REGIONS } from '@/data/regions';
@@ -53,7 +55,6 @@ import {
   Megaphone,
   Car,
   BookOpen,
-  GraduationCap,
   Maximize2,
   Minimize2,
 } from 'lucide-react';
@@ -355,8 +356,10 @@ export default function MapView3DContainer({
   // Modali Servizi Diretti & Utilità Globali (Zero spese, zero database interno)
   const [isEmergencyModalOpen, setIsEmergencyModalOpen] = useState(false);
   const [isCarpoolModalOpen, setIsCarpoolModalOpen] = useState(false);
-  const [communityModalMode, setCommunityModalMode] = useState('EMERGENCY');
-  const [isCraftMemoryOpen, setIsCraftMemoryOpen] = useState(false);
+  const [isVideoChatOpen, setIsVideoChatOpen] = useState(false);
+  const [videoChatTarget, setVideoChatTarget] = useState({ roomId: 'h2w_p2p', name: 'Contatto Pioneer' });
+  const [isStreetViewOpen, setIsStreetViewOpen] = useState(false);
+  const [marketplaceInitialSection, setMarketplaceInitialSection] = useState('CATALOGO');
   const [selectedExternalPlace, setSelectedExternalPlace] = useState(null);
   const [activeSatellite, setActiveSatellite] = useState(null);
   const [scientificSatellite, setScientificSatellite] = useState(null);
@@ -459,30 +462,34 @@ export default function MapView3DContainer({
     const prevChannel = prevSatelliteChannelRef.current;
     prevSatelliteChannelRef.current = activeSatelliteChannel;
     if (activeSatelliteChannel) {
-      setActiveSatellite(activeSatelliteChannel);
-      if (activeSatelliteChannel === 'CHAT') {
+      const normalized = activeSatelliteChannel;
+      setActiveSatellite(normalized);
+      if (normalized === 'CHAT') {
         setIsVoiceChatOpen(true);
-      } else if (activeSatelliteChannel === 'COMUNITA') {
-        if (communityModalMode === 'CARPOOL') {
-          setIsEmergencyModalOpen(false);
-          setIsCarpoolModalOpen(true);
+      } else if (normalized === 'EMERGENCY') {
+        setIsEmergencyModalOpen(true);
+      } else if (normalized === 'MAP') {
+        const nextCoords = getInitialTargetCoords(selectedCountry || identifiedZone) || targetCoords;
+        if (nextCoords && !(nextCoords.lat === 0 && nextCoords.lng === 0)) {
+          setLodLevel('URBANO_3D');
         } else {
-          setCommunityModalMode('EMERGENCY');
-          setIsEmergencyModalOpen(true);
-          setIsCarpoolModalOpen(false);
+          toast.info('🗺️ Mappa 3D & Stradario: seleziona prima un Paese o una città per entrare nella vista urbana');
         }
+      } else if (normalized === 'LAVORO') {
+        setMarketplaceInitialSection('LAVORO');
+      } else if (normalized === 'SUPERMARKET') {
+        setMarketplaceInitialSection('CATALOGO');
       }
     } else if (prevChannel && !activeSatelliteChannel) {
       setActiveSatellite(null);
       setIsEmergencyModalOpen(false);
-      setIsCarpoolModalOpen(false);
     }
   }, [activeSatelliteChannel]);
 
   const handleCloseSatelliteModal = () => {
     setActiveSatellite(null);
     setIsEmergencyModalOpen(false);
-    setIsCarpoolModalOpen(false);
+    setIsStreetViewOpen(false);
     if (onActiveSatelliteChannelChange) {
       onActiveSatelliteChannelChange(null);
     }
@@ -559,7 +566,7 @@ export default function MapView3DContainer({
       isDiscreetMode
     });
 
-    // Filtro orbitale selettivo degli 8 satelliti (I marker non pertinenti vengono nascosti):
+    // Filtro orbitale selettivo dei 10 satelliti canonici (I marker non pertinenti vengono nascosti):
     if (activeSatellite === 'KMZERO') {
       result = result.filter((item) => {
         const cat = ((item.category || item.subcategory || '') + ' ' + (item.title || '')).toLowerCase();
@@ -570,12 +577,12 @@ export default function MapView3DContainer({
         const txt = ((item.category || '') + ' ' + (item.title || '') + ' ' + (item.have_description || '')).toLowerCase();
         return txt.includes('mare') || txt.includes('meteo') || txt.includes('barc') || txt.includes('agricol') || txt.includes('km0') || txt.includes('sport') || txt.includes('trasfert') || txt.includes('bici');
       });
-    } else if (activeSatellite === 'STRADARIO') {
+    } else if (activeSatellite === 'MAP') {
       result = result.filter((item) => {
         const txt = ((item.category || '') + ' ' + (item.subcategory || '') + ' ' + (item.title || '')).toLowerCase();
         return txt.includes('mobilit') || txt.includes('bici') || txt.includes('auto') || txt.includes('strad') || txt.includes('trasfert') || txt.includes('carpool') || txt.includes('serviz');
       });
-    } else if (activeSatellite === 'SUPERMARKET' || activeSatellite === 'MONDO') {
+    } else if (activeSatellite === 'SUPERMARKET') {
       result = result.filter((item) => {
         const intent = (item.intent || '').toUpperCase();
         const cat = ((item.category || '') + ' ' + (item.title || '')).toLowerCase();
@@ -586,31 +593,16 @@ export default function MapView3DContainer({
         const txt = ((item.source || '') + ' ' + (item.category || '') + ' ' + (item.title || '')).toLowerCase();
         return Boolean(item.isExternal) || txt.includes('external') || txt.includes('ebay') || txt.includes('amazon') || txt.includes('tecnolog') || txt.includes('elettronic');
       });
-    } else if (activeSatellite === 'COMUNITA') {
+    } else if (activeSatellite === 'EMERGENCY') {
       result = result.filter((item) => {
         const txt = ((item.category || '') + ' ' + (item.subcategory || '') + ' ' + (item.title || '')).toLowerCase();
-        return txt.includes('carpool') || txt.includes('trasfert') || txt.includes('passagg') || txt.includes('emergenz') || txt.includes('soccors') || txt.includes('aiuto') || txt.includes('comunit');
+        return txt.includes('emergenz') || txt.includes('soccors') || txt.includes('aiuto') || txt.includes('protezion');
       });
-    } else if (activeSatellite === 'BARATTO') {
-      result = result.filter((item) => {
-        const intent = (item.intent || '').toUpperCase();
-        return intent === 'BARATTO' || intent === 'BARATTO_SCAMBIO' || intent === 'SCAMBIO' || intent === 'WANT' || item.isBaratto;
-      });
-    } else if (activeSatellite === 'LAVORO' || activeSatellite === 'P2P') {
+    } else if (activeSatellite === 'LAVORO') {
       result = result.filter((item) => {
         const cat = ((item.category || item.subcategory || '') + ' ' + (item.title || '')).toLowerCase();
         return cat.includes('lavor') || cat.includes('serviz') || cat.includes('artigian') || cat.includes('riparaz') || cat.includes('competenze');
       });
-    } else if (activeSatellite === 'RADAR') {
-      // Scansione radar di prossimità territoriale (raggio 35 km)
-      if (targetCoords && typeof targetCoords.lat === 'number' && typeof targetCoords.lng === 'number') {
-        result = result.filter((item) => {
-          if (typeof item.lat !== 'number' || typeof item.lng !== 'number') return false;
-          const dLat = (item.lat - targetCoords.lat) * 111;
-          const dLng = (item.lng - targetCoords.lng) * 111 * Math.cos(targetCoords.lat * (Math.PI / 180));
-          return Math.hypot(dLat, dLng) <= 35;
-        });
-      }
     } else if (activeSatellite === 'CHAT') {
       // Canale Chat Esclusivo: i marker standard lasciano spazio agli utenti Pioneer attivi 👨 / 👩
       result = [];
@@ -719,6 +711,16 @@ export default function MapView3DContainer({
             >
               <Globe2 className="w-3.5 h-3.5 text-[#00ff66]" />
               <span>Globo</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsStreetViewOpen(true)}
+              className="px-2.5 py-1.5 rounded-xl bg-sky-950/90 hover:bg-sky-900 border border-sky-500/50 text-sky-300 text-xs font-black flex items-center gap-1 shadow-lg shrink-0 cursor-pointer transition-all active:scale-95"
+              title="Apri Stradario 360° Panoramax dell'area"
+            >
+              <Compass className="w-3.5 h-3.5 text-sky-400" />
+              <span>360°</span>
             </button>
 
             <div className="h-5 w-[1px] bg-zinc-800 shrink-0" />
@@ -836,33 +838,21 @@ export default function MapView3DContainer({
                   }
                   break;
 
-                case 'RADAR':
-                  if (activeSatellite === 'RADAR') {
+                case 'MAP_SAT':
+                case 'MAP':
+                  if (activeSatellite === 'MAP' && lodLevel === 'URBANO_3D') {
                     setActiveSatellite(null);
+                    setLodLevel('GLOBO');
                     if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
-                    toast.info('📡 Scansione Radar Disattivata', { duration: 1800 });
+                    toast.info('🗺️ SENTINEL-2B MAP: Vista Urbana 3D chiusa', { duration: 1800 });
                   } else {
-                    setActiveSatellite('RADAR');
-                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('RADAR');
-                    toast.success('📡 Scansione Radar Territoriale 25 km Attiva');
-                  }
-                  break;
-
-                case 'STREET_360_SAT':
-                case 'STRADARIO':
-                  if (activeSatellite === 'STRADARIO') {
-                    setActiveSatellite(null);
-                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
-                    toast.info('🧭 WORLDVIEW-3: Passeggiata Stradale Chiusa', { duration: 1800 });
-                  } else {
-                    setActiveSatellite('STRADARIO');
-                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('STRADARIO');
-                    toast.success('🧭 WORLDVIEW-3: Passeggiata Stradale 360° Panoramax Attiva');
+                    setActiveSatellite('MAP');
+                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('MAP');
+                    handleExploreUrban3D(selectedCountry || identifiedZone);
                   }
                   break;
 
                 case 'PI_CHAT_SAT':
-                case 'VOICE_CHAT':
                 case 'CHAT':
                   if (activeSatellite === 'CHAT') {
                     setActiveSatellite(null);
@@ -873,79 +863,49 @@ export default function MapView3DContainer({
                     setActiveSatellite('CHAT');
                     setIsVoiceChatOpen(true);
                     if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('CHAT');
-                    toast.success('🎙️ STARLINK-COMM: Pannello Chat & Vocale Aperto');
-                  }
-                  break;
-
-                case 'BARATTO':
-                  if (activeSatellite === 'BARATTO') {
-                    setActiveSatellite(null);
-                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
-                    toast.info('🔄 Filtro Baratto Disattivato', { duration: 1800 });
-                  } else {
-                    setActiveSatellite('BARATTO');
-                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('BARATTO');
-                    toast.success('🔄 Pubblicazione HAVE/WANT & Baratto Puro');
+                    toast.success('🎙️ STARLINK-COMM: Chat Privata, Gruppi Quartiere & Videochat');
                   }
                   break;
 
                 case 'GLOBAL_MARKET_SAT':
+                case 'SUPERMARKET':
                   if (activeSatellite === 'SUPERMARKET') {
                     setActiveSatellite(null);
                     if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
-                    toast.info('🌐 TELSTAR 19V: Commercio Globale Chiuso', { duration: 1800 });
+                    toast.info('🌐 TELSTAR 19V: Prodotti del Mondo Chiuso', { duration: 1800 });
                   } else {
+                    setMarketplaceInitialSection('CATALOGO');
                     setActiveSatellite('SUPERMARKET');
                     if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('SUPERMARKET');
-                    toast.success('🌐 TELSTAR 19V: Marketplace Internazionale Attivo');
+                    toast.success('🌐 TELSTAR 19V: Prodotti del Mondo, Baratto & Lavoro P2P');
                   }
                   break;
 
                 case 'EXTERNAL_MARKET_SAT':
+                case 'EXTERNAL':
                   if (activeSatellite === 'EXTERNAL') {
                     setActiveSatellite(null);
                     if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
-                    toast.info('🛒 GATEWAY-RELAIS: Mercati Esteri (eBay/Amazon) Chiusi', { duration: 1800 });
+                    toast.info('🛒 GATEWAY-RELAIS: Marketplace Esterni Chiusi', { duration: 1800 });
                   } else {
                     setActiveSatellite('EXTERNAL');
                     if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('EXTERNAL');
-                    toast.success('🛒 GATEWAY-RELAIS: Mercati Esteri eBay/Amazon Attivi');
-                  }
-                  break;
-
-                case 'LAVORO':
-                case 'P2P':
-                  if (activeSatellite === 'LAVORO') {
-                    setActiveSatellite(null);
-                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
-                    toast.info('💼 Bacheca Lavoro Chiusa', { duration: 1800 });
-                  } else {
-                    setActiveSatellite('LAVORO');
-                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('LAVORO');
-                    toast.success('💼 Bacheca Lavoro P2P e Competenze Attiva');
+                    toast.success('🛒 GATEWAY-RELAIS: Marketplace Esterni (Solo Cripto)');
                   }
                   break;
 
                 case 'COMMUNITY_RESCUE_SAT':
-                case 'COMUNITA':
-                  if (activeSatellite === 'COMUNITA') {
+                case 'EMERGENCY':
+                  if (activeSatellite === 'EMERGENCY') {
                     setActiveSatellite(null);
                     setIsEmergencyModalOpen(false);
-                    setIsCarpoolModalOpen(false);
                     if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
-                    toast.info('🤝 COSPAS-SARSAT: Canale Comunità Chiuso', { duration: 1800 });
+                    toast.info('🆘 GALILEO-SAR: Canale Soccorso Chiuso', { duration: 1800 });
                   } else {
-                    setActiveSatellite('COMUNITA');
-                    if (communityModalMode === 'CARPOOL') {
-                      setIsEmergencyModalOpen(false);
-                      setIsCarpoolModalOpen(true);
-                    } else {
-                      setCommunityModalMode('EMERGENCY');
-                      setIsEmergencyModalOpen(true);
-                      setIsCarpoolModalOpen(false);
-                    }
-                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('COMUNITA');
-                    toast.success('🤝 COSPAS-SARSAT: Canale Comunità Attivo');
+                    setActiveSatellite('EMERGENCY');
+                    setIsEmergencyModalOpen(true);
+                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('EMERGENCY');
+                    toast.success('🆘 GALILEO-SAR: Canale Soccorso & Emergenze Attivo');
                   }
                   break;
 
@@ -954,11 +914,37 @@ export default function MapView3DContainer({
                   if (activeSatellite === 'BUSINESS_ADS') {
                     setActiveSatellite(null);
                     if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
-                    toast.info('🏪 INTELSAT-40E: Canale Commercianti Disattivato', { duration: 1800 });
+                    toast.info('📣 H2W-ADS: Creazione Pubblicità & Commercianti Chiuso', { duration: 1800 });
                   } else {
                     setActiveSatellite('BUSINESS_ADS');
                     if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('BUSINESS_ADS');
-                    toast.success('🏪 INTELSAT-40E: Canale Commercianti & Convenzioni Pi Attivo');
+                    toast.success('📣 H2W-ADS: Commercianti & Inserzioni Cripto Attivo');
+                  }
+                  break;
+
+                case 'ACTIONFLOW_SAT':
+                case 'ACTIONFLOW':
+                  if (activeSatellite === 'ACTIONFLOW') {
+                    setActiveSatellite(null);
+                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
+                    toast.info('⚡ ActionFlow Hub Chiuso', { duration: 1800 });
+                  } else {
+                    setActiveSatellite('ACTIONFLOW');
+                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('ACTIONFLOW');
+                    toast.success('⚡ ActionFlow Hub: Bridge 3 App Esterne Aperto');
+                  }
+                  break;
+
+                case 'DEFIANCE_PULSE_SAT':
+                case 'DEFIANCE_PULSE':
+                  if (activeSatellite === 'DEFIANCE_PULSE') {
+                    setActiveSatellite(null);
+                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
+                    toast.info('🎵 Defiance Pulse Hub Chiuso', { duration: 1800 });
+                  } else {
+                    setActiveSatellite('DEFIANCE_PULSE');
+                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('DEFIANCE_PULSE');
+                    toast.success('🎵 Defiance Pulse Hub: Creator, Musica, Video & Promo');
                   }
                   break;
 
@@ -1097,32 +1083,46 @@ export default function MapView3DContainer({
         </div>
       )}
 
-      {/* 5. FOOTER NON INVASIVO: Barra comandi ultra-compatta e richiudibile con un click */}
-      <footer
-        id="main-app-footer"
-        className="relative z-20 mt-auto bg-black border-t border-zinc-900 text-white flex flex-col pointer-events-auto shrink-0 transition-all duration-200"
-      >
-        {/* Barra di controllo visibilità / Toggle minimale */}
-        <div className="flex items-center justify-between px-3 py-1 bg-black text-[11px] text-zinc-400 border-b border-zinc-950 select-none">
-          <div className="flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#00ff66]" />
-            <span className="font-mono text-[10px] text-zinc-300">CONTROLLI NAVIGAZIONE 3D</span>
-          </div>
-
+      {/* 5. FOOTER NASCOSTO DI DEFAULT: solo un tasto discreto "Strumenti" sul Globo, espandibile al click */}
+      {lodLevel === 'GLOBO' && isBottomBarCollapsed && (
+        <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 z-20 pointer-events-auto">
           <button
-            onClick={() => setIsBottomBarCollapsed((prev) => !prev)}
-            className="flex items-center gap-1 px-2 py-0.5 rounded bg-zinc-950 hover:bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-900 text-[10px] font-bold cursor-pointer transition-colors"
-            title={isBottomBarCollapsed ? "Mostra comandi estesi" : "Riduci comandi per massima visione del globo"}
+            id="btn-expand-bottom-bar"
+            type="button"
+            onClick={() => setIsBottomBarCollapsed(false)}
+            className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/85 hover:bg-zinc-900 text-zinc-200 hover:text-[#00ff66] border border-zinc-800 hover:border-[#00ff66]/60 text-[10px] font-black cursor-pointer shadow-xl backdrop-blur-md transition-all active:scale-95"
+            title="Mostra comandi vista (Mondo, 3D, Geo, Urbano, Allarga)"
           >
-            <span>{isBottomBarCollapsed ? "Espandi" : "Riduci vista"}</span>
-            {isBottomBarCollapsed ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            <span className="w-1.5 h-1.5 rounded-full bg-[#00ff66]" />
+            <span>Strumenti</span>
+            <ChevronUp className="w-3 h-3" />
           </button>
         </div>
+      )}
 
-        {/* Contenuto comandi: Visibile per esteso o in formato ultra-compatto a riga singola */}
-        {!isBottomBarCollapsed ? (
+      {!isBottomBarCollapsed && (
+        <footer
+          id="main-app-footer"
+          className="relative z-20 mt-auto bg-black border-t border-zinc-900 text-white flex flex-col pointer-events-auto shrink-0 transition-all duration-200"
+        >
+          <div className="flex items-center justify-between px-3 py-1 bg-black text-[11px] text-zinc-400 border-b border-zinc-950 select-none">
+            <div className="flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#00ff66]" />
+              <span className="font-mono text-[10px] text-zinc-300">CONTROLLI NAVIGAZIONE 3D</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsBottomBarCollapsed(true)}
+              className="flex items-center gap-1 px-2 py-0.5 rounded bg-zinc-950 hover:bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-900 text-[10px] font-bold cursor-pointer transition-colors"
+              title="Nascondi comandi per massima visione del globo"
+            >
+              <span>Riduci vista</span>
+              <ChevronDown className="w-3 h-3" />
+            </button>
+          </div>
+
           <div className="px-2.5 sm:px-4 py-1.5 flex flex-wrap items-center justify-between gap-1.5">
-            {/* Riga 1: Selettore vista MONDO / 3D / GEO / URBANO */}
             <div className="flex items-center bg-zinc-950 p-0.5 rounded-lg border border-zinc-800 gap-0.5">
               <button
                 id="btn-footer-world-reset"
@@ -1193,82 +1193,9 @@ export default function MapView3DContainer({
                 <span>{isFullscreenMap ? "RIDUCI" : "ALLARGA CARTINA"}</span>
               </button>
             </div>
-
           </div>
-        ) : (
-          /* Mini bar compattata: una sola linea essenziale che lascia libero il 98% dello schermo */
-          <div className="px-3 py-1 flex items-center justify-between text-xs">
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={handleResetToWorld}
-                className="px-2 py-0.5 rounded bg-zinc-950 hover:bg-zinc-900 text-white border border-zinc-800 text-[10px] font-black cursor-pointer"
-                title="Reset telecamera al Mondo intero"
-              >
-                🌍 MONDO
-              </button>
-              <button
-                onClick={handleSelectGlobe3D}
-                className={`px-2 py-0.5 rounded text-[10px] font-black cursor-pointer border ${
-                  lodLevel === 'GLOBO' && globeSubMode === '3D'
-                    ? 'bg-[#00ff66] text-black border-[#00ff66]'
-                    : 'bg-zinc-950 text-zinc-300 hover:text-white border-zinc-800'
-                }`}
-                title="Globo 3D Fotografico"
-              >
-                🌐 3D
-              </button>
-              <button
-                onClick={handleSelectGlobeGeo}
-                className={`px-2 py-0.5 rounded text-[10px] font-black cursor-pointer border ${
-                  lodLevel === 'GLOBO' && globeSubMode === 'GEO'
-                    ? 'bg-[#00ff66] text-black border-[#00ff66]'
-                    : 'bg-zinc-950 text-zinc-300 hover:text-white border-zinc-800'
-                }`}
-                title="Globo Geopolitico"
-              >
-                🗺️ GEO
-              </button>
-              <button
-                onClick={() => {
-                  handleExploreUrban3D(selectedCountry || identifiedZone);
-                  toast.info("Modalità Urbano 3D attiva: fotogrammetria volumetrica");
-                }}
-                className={`px-2 py-0.5 rounded text-[10px] font-black cursor-pointer border ${
-                  lodLevel === 'URBANO_3D'
-                    ? 'bg-[#00ff66] text-black border-[#00ff66]'
-                    : 'bg-zinc-950 text-zinc-300 hover:text-white border-zinc-800'
-                }`}
-                title="Urbano 3D"
-              >
-                🏙️ URBANO
-              </button>
-              <button
-                onClick={handleToggleFullscreen}
-                className={`px-2 py-0.5 rounded text-[10px] font-black cursor-pointer border flex items-center gap-1 ${
-                  isFullscreenMap
-                    ? 'bg-[#00ff66] text-black border-[#00ff66]'
-                    : 'bg-zinc-900 text-white hover:text-[#00ff66] border-zinc-700'
-                }`}
-                title={isFullscreenMap ? "Riduci cartina" : "Allarga cartina a tutto schermo"}
-              >
-                {isFullscreenMap ? <Minimize2 className="w-2.5 h-2.5" /> : <Maximize2 className="w-2.5 h-2.5 text-[#00ff66]" />}
-                <span>{isFullscreenMap ? "RIDUCI" : "ALLARGA"}</span>
-              </button>
-              {onOpenTutor && (
-                <button
-                  onClick={onOpenTutor}
-                  className="px-2 py-0.5 rounded bg-zinc-950 hover:bg-zinc-900 text-white hover:text-[#00ff66] border border-zinc-800 text-[10px] font-black cursor-pointer flex items-center gap-1"
-                  title="Apri Tutor"
-                >
-                  <GraduationCap className="w-3 h-3 text-[#00ff66]" />
-                  <span>TUTOR</span>
-                </button>
-              )}
-            </div>
-            <span className="hidden md:inline-block text-[10px] text-zinc-500 font-mono">VISTA A SCHERMO MASSIMO ATTIVA</span>
-          </div>
-        )}
-      </footer>
+        </footer>
+      )}
 
       {/* MODALI PI NETWORK HUB, INSERZIONISTI & CHAT VOCALE */}
       <PiNetworkHub
@@ -1307,27 +1234,39 @@ export default function MapView3DContainer({
         recipientName={voiceChatRecipient.name}
         recipientRole={voiceChatRecipient.role}
         initialVoiceIntro={voiceChatRecipient.intro}
+        onOpenVideoChat={(info) => {
+          setVideoChatTarget({
+            roomId: info?.roomId || 'h2w_p2p',
+            name: info?.name || voiceChatRecipient.name,
+          });
+          setIsVideoChatOpen(true);
+        }}
       />
 
-      {/* MODALI EMERGENZE, TRASFERTE E MEMORIA STORICA (Zero spese, Zero server) */}
-      {activeSatellite !== 'COMUNITA' && (
-        <>
-          <WorldEmergencyModal
-            isOpen={isEmergencyModalOpen}
-            onClose={() => setIsEmergencyModalOpen(false)}
-            defaultCountryCode={selectedCountry?.code || selectedCountry?.id || 'GLOBAL'}
-          />
+      {/* VIDEOCHAT SEPARATA (WebRTC + Signaling) */}
+      <VideoChatModal
+        isOpen={isVideoChatOpen}
+        onClose={() => setIsVideoChatOpen(false)}
+        listingId={videoChatTarget.roomId}
+        otherUserName={videoChatTarget.name}
+        currentUserId={currentProfile?.id || 'pioneer_local'}
+      />
 
-          <GlobalCarpoolModal
-            isOpen={isCarpoolModalOpen}
-            onClose={() => setIsCarpoolModalOpen(false)}
-          />
-        </>
-      )}
+      {/* SOCCORSO & EMERGENZE (Indipendente) + CARPOOL (Indipendente) */}
+      <WorldEmergencyModal
+        isOpen={isEmergencyModalOpen || activeSatellite === 'EMERGENCY'}
+        onClose={() => {
+          setIsEmergencyModalOpen(false);
+          if (activeSatellite === 'EMERGENCY') {
+            handleCloseSatelliteModal();
+          }
+        }}
+        defaultCountryCode={selectedCountry?.code || selectedCountry?.id || 'GLOBAL'}
+      />
 
-      <CraftMemoryModal
-        isOpen={isCraftMemoryOpen}
-        onClose={() => setIsCraftMemoryOpen(false)}
+      <GlobalCarpoolModal
+        isOpen={isCarpoolModalOpen}
+        onClose={() => setIsCarpoolModalOpen(false)}
       />
 
       <ExternalPlaceDetailModal
@@ -1346,7 +1285,7 @@ export default function MapView3DContainer({
         }}
       />
 
-      {/* 🛰️ SPACECRAFT INSPECTOR & PANNELLO CONTROLLO FLOTTA (8 SATELLITI & 7 PRESET) */}
+      {/* 🛰️ SPACECRAFT INSPECTOR & PANNELLO CONTROLLO FLOTTA (10 SATELLITI & 7 PRESET) */}
       <SpacecraftInspectorModal
         isOpen={Boolean(scientificSatellite)}
         selectedSatelliteId={scientificSatellite}
@@ -1354,28 +1293,7 @@ export default function MapView3DContainer({
         onClose={() => setScientificSatellite(null)}
         onLaunchChannel={(satId) => {
           setScientificSatellite(null);
-          const CHANNEL_MAP = {
-            METEO_SAT: 'WEATHER',
-            KM0_SAT: 'KMZERO',
-            STREET_360_SAT: 'STRADARIO',
-            PI_CHAT_SAT: 'CHAT',
-            GLOBAL_MARKET_SAT: 'MONDO',
-            EXTERNAL_MARKET_SAT: 'EXTERNAL',
-            COMMUNITY_RESCUE_SAT: 'COMUNITA',
-            BUSINESS_ADS_SAT: 'BUSINESS_ADS',
-            KMZERO: 'KMZERO',
-            WEATHER: 'WEATHER',
-            MONDO: 'MONDO',
-            EXTERNAL: 'EXTERNAL',
-            P2P: 'P2P',
-            RADAR: 'RADAR',
-            COMUNITA: 'COMUNITA',
-            BARATTO: 'BARATTO',
-            STRADARIO: 'STRADARIO',
-            CHAT: 'CHAT',
-            BUSINESS_ADS: 'BUSINESS_ADS',
-          };
-          const targetChannel = CHANNEL_MAP[satId] || satId;
+          const targetChannel = SATELLITE_TO_CHANNEL[satId] || resolveSatelliteChannel(satId);
           setActiveSatellite(targetChannel);
         }}
         onSelectSatellite={(satId) => {
@@ -1415,7 +1333,7 @@ export default function MapView3DContainer({
         />
       )}
 
-      {/* 🛰️ MODALI DEGLI 8 SATELLITI ORBITANTI OPERATIVI */}
+      {/* 🛰️ MODALI DEI 10 SATELLITI CANONICI */}
       {activeSatellite === 'KMZERO' && (
         <VetrinaKmZero
           isOpen={true}
@@ -1430,9 +1348,10 @@ export default function MapView3DContainer({
           }
         />
       )}
-      {(activeSatellite === 'MONDO' || activeSatellite === 'SUPERMARKET') && (
+      {(activeSatellite === 'SUPERMARKET' || activeSatellite === 'LAVORO') && (
         <div className="fixed inset-0 z-50 bg-black overflow-y-auto">
           <GlobalMarketplaceView
+            initialSection={activeSatellite === 'LAVORO' ? 'LAVORO' : marketplaceInitialSection}
             onBack={handleCloseSatelliteModal}
             currentUser={currentProfile}
             onAddWantListing={(listing) => {
@@ -1451,7 +1370,7 @@ export default function MapView3DContainer({
                 <span className="text-2xl">🛒</span>
                 <div>
                   <div className="text-[10px] font-black uppercase tracking-widest text-orange-400">
-                    GATEWAY-RELAIS • MERCATI ESTERI & INTERNAZIONALI
+                    GATEWAY-RELAIS • MARKETPLACE ESTERNI (SOLO CRIPTO)
                   </div>
                   <h3 className="text-lg font-black text-white">Ricerca su eBay, Amazon & Store Esteri</h3>
                 </div>
@@ -1459,7 +1378,7 @@ export default function MapView3DContainer({
               <button
                 onClick={handleCloseSatelliteModal}
                 className="p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-800 cursor-pointer"
-                title="Chiudi Mercati Esteri"
+                title="Chiudi Marketplace Esterni"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1494,13 +1413,6 @@ export default function MapView3DContainer({
           </div>
         </div>
       )}
-      {(activeSatellite === 'P2P' || activeSatellite === 'LAVORO') && (
-        <BachecaLavoroP2P
-          isOpen={true}
-          onClose={handleCloseSatelliteModal}
-          currentUser={currentProfile}
-        />
-      )}
       {(activeSatellite === 'WEATHER' || activeSatellite === 'METEO') && (
         <LiveWeatherModal
           isOpen={true}
@@ -1508,128 +1420,31 @@ export default function MapView3DContainer({
           country={selectedCountry}
         />
       )}
-      {activeSatellite === 'STRADARIO' && (
+      {isStreetViewOpen && (
         <StreetView360Modal
           isOpen={true}
-          onClose={handleCloseSatelliteModal}
+          onClose={() => setIsStreetViewOpen(false)}
           lat={targetCoords?.lat ?? selectedCountry?.lat}
           lng={targetCoords?.lng ?? selectedCountry?.lng}
           cityName={selectedCountry?.name || 'Mondo'}
         />
       )}
-      {activeSatellite === 'COMUNITA' && (
-        <div className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-md p-3 sm:p-6 overflow-y-auto flex flex-col gap-4">
-          <div className="max-w-4xl w-full mx-auto flex flex-wrap items-center justify-between gap-2 bg-zinc-950 border border-zinc-800 px-4 py-3 rounded-2xl shadow-xl">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">🤝</span>
-              <div>
-                <div className="text-[10px] font-black uppercase tracking-widest text-red-400">
-                  COSPAS-SARSAT • COMUNITÀ, SOCCORSO & MOBILITÀ SOLIDALE
-                </div>
-                <h3 className="text-sm sm:text-base font-black text-white">
-                  {communityModalMode === 'CARPOOL' ? 'Carpool Solidale Attivo' : 'Presidi Emergenze Globali'}
-                </h3>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <div className="flex items-center bg-zinc-900 p-1 rounded-xl border border-zinc-800 gap-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCommunityModalMode('EMERGENCY');
-                    setIsEmergencyModalOpen(true);
-                    setIsCarpoolModalOpen(false);
-                  }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-colors cursor-pointer ${
-                    communityModalMode === 'EMERGENCY'
-                      ? 'bg-red-600 text-white'
-                      : 'text-zinc-400 hover:text-white'
-                  }`}
-                >
-                  🚨 Emergenze
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCommunityModalMode('CARPOOL');
-                    setIsEmergencyModalOpen(false);
-                    setIsCarpoolModalOpen(true);
-                  }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-colors cursor-pointer ${
-                    communityModalMode === 'CARPOOL'
-                      ? 'bg-[#00ff66] text-black'
-                      : 'text-zinc-400 hover:text-white'
-                  }`}
-                >
-                  🚗 Carpool
-                </button>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleCloseSatelliteModal}
-                className="px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 text-xs font-black flex items-center gap-1.5 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-                <span>Chiudi</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="max-w-4xl w-full mx-auto">
-            {communityModalMode === 'CARPOOL' ? (
-              <div className="w-full [&>div]:!static [&>div]:!inset-auto [&>div]:!bg-transparent [&>div]:!backdrop-blur-none [&>div]:!p-0 [&>div]:!animate-none">
-                <GlobalCarpoolModal
-                  isOpen={isCarpoolModalOpen && communityModalMode === 'CARPOOL'}
-                  onClose={handleCloseSatelliteModal}
-                />
-              </div>
-            ) : (
-              <div className="w-full [&>div]:!static [&>div]:!inset-auto [&>div]:!bg-transparent [&>div]:!backdrop-blur-none [&>div]:!p-0 [&>div]:!animate-none">
-                <WorldEmergencyModal
-                  isOpen={isEmergencyModalOpen && communityModalMode !== 'CARPOOL'}
-                  onClose={handleCloseSatelliteModal}
-                  defaultCountryCode={selectedCountry?.code || selectedCountry?.id || 'GLOBAL'}
-                />
-              </div>
-            )}
-          </div>
-        </div>
+      {activeSatellite === 'ACTIONFLOW' && (
+        <ActionFlowHubModal
+          isOpen={true}
+          onClose={handleCloseSatelliteModal}
+        />
       )}
-      {activeSatellite === 'RADAR' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="max-w-md w-full bg-zinc-950 border border-amber-500/40 rounded-3xl p-6 shadow-2xl text-center space-y-4">
-            <span className="text-4xl">📡</span>
-            <h3 className="text-lg font-black text-white">Radar Territoriale di Prossimità</h3>
-            <p className="text-xs text-zinc-300">
-              Scansione attiva per le coordinate di <strong>{selectedCountry?.name || 'questo territorio'}</strong>. Raggio di copertura P2P impostato su prossimità locale.
-            </p>
-            <button
-              onClick={handleCloseSatelliteModal}
-              className="w-full py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-black font-black text-xs transition-colors cursor-pointer"
-            >
-              Conferma Scansione Radar
-            </button>
-          </div>
-        </div>
-      )}
-      {activeSatellite === 'BARATTO' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="max-w-md w-full bg-zinc-950 border border-pink-500/40 rounded-3xl p-6 shadow-2xl text-center space-y-4">
-            <span className="text-4xl">🔄</span>
-            <h3 className="text-lg font-black text-white">Filtro Baratto Puro & WANT</h3>
-            <p className="text-xs text-zinc-300">
-              Visualizzazione esclusiva di scambi reciproci merce contro merce, senza moneta fiat. Risoluzione desideri con matching algoritmico inverso.
-            </p>
-            <button
-              onClick={handleCloseSatelliteModal}
-              className="w-full py-2.5 rounded-xl bg-pink-500 hover:bg-pink-400 text-white font-black text-xs transition-colors cursor-pointer"
-            >
-              Attiva Filtro Baratto
-            </button>
-          </div>
-        </div>
+      {activeSatellite === 'DEFIANCE_PULSE' && (
+        <DefiancePulseHub
+          isOpen={true}
+          onClose={handleCloseSatelliteModal}
+          currentCountryCode={selectedCountry?.code || 'IT'}
+          onOpenBusinessSponsor={() => {
+            handleCloseSatelliteModal();
+            setIsAdModalOpen(true);
+          }}
+        />
       )}
     </div>
   );
