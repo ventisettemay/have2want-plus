@@ -8,6 +8,7 @@ export interface FreeServiceConfig {
   iceServers: RTCIceServer[];
   creatorFallbackHosts: string[];
   allowLocalObjectUrl: boolean;
+  syncChannelName: string;
 }
 
 export const FREE_SERVICES_CONFIG: FreeServiceConfig = {
@@ -21,6 +22,7 @@ export const FREE_SERVICES_CONFIG: FreeServiceConfig = {
     'https://archive.org/embed/',
   ],
   allowLocalObjectUrl: true,
+  syncChannelName: 'h2w-sync',
 };
 
 /**
@@ -33,4 +35,60 @@ export function resolveCreatorMediaSource(rawUrl: string, localFile?: File | nul
     return URL.createObjectURL(localFile);
   }
   return rawUrl.trim();
+}
+
+/**
+ * BroadcastChannel per sync leggero tra schede/finestre (zero costi, solo client-side).
+ * Usato per: trigger video ad, stato chat, scansione radar, ecc.
+ */
+let syncChannel: BroadcastChannel | null = null;
+
+function getSyncChannel(): BroadcastChannel {
+  if (!syncChannel) {
+    syncChannel = new BroadcastChannel(FREE_SERVICES_CONFIG.syncChannelName);
+  }
+  return syncChannel;
+}
+
+export interface SyncMessage<T = unknown> {
+  type: string;
+  payload: T;
+  timestamp: number;
+  sourceTabId: string;
+}
+
+const TAB_ID = `tab_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+export function publishSyncMessage<T>(type: string, payload: T): void {
+  try {
+    const channel = getSyncChannel();
+    const message: SyncMessage<T> = {
+      type,
+      payload,
+      timestamp: Date.now(),
+      sourceTabId: TAB_ID,
+    };
+    channel.postMessage(message);
+  } catch (err) {
+    console.warn('[freeServicesConfig] BroadcastChannel publish failed:', err);
+  }
+}
+
+export function subscribeSyncMessage<T>(
+  type: string,
+  handler: (message: SyncMessage<T>) => void
+): () => void {
+  try {
+    const channel = getSyncChannel();
+    const listener = (event: MessageEvent<SyncMessage<T>>) => {
+      if (event.data?.sourceTabId !== TAB_ID && event.data.type === type) {
+        handler(event.data);
+      }
+    };
+    channel.addEventListener('message', listener);
+    return () => channel.removeEventListener('message', listener);
+  } catch (err) {
+    console.warn('[freeServicesConfig] BroadcastChannel subscribe failed:', err);
+    return () => {};
+  }
 }

@@ -15,10 +15,12 @@ import {
   Plus,
   Star,
   Package,
+  Video,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { classifyMerchantPin, MerchantPinCategory } from '@/lib/merchantPinClassifier';
 import { executePiSdkPayment } from '@/lib/piSdkService';
+import { VideoBannerAndPin, VideoPinPromo } from './VideoBannerAndPin';
 
 export interface MerchantBusinessItem {
   id: string;
@@ -46,6 +48,9 @@ export interface MerchantBusinessItem {
   voiceIntro?: string;
   address?: string;
   products?: string[];
+  // Campi video pubblicitario / creator (aggiunti per Banner/PIN video)
+  videoAdUrl?: string;
+  creatorVideoUrl?: string;
 }
 
 interface MerchantDetailModalProps {
@@ -202,6 +207,21 @@ export default function MerchantDetailModal({
                   {selectedBusiness.adHeadline || selectedBusiness.promo}
                 </p>
               </div>
+            )}
+
+            {/* Video pubblicitario / Creator (PIN o Banner) */}
+            {(selectedBusiness.videoAdUrl || selectedBusiness.creatorVideoUrl) && (
+              <VideoBannerAndPin
+                promo={{
+                  id: `video_${selectedBusiness.id}`,
+                  creatorName: selectedBusiness.name,
+                  headline: selectedBusiness.adHeadline || selectedBusiness.promo || 'Video Promozionale',
+                  videoUrl: selectedBusiness.videoAdUrl || selectedBusiness.creatorVideoUrl || '',
+                  locationLabel: selectedBusiness.city,
+                  format: 'PROMO',
+                }}
+                mode="BANNER"
+              />
             )}
 
             {/* Box Pagamento diretto in Pi se il commerciante accetta Pi */}

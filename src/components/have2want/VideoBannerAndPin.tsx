@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Play, Volume2, VolumeX, Expand, ChevronDown, ChevronUp } from 'lucide-react';
+import { publishSyncMessage, subscribeSyncMessage } from '@/lib/freeServicesConfig';
 
 export interface VideoPinPromo {
   id: string;
@@ -11,7 +12,7 @@ export interface VideoPinPromo {
   thumbnailUrl?: string;
 }
 
-interface VideoBannerAndPinProps {
+export interface VideoBannerAndPinProps {
   promo: VideoPinPromo;
   mode?: 'BANNER' | 'PIN';
   onClose?: () => void;
@@ -30,6 +31,19 @@ export const VideoBannerAndPin: React.FC<VideoBannerAndPinProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Sync apertura video tra schede via BroadcastChannel
+  useEffect(() => {
+    const unsubscribe = subscribeSyncMessage<{ id: string; kind: 'PIN' | 'BANNER' }>(
+      'VIDEO_AD_TRIGGERED',
+      (msg) => {
+        if (msg.payload.id === promo.id && !isOpen) {
+          setIsOpen(true);
+        }
+      }
+    );
+    return unsubscribe;
+  }, [promo.id, isOpen]);
 
   useEffect(() => {
     if (isOpen && autoPlay && videoRef.current) {
@@ -99,11 +113,16 @@ export const VideoBannerAndPin: React.FC<VideoBannerAndPinProps> = ({
     };
   }, [isOpen]);
 
+  const handleOpen = () => {
+    setIsOpen(true);
+    publishSyncMessage('VIDEO_AD_TRIGGERED', { id: promo.id, kind: mode });
+  };
+
   if (!isOpen && mode === 'PIN') {
     return (
       <button
         type="button"
-        onClick={() => setIsOpen(true)}
+        onClick={handleOpen}
         className="group relative p-2 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/10 border border-amber-500/40 hover:border-amber-400 hover:from-amber-500/30 transition-all cursor-pointer flex items-center justify-center"
         aria-label={`Apri video: ${promo.headline}`}
         title={`${promo.headline} — ${promo.creatorName}`}
@@ -129,7 +148,7 @@ export const VideoBannerAndPin: React.FC<VideoBannerAndPinProps> = ({
     return (
       <button
         type="button"
-        onClick={() => setIsOpen(true)}
+        onClick={handleOpen}
         className="group relative w-full min-h-[120px] sm:min-h-[160px] rounded-2xl bg-gradient-to-r from-violet-950/70 via-slate-900/90 to-purple-900/40 border border-violet-500/40 overflow-hidden cursor-pointer transition-all hover:border-violet-400 hover:shadow-[0_0_30px_rgba(139,92,246,0.2)]"
         aria-label={`Apri banner video: ${promo.headline}`}
       >
