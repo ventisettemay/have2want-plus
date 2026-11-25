@@ -16,7 +16,7 @@ describe('Satellite Light Modes, Scale 0.50 & Specs – 11 Satelliti Definitivi'
     expect(getSatelliteLightMode('GLOBAL_MARKET_SAT')).toBe('BRIGHT');
     expect(getSatelliteLightMode('BUSINESS_ADS_SAT')).toBe('BRIGHT');
     expect(getSatelliteLightMode('PI_CHAT_SAT')).toBe('BRIGHT');
-    expect(getSatelliteLightMode('COMMUNITY_RESCUE_SAT')).toBe('BRIGHT');
+    expect(getSatelliteLightMode('SOCCORSO_SAT')).toBe('BRIGHT');
     expect(getSatelliteLightMode('ACTIONFLOW_SAT')).toBe('BRIGHT');
     expect(getSatelliteLightMode('DEFIANCE_PULSE_SAT')).toBe('BRIGHT');
   });
@@ -62,8 +62,8 @@ describe('Satellite Light Modes, Scale 0.50 & Specs – 11 Satelliti Definitivi'
   it('Nuovi satelliti definitivi hanno lightMode corretto', () => {
     // MAP_SAT = BLINKING (unisce STREET_360_SAT + WEBCAM + METEO_ROUTE)
     expect(getSatelliteLightMode('MAP_SAT')).toBe('BLINKING');
-    // COMMUNITY_RESCUE_SAT = BRIGHT (emergenza = alta visibilità)
-    expect(getSatelliteLightMode('COMMUNITY_RESCUE_SAT')).toBe('BRIGHT');
+    // SOCCORSO_SAT = BRIGHT (emergenza = alta visibilità)
+    expect(getSatelliteLightMode('SOCCORSO_SAT')).toBe('BRIGHT');
     // ACTIONFLOW_SAT = BRIGHT (hub operativo)
     expect(getSatelliteLightMode('ACTIONFLOW_SAT')).toBe('BRIGHT');
     // DEFIANCE_PULSE_SAT = BRIGHT (multimedia AI)

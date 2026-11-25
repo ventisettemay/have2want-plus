@@ -21,7 +21,7 @@ describe('Unified Phase Refinements – 11 Satelliti Definitivi', () => {
       'EXTERNAL_MARKET_SAT',
       'BUSINESS_ADS_SAT',
       'MAP_SAT',
-      'COMMUNITY_RESCUE_SAT',
+      'SOCCORSO_SAT',
       'ACTIONFLOW_SAT',
       'DEFIANCE_PULSE_SAT',
       'RADAR_SAT',
@@ -41,7 +41,7 @@ describe('Unified Phase Refinements – 11 Satelliti Definitivi', () => {
       'EXTERNAL_MARKET_SAT',
       'BUSINESS_ADS_SAT',
       'MAP_SAT',
-      'COMMUNITY_RESCUE_SAT',
+      'SOCCORSO_SAT',
       'ACTIONFLOW_SAT',
       'DEFIANCE_PULSE_SAT',
       'RADAR_SAT',
@@ -60,7 +60,7 @@ describe('Unified Phase Refinements – 11 Satelliti Definitivi', () => {
     expect(resolveSatelliteChannel('EXTERNAL_MARKET_SAT')).toBe('EXTERNAL');
     expect(resolveSatelliteChannel('BUSINESS_ADS_SAT')).toBe('BUSINESS_ADS');
     expect(resolveSatelliteChannel('MAP_SAT')).toBe('MAP');
-    expect(resolveSatelliteChannel('COMMUNITY_RESCUE_SAT')).toBe('EMERGENCY');
+    expect(resolveSatelliteChannel('SOCCORSO_SAT')).toBe('EMERGENCY');
     expect(resolveSatelliteChannel('ACTIONFLOW_SAT')).toBe('ACTIONFLOW');
     expect(resolveSatelliteChannel('DEFIANCE_PULSE_SAT')).toBe('DEFIANCE_PULSE');
     expect(resolveSatelliteChannel('RADAR_SAT')).toBe('RADAR');
@@ -84,7 +84,7 @@ describe('Unified Phase Refinements – 11 Satelliti Definitivi', () => {
   it('Nuovi satelliti definitivi sono presenti nel catalogo', () => {
     const newIds = [
       'MAP_SAT',
-      'COMMUNITY_RESCUE_SAT',
+      'SOCCORSO_SAT',
       'ACTIONFLOW_SAT',
       'DEFIANCE_PULSE_SAT',
       'RADAR_SAT',

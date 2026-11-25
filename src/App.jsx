@@ -746,7 +746,7 @@ function Have2WantPlusMain() {
             <button
               id="btn-scroll-channel-soccorso"
               onClick={() => {
-                setActiveSatelliteChannel(SATELLITE_TO_CHANNEL.COMMUNITY_RESCUE_SAT);
+                setActiveSatelliteChannel(SATELLITE_TO_CHANNEL.SOCCORSO_SAT);
                 toast.info("🆘 SOCCORSO — Emergenze Mondiali, Carpooling Solidale, Punti Incontro Certificati");
               }}
               className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-red-950/60 border-2 border-[#ef4444] shadow-[0_0_12px_rgba(239,68,68,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
@@ -807,6 +807,57 @@ function Have2WantPlusMain() {
               <div className="flex flex-col text-left leading-tight">
                 <span className="text-[12px] font-black text-violet-300">⚡ DEFIANCE PULSE</span>
                 <span className="text-[9px] font-bold text-violet-400/80 uppercase tracking-tighter">CREATOR • MUSIC • VIDEO • PROMO</span>
+              </div>
+            </button>
+
+            {/* 9. PI Chat: Contorno LED Verde Neon */}
+            <button
+              id="btn-scroll-channel-pi-chat"
+              onClick={() => {
+                setActiveSatelliteChannel(SATELLITE_TO_CHANNEL.PI_CHAT_SAT);
+                toast.info("🎙️ PI CHAT — Messaggistica, Note Vocali, Videochiamata, Gruppi Comunità/Quartiere");
+              }}
+              className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-emerald-950/60 border-2 border-[#10b981] shadow-[0_0_12px_rgba(16,185,129,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
+              title="PI CHAT — Chat Vocale & Video, Gruppi Comunità/Quartiere — SEPARATO da SOCCORSO"
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-[#10b981] shadow-[0_0_8px_#10b981] animate-pulse shrink-0" />
+              <div className="flex flex-col text-left leading-tight">
+                <span className="text-[12px] font-black text-emerald-300">🎙️ PI CHAT</span>
+                <span className="text-[9px] font-bold text-emerald-400/80 uppercase tracking-tighter">Chat & Video</span>
+              </div>
+            </button>
+
+            {/* 10. ActionFlow: Contorno LED Viola */}
+            <button
+              id="btn-scroll-channel-actionflow"
+              onClick={() => {
+                setActiveSatelliteChannel(SATELLITE_TO_CHANNEL.ACTIONFLOW_SAT);
+                toast.info("🎮 ACTIONFLOW HUB — Centro Missioni, Attività AI, Ricompense, Portal Ecosistema Esterno");
+              }}
+              className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-violet-950/60 border-2 border-[#a855f7] shadow-[0_0_12px_rgba(168,85,247,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
+              title="ACTIONFLOW HUB — Portal per Applicazioni Esterne dell'Ecosistema"
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-[#a855f7] shadow-[0_0_8px_#a855f7] animate-pulse shrink-0" />
+              <div className="flex flex-col text-left leading-tight">
+                <span className="text-[12px] font-black text-violet-300">🎮 ACTIONFLOW</span>
+                <span className="text-[9px] font-bold text-violet-400/80 uppercase tracking-tighter">ActionFlow Hub</span>
+              </div>
+            </button>
+
+            {/* 11. Radar: Contorno LED Arancione/Ambra */}
+            <button
+              id="btn-scroll-channel-radar"
+              onClick={() => {
+                setActiveSatelliteChannel(SATELLITE_TO_CHANNEL.RADAR_SAT);
+                toast.info("📡 RADAR — Scansione Prossimità 35 km, Marker Territoriali, Geolocalizzazione P2P");
+              }}
+              className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-amber-950/60 border-2 border-[#f59e0b] shadow-[0_0_12px_rgba(245,158,11,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
+              title="RADAR — Scansione Radar 35 km, Prossimità Reale tra Utenti"
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-[#f59e0b] shadow-[0_0_8px_#f59e0b] animate-pulse shrink-0" />
+              <div className="flex flex-col text-left leading-tight">
+                <span className="text-[12px] font-black text-amber-300">📡 RADAR</span>
+                <span className="text-[9px] font-bold text-amber-400/80 uppercase tracking-tighter">Prossimità 35km</span>
               </div>
             </button>
 

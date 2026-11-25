@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CloudSun, Store, ShoppingBag, X, ChevronRight, Sparkles, MapPin, Mic, Globe, Zap, LifeBuoy, Megaphone, Satellite, Compass, Shield, Map, ShieldAlert, Cpu, Music, Video, Megaphone as MegaphoneIcon } from 'lucide-react';
+import { CloudSun, Store, ShoppingBag, X, ChevronRight, Sparkles, MapPin, Mic, Globe, Zap, LifeBuoy, Megaphone, Satellite, Compass, Shield, Map, ShieldAlert, Cpu, Music, Video, Megaphone as MegaphoneIcon, Radio } from 'lucide-react';
 import VetrinaKmZero from './VetrinaKmZero';
 import { GlobalMarketplaceView } from './GlobalMarketplaceView';
 import LiveWeatherModal from './LiveWeatherModal';
@@ -30,6 +30,7 @@ type ChannelId =
   | 'EMERGENCY'
   | 'ACTIONFLOW'
   | 'DEFIANCE_PULSE'
+  | 'RADAR'
   | null;
 
 export default function OrbitalSatellitesHub({
@@ -162,6 +163,16 @@ export default function OrbitalSatellitesHub({
       badge: 'AI CREATOR • MUSIC • VIDEO • PROMO',
       badgeColor: 'bg-violet-500/20 text-violet-300 border-violet-500/40',
     },
+    {
+      id: 'RADAR' as const,
+      satId: 'RADAR_SAT' as SatelliteId,
+      name: 'RADAR — Scansione Prossimità 35 km',
+      desc: 'Marker territoriali locali, geolocalizzazione P2P, prossimità reale',
+      icon: Radio,
+      color: 'from-amber-500 to-yellow-600',
+      badge: 'RADAR PROSSIMITÀ',
+      badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+    },
   ];
 
   const handleChannelClick = (chan: typeof channels[0]) => {
@@ -231,8 +242,8 @@ export default function OrbitalSatellitesHub({
                   </div>
                   <div>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-black text-white">CONTROLLO FLOTTA 10 SATELLITI</span>
-                      <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-emerald-400 text-black">8 PRESET</span>
+                      <span className="text-xs font-black text-white">CONTROLLO FLOTTA 11 SATELLITI</span>
+                      <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-emerald-400 text-black">9 PRESET</span>
                     </div>
                     <p className="text-[10px] text-zinc-300">Interruttori ON/OFF, Ispezione 3D, orbite ed azionamenti</p>
                   </div>
@@ -518,6 +529,35 @@ export default function OrbitalSatellitesHub({
               <Cpu className="w-16 h-16 mx-auto mb-4 text-violet-500/50" />
               <p className="text-sm">DefiancePulseHub — CREATOR • MUSIC • VIDEO • PROMOTION</p>
               <p className="text-xs mt-2">Generazione client-side (CPU utente), no API esterne, no costi</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CANALE: RADAR — Scansione Prossimità */}
+      {activeChannel === 'RADAR' && (
+        <div className="fixed inset-0 z-50 bg-slate-950 overflow-y-auto animate-in fade-in duration-200">
+          <div className="sticky top-0 z-40 bg-slate-900/95 border-b border-slate-800 px-4 py-3 flex items-center justify-between backdrop-blur-md">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">📡</span>
+              <span className="text-xs font-black text-amber-400 uppercase tracking-wider">
+                RADAR — SCANSIONE PROSSIMITÀ 35 KM
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveChannel(null)}
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+              <span>Chiudi</span>
+            </button>
+          </div>
+          <div className="max-w-7xl mx-auto p-4">
+            <div className="text-center py-12 text-zinc-400">
+              <Radio className="w-16 h-16 mx-auto mb-4 text-amber-500/50" />
+              <p className="text-sm">RadarProximityModal — Marker territoriali, geolocalizzazione P2P</p>
+              <p className="text-xs mt-2">Scansione radar 35 km, prossimità reale tra utenti</p>
             </div>
           </div>
         </div>

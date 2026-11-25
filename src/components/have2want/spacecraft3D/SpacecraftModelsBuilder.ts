@@ -574,9 +574,9 @@ export function buildEngineeredSpacecraft(
     }
 
     // -------------------------------------------------------------------------
-    // 13. COMMUNITY_RESCUE_SAT: COSPAS-SARSAT – Emergenze Mondiali & Mutuo Aiuto
+    // 13. SOCCORSO_SAT: COSPAS-SARSAT – Emergenze Mondiali & Mutuo Aiuto
     // -------------------------------------------------------------------------
-    case 'COMMUNITY_RESCUE_SAT': {
+    case 'SOCCORSO_SAT': {
       // Chassis in lamina argento con accenti rossi emergenza (alta visibilità)
       const bus = new THREE.Mesh(new THREE.BoxGeometry(3.6, 3.6, 3.8), silverFoilMat);
       const redStripe = new THREE.Mesh(new THREE.BoxGeometry(3.7, 0.8, 3.9), rescueRedMat);
@@ -829,7 +829,7 @@ export function buildEngineeredSpacecraft(
   // Fari differenziati in base alla missione del satellite:
   // - BLINKING (METEO_SAT, MAP_SAT, RADAR_SAT): Luce lampeggiante (ON/OFF)
   // - NORMAL (EXTERNAL_MARKET_SAT): Luce normale continua a bassa intensità
-  // - BRIGHT (KM0_SAT, GLOBAL_MARKET_SAT, BUSINESS_ADS_SAT, PI_CHAT_SAT, COMMUNITY_RESCUE_SAT, ACTIONFLOW_SAT, DEFIANCE_PULSE_SAT): Luce brillante continua ad alta intensità
+  // - BRIGHT (KM0_SAT, GLOBAL_MARKET_SAT, BUSINESS_ADS_SAT, PI_CHAT_SAT, SOCCORSO_SAT, ACTIONFLOW_SAT, DEFIANCE_PULSE_SAT): Luce brillante continua ad alta intensità
   const isBlinking = lightMode === 'BLINKING';
   const isBright = lightMode === 'BRIGHT';
 

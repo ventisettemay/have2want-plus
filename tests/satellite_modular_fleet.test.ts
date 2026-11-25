@@ -26,7 +26,7 @@ describe('Satellite Modular Fleet Engine – HAVE2WANT PLUS (11 Satelliti Defini
       'EXTERNAL_MARKET_SAT',
       'BUSINESS_ADS_SAT',
       'MAP_SAT',
-      'COMMUNITY_RESCUE_SAT',
+      'SOCCORSO_SAT',
       'ACTIONFLOW_SAT',
       'DEFIANCE_PULSE_SAT',
       'RADAR_SAT',
