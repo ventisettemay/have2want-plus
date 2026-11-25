@@ -40,6 +40,16 @@ import {
   TESTNET_UPLOADS_DIR,
 } from './server/testnetFlatDb';
 
+import {
+  createCampaign as adCreateCampaign,
+  addCreative as adAddCreative,
+  getAdFeed as adGetAdFeed,
+  certifyImpression as adCertifyImpression,
+  getPresignUpload as adGetPresignUpload,
+  getCampaignStats as adGetCampaignStats,
+} from './server/adService';
+import type { CreateCampaignInput, CertifyImpressionInput } from './server/adTypes';
+
 const VALIDATION_KEY =
   '41d098c27068bf811f67caeefe5dc094a6304c413d84b17e9e0c5ae364e3af4ac4086bc073ce287d5bdc3f21cdf45a09ea1f1a842d5a6ccd784777aae7a286b7';
 const PI_API_BASE = 'https://api.minepi.com/v2';
@@ -1701,6 +1711,93 @@ async function startServer() {
       return res.status(409).json({ success: false, error: 'Conflitto upvote, riprova' });
     } catch (err: any) {
       return res.status(502).json({ success: false, error: err?.message || 'Errore upvote' });
+    }
+  });
+
+  // === Rotte sistema pubblicitario HAVE2WANT ADS (Fase 1) ===
+
+  // POST /api/campaigns — crea campagna pubblicitaria (idempotente)
+  app.post('/api/campaigns', async (req, res) => {
+    try {
+      const body = req.body as CreateCampaignInput;
+      if (!body || !body.advertiserId || !body.title || !body.budgetTotal || !body.costPerImpression) {
+        return res.status(400).json({ success: false, error: 'Campi obbligatori mancanti: advertiserId, title, budgetTotal, costPerImpression' });
+      }
+      const { campaign, duplicate } = await adCreateCampaign(body);
+      return res.status(duplicate ? 200 : 201).json({
+        success: true,
+        duplicate,
+        campaign,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || 'Errore creazione campagna' });
+    }
+  });
+
+  // GET /api/feed/ads — feed pubblicitario (campagne attive con creatività)
+  app.get('/api/feed/ads', async (_req, res) => {
+    try {
+      const userId = (_req.query.userId as string) || undefined;
+      const items = await adGetAdFeed(userId);
+      return res.json({ success: true, ads: items, count: items.length });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || 'Errore feed pubblicitario' });
+    }
+  });
+
+  // POST /api/impressions/certify — certifica un'impressione (atomica con contabilità)
+  app.post('/api/impressions/certify', async (req, res) => {
+    try {
+      const body = req.body as CertifyImpressionInput;
+      if (!body || !body.campaignId || !body.userId || !body.sessionToken || !body.idempotencyKey) {
+        return res.status(400).json({ success: false, error: 'Campi obbligatori mancanti: campaignId, userId, sessionToken, idempotencyKey' });
+      }
+      const result = await adCertifyImpression(body);
+      if (result.error) {
+        return res.status(400).json({ success: false, error: result.error, duplicate: result.duplicate });
+      }
+      return res.status(result.duplicate ? 200 : 201).json({
+        success: true,
+        duplicate: result.duplicate,
+        impression: result.impression,
+        reward: result.reward,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || 'Errore certificazione impressione' });
+    }
+  });
+
+  // POST /api/uploads/presign — presign upload file creativo (storage locale/testnet)
+  app.post('/api/uploads/presign', async (req, res) => {
+    try {
+      const body = req.body as { fileName: string; contentType: string; maxSizeBytes?: number };
+      if (!body || !body.fileName || !body.contentType) {
+        return res.status(400).json({ success: false, error: 'Campi obbligatori: fileName, contentType' });
+      }
+      const presign = adGetPresignUpload(body);
+      return res.json({ success: true, ...presign });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || 'Errore presign upload' });
+    }
+  });
+
+  // POST /execute — endpoint execute generico (compatibility layer)
+  app.post('/execute', async (req, res) => {
+    try {
+      const { action, payload } = req.body as { action?: string; payload?: Record<string, unknown> };
+      if (!action) {
+        return res.status(400).json({ success: false, error: 'Parametro "action" obbligatorio' });
+      }
+      switch (action) {
+        case 'campaign_stats': {
+          const stats = adGetCampaignStats(String(payload?.campaignId || ''));
+          return res.json({ success: true, action, stats });
+        }
+        default:
+          return res.status(400).json({ success: false, error: `Azione non supportata: ${action}` });
+      }
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || 'Errore execute' });
     }
   });
 
