@@ -47,8 +47,19 @@ import {
   certifyImpression as adCertifyImpression,
   getPresignUpload as adGetPresignUpload,
   getCampaignStats as adGetCampaignStats,
+  toggleCampaign as adToggleCampaign,
+  reviewCreative as adReviewCreative,
+  createSessionToken as adCreateSessionToken,
+  verifySessionTokenFull as adVerifySessionTokenFull,
+  refundCampaign as adRefundCampaign,
+  reverseRewardAction as adReverseRewardAction,
+  getUserAdHistory as adGetUserAdHistory,
+  getGlobalReconciliation as adGetGlobalReconciliation,
 } from './server/adService';
-import type { CreateCampaignInput, CertifyImpressionInput } from './server/adTypes';
+import type {
+  CreateCampaignInput,
+  CertifyImpressionInput,
+} from './server/adTypes';
 
 const VALIDATION_KEY =
   '41d098c27068bf811f67caeefe5dc094a6304c413d84b17e9e0c5ae364e3af4ac4086bc073ce287d5bdc3f21cdf45a09ea1f1a842d5a6ccd784777aae7a286b7';
@@ -1714,34 +1725,101 @@ async function startServer() {
     }
   });
 
-  // === Rotte sistema pubblicitario HAVE2WANT ADS (Fase 1) ===
+  // === Rotte sistema pubblicitario HAVE2WANT ADS (Punti 4-8) ===
 
-  // POST /api/campaigns — crea campagna pubblicitaria (idempotente)
+  // POST /api/campaigns — crea campagna pubblicitaria completa (idempotente)
   app.post('/api/campaigns', async (req, res) => {
     try {
       const body = req.body as CreateCampaignInput;
       if (!body || !body.advertiserId || !body.title || !body.budgetTotal || !body.costPerImpression) {
         return res.status(400).json({ success: false, error: 'Campi obbligatori mancanti: advertiserId, title, budgetTotal, costPerImpression' });
       }
-      const { campaign, duplicate } = await adCreateCampaign(body);
+      const { campaign, duplicate, pricing } = await adCreateCampaign(body);
       return res.status(duplicate ? 200 : 201).json({
         success: true,
         duplicate,
         campaign,
+        pricing,
       });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err?.message || 'Errore creazione campagna' });
     }
   });
 
-  // GET /api/feed/ads — feed pubblicitario (campagne attive con creatività)
+  // GET /api/ads/campaigns — lista tutte le campagne (incluse draft/pausate)
+  app.get('/api/ads/campaigns', async (_req, res) => {
+    try {
+      const campaigns = require('./server/adStore').listAllCampaigns();
+      return res.json({ success: true, campaigns, count: campaigns.length });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || 'Errore lista campagne' });
+    }
+  });
+
+  // POST /api/ads/campaigns/:id/toggle — attiva o sospende una campagna
+  app.post('/api/ads/campaigns/:id/toggle', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body as { status?: 'active' | 'paused' };
+      if (!status || !['active', 'paused'].includes(status)) {
+        return res.status(400).json({ success: false, error: 'Parametro "status" obbligatorio (active o paused)' });
+      }
+      const { campaign, error } = await adToggleCampaign(id, status);
+      if (error) {
+        return res.status(404).json({ success: false, error });
+      }
+      return res.json({ success: true, campaign });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || 'Errore toggle campagna' });
+    }
+  });
+
+  // GET /api/feed/ads — feed pubblicitario (campagne attive con creatività, rotazione, limiti)
   app.get('/api/feed/ads', async (_req, res) => {
     try {
       const userId = (_req.query.userId as string) || undefined;
-      const items = await adGetAdFeed(userId);
-      return res.json({ success: true, ads: items, count: items.length });
+      const result = await adGetAdFeed(userId);
+      return res.json({
+        success: true,
+        ads: result.items,
+        count: result.items.length,
+        rateLimited: result.rateLimited,
+        remaining: result.remaining,
+      });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err?.message || 'Errore feed pubblicitario' });
+    }
+  });
+
+  // POST /api/ads/session/token — genera token di sessione firmato monouso
+  app.post('/api/ads/session/token', async (req, res) => {
+    try {
+      const { userId, campaignId, ttlMs } = req.body as {
+        userId?: string;
+        campaignId?: string;
+        ttlMs?: number;
+      };
+      if (!userId || !campaignId) {
+        return res.status(400).json({ success: false, error: 'Campi obbligatori: userId, campaignId' });
+      }
+      const token = adCreateSessionToken({ userId, campaignId, ttlMs });
+      return res.json({ success: true, token });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || 'Errore creazione token sessione' });
+    }
+  });
+
+  // POST /api/ads/session/verify — verifica token di sessione firmato
+  app.post('/api/ads/session/verify', async (req, res) => {
+    try {
+      const { token, signature } = req.body as { token?: string; signature?: string };
+      if (!token || !signature) {
+        return res.status(400).json({ success: false, error: 'Campi obbligatori: token, signature' });
+      }
+      const result = adVerifySessionTokenFull(token, signature);
+      return res.json({ success: result.valid, ...result });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || 'Errore verifica token' });
     }
   });
 
@@ -1749,12 +1827,12 @@ async function startServer() {
   app.post('/api/impressions/certify', async (req, res) => {
     try {
       const body = req.body as CertifyImpressionInput;
-      if (!body || !body.campaignId || !body.userId || !body.sessionToken || !body.idempotencyKey) {
-        return res.status(400).json({ success: false, error: 'Campi obbligatori mancanti: campaignId, userId, sessionToken, idempotencyKey' });
+      if (!body || !body.campaignId || !body.userId || !body.sessionToken || !body.idempotencyKey || !body.nonce) {
+        return res.status(400).json({ success: false, error: 'Campi obbligatori mancanti: campaignId, userId, sessionToken, nonce, idempotencyKey' });
       }
       const result = await adCertifyImpression(body);
       if (result.error) {
-        return res.status(400).json({ success: false, error: result.error, duplicate: result.duplicate });
+        return res.status(400).json({ success: false, error: result.error, duplicate: result.duplicate, rateLimited: result.rateLimited });
       }
       return res.status(result.duplicate ? 200 : 201).json({
         success: true,
@@ -1781,6 +1859,92 @@ async function startServer() {
     }
   });
 
+  // POST /api/ads/creatives/:id/review — approva o rifiuta una creatività
+  app.post('/api/ads/creatives/:id/review', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { approved, rejectionReason } = req.body as { approved?: boolean; rejectionReason?: string };
+      if (typeof approved !== 'boolean') {
+        return res.status(400).json({ success: false, error: 'Parametro "approved" obbligatorio (boolean)' });
+      }
+      const creative = await adReviewCreative(id, approved, rejectionReason);
+      if (!creative) {
+        return res.status(404).json({ success: false, error: 'Creatività non trovata' });
+      }
+      return res.json({ success: true, creative });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || 'Errore revisione creatività' });
+    }
+  });
+
+  // POST /api/ads/campaigns/:id/refund — rimborso storno contabile
+  app.post('/api/ads/campaigns/:id/refund', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { amount, idempotencyKey } = req.body as { amount?: number; idempotencyKey?: string };
+      if (!amount || !idempotencyKey) {
+        return res.status(400).json({ success: false, error: 'Campi obbligatori: amount, idempotencyKey' });
+      }
+      const result = adRefundCampaign({ campaignId: id, amount, idempotencyKey });
+      if (!result.ok) {
+        return res.status(400).json({ success: false, error: result.error, duplicate: result.duplicate });
+      }
+      return res.json({ success: true, duplicate: result.duplicate, entry: result.entry });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || 'Errore rimborso campagna' });
+    }
+  });
+
+  // POST /api/ads/rewards/:id/reverse — storno reward accreditato
+  app.post('/api/ads/rewards/:id/reverse', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { idempotencyKey } = req.body as { idempotencyKey?: string };
+      if (!idempotencyKey) {
+        return res.status(400).json({ success: false, error: 'Campo obbligatorio: idempotencyKey' });
+      }
+      const result = adReverseRewardAction({ rewardId: id, idempotencyKey });
+      if (!result.ok) {
+        return res.status(400).json({ success: false, error: result.error, duplicate: result.duplicate });
+      }
+      return res.json({ success: true, duplicate: result.duplicate, entry: result.entry });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || 'Errore storno reward' });
+    }
+  });
+
+  // GET /api/ads/stats/:campaignId — statistiche campagna con riconciliazione contabile
+  app.get('/api/ads/stats/:campaignId', async (req, res) => {
+    try {
+      const { campaignId } = req.params;
+      const stats = adGetCampaignStats(campaignId);
+      return res.json({ success: true, stats });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || 'Errore statistiche campagna' });
+    }
+  });
+
+  // GET /api/ads/history/:userId — storico movimenti utente (reward, ledger, impressioni)
+  app.get('/api/ads/history/:userId', async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const history = adGetUserAdHistory(userId);
+      return res.json({ success: true, history });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || 'Errore storico utente' });
+    }
+  });
+
+  // GET /api/ads/reconciliation — report riconciliazione contabile globale
+  app.get('/api/ads/reconciliation', async (_req, res) => {
+    try {
+      const report = adGetGlobalReconciliation();
+      return res.json({ success: true, report });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || 'Errore riconciliazione' });
+    }
+  });
+
   // POST /execute — endpoint execute generico (compatibility layer)
   app.post('/execute', async (req, res) => {
     try {
@@ -1792,6 +1956,10 @@ async function startServer() {
         case 'campaign_stats': {
           const stats = adGetCampaignStats(String(payload?.campaignId || ''));
           return res.json({ success: true, action, stats });
+        }
+        case 'global_reconciliation': {
+          const report = adGetGlobalReconciliation();
+          return res.json({ success: true, action, report });
         }
         default:
           return res.status(400).json({ success: false, error: `Azione non supportata: ${action}` });
