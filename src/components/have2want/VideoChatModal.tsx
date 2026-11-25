@@ -10,6 +10,8 @@ interface VideoChatModalProps {
   otherUserName?: string;
   otherUserAvatar?: string;
   currentUserId?: string;
+  /** ICE servers opzionali (STUN/TURN). Se non forniti, usa quelli dinamici da turnService. */
+  iceServers?: RTCIceServer[];
 }
 
 export function VideoChatModal({ 
@@ -18,7 +20,8 @@ export function VideoChatModal({
   listingId = "h2w_call", 
   otherUserName = "Fornitore Partner", 
   otherUserAvatar,
-  currentUserId
+  currentUserId,
+  iceServers: propsIceServers
 }: VideoChatModalProps) {
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
@@ -30,18 +33,30 @@ export function VideoChatModal({
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
 
-  const [iceServers, setIceServers] = useState<RTCIceServer[]>([
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-  ]);
+  // Usa ICE servers da props se forniti, altrimenti fallback statico + caricamento dinamico
+  const [iceServers, setIceServers] = useState<RTCIceServer[]>(
+    propsIceServers && propsIceServers.length > 0
+      ? propsIceServers
+      : [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+        ]
+  );
 
   useEffect(() => {
-    const loadIceServers = async () => {
-      const servers = await getDynamicIceServers();
-      setIceServers(servers);
-    };
-    loadIceServers();
-  }, []);
+    // Se ICE servers non forniti via props, carica quelli dinamici (TURN Metered/OpenRelay)
+    if (!propsIceServers || propsIceServers.length === 0) {
+      const loadIceServers = async () => {
+        try {
+          const servers = await getDynamicIceServers();
+          setIceServers(servers);
+        } catch (err) {
+          console.warn('[VideoChatModal] Errore caricamento ICE servers dinamici:', err);
+        }
+      };
+      loadIceServers();
+    }
+  }, [propsIceServers]);
 
   useEffect(() => {
     if (isOpen) {

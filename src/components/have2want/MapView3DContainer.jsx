@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Globo3D from './Globo3D';
 import Urbano3D from './Urbano3D';
 import VoiceNoteChat from './VoiceNoteChat';
+import PiChatUnifiedHub from './PiChatUnifiedHub';
 import PiNetworkHub from './PiNetworkHub';
 import { PioneerRewardsHubModal } from './PioneerRewardsHubModal';
 import BusinessSponsorModal from './BusinessSponsorModal';
@@ -1258,7 +1259,7 @@ export default function MapView3DContainer({
         }}
       />
 
-      <VoiceNoteChat
+      <PiChatUnifiedHub
         isOpen={isVoiceChatOpen}
         onClose={() => {
           setIsVoiceChatOpen(false);
@@ -1266,9 +1267,11 @@ export default function MapView3DContainer({
             handleCloseSatelliteModal();
           }
         }}
+        currentUserId={currentProfile?.id || 'current_user'}
         recipientName={voiceChatRecipient.name}
         recipientRole={voiceChatRecipient.role}
         initialVoiceIntro={voiceChatRecipient.intro}
+        listingId={`pi_chat_${voiceChatRecipient.name?.replace(/\s+/g, '_') || 'default'}`}
       />
 
       {/* MODALI EMERGENZE, TRASFERTE E MEMORIA STORICA (Zero spese, Zero server) */}
@@ -1575,12 +1578,14 @@ export default function MapView3DContainer({
         />
       )}
       {activeSatellite === 'CHAT' && (
-        <VoiceNoteChat
+        <PiChatUnifiedHub
           isOpen={true}
           onClose={handleCloseSatelliteModal}
+          currentUserId={currentProfile?.id || 'current_user'}
           recipientName={voiceChatRecipient.name}
           recipientRole={voiceChatRecipient.role}
           initialVoiceIntro={voiceChatRecipient.intro}
+          listingId={`pi_chat_${voiceChatRecipient.name?.replace(/\s+/g, '_') || 'default'}`}
         />
       )}
     </div>
