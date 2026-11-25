@@ -308,8 +308,8 @@ export const PioneerRewardsHubModal: React.FC<PioneerRewardsHubModalProps> = ({
                   </button>
                 </div>
 
-                {/* Breakdown Matematico Trasparente */}
-                <div className="p-3 rounded-xl bg-zinc-950/80 border border-zinc-800/80 space-y-1.5 font-mono text-xs">
+                {/* Breakdown Matematico Trasparente (righe piane con hairline) */}
+                <div className="pt-2.5 border-t border-zinc-800 space-y-1.5 font-mono text-xs">
                   <div className="flex items-center justify-between text-zinc-400">
                     <span>Importo Lordo richiesto:</span>
                     <span className="text-white font-bold">{breakdown.requestedPi.toFixed(4)} π</span>
@@ -385,16 +385,6 @@ export const PioneerRewardsHubModal: React.FC<PioneerRewardsHubModalProps> = ({
           {/* TAB 2: GUADAGNA PUNTI (ANNUNCI REALI CON VALORE MAGGIORATO & SPONSOR ISTANTANEI) */}
           {activeTab === 'earn' && (
             <div className="space-y-4">
-              <div className="p-3.5 rounded-2xl bg-zinc-900 border border-zinc-800 text-zinc-300">
-                <h3 className="font-black text-white text-xs mb-1 flex items-center gap-1.5">
-                  <Award className="w-4 h-4 text-[#00ff66]" />
-                  <span>Modello Economico Bilanciato ed Etico</span>
-                </h3>
-                <p className="text-zinc-400 leading-relaxed">
-                  Per garantire la sostenibilità dei Pi distribuiti, gli <strong>annunci reali sul territorio</strong> ricevono il punteggio più alto, mentre le micro-azioni assegnano frazioni calibrate.
-                </p>
-              </div>
-
               {/* Box 1: Annunci Reali (Alto Valore) */}
               <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-950/40 via-zinc-900 to-zinc-900 border border-emerald-500/40 space-y-3">
                 <div className="flex items-center justify-between">

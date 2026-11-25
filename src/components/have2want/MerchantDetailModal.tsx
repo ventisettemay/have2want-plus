@@ -18,6 +18,7 @@ import {
 import { toast } from 'sonner';
 import { classifyMerchantPin, MerchantPinCategory } from '@/lib/merchantPinClassifier';
 import { executePiSdkPayment } from '@/lib/piSdkService';
+import VideoBannerAndPin from './VideoBannerAndPin';
 
 export interface MerchantBusinessItem {
   id: string;
@@ -39,6 +40,8 @@ export interface MerchantBusinessItem {
   hasAd?: boolean;
   isAd?: boolean;
   flyerUrl?: string;
+  videoAdUrl?: string;
+  creatorVideoUrl?: string;
   phone?: string;
   website?: string;
   hours?: string;
@@ -130,25 +133,15 @@ export default function MerchantDetailModal({
   // VISTA 1: DETTAGLIO SINGOLO COMMERCIANTE
   if (selectedBusiness) {
     const visual = classifyMerchantPin(selectedBusiness);
+    const activeVideoUrl = selectedBusiness.videoAdUrl || selectedBusiness.creatorVideoUrl;
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
-        <div className="relative w-full max-w-xl bg-zinc-950 border border-zinc-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-white">
-          {/* Header colorato per distinzione chiara Pi vs Pubblicità */}
-          <div
-            className="px-6 py-4 border-b border-zinc-800 flex items-start justify-between gap-3"
-            style={{
-              background:
-                visual.type === 'DOUBLE_RING'
-                  ? 'linear-gradient(135deg, rgba(255,215,0,0.18), rgba(139,92,246,0.22), rgba(9,9,11,0.95))'
-                  : visual.type === 'PI_ACCEPTED'
-                  ? 'linear-gradient(135deg, rgba(139,92,246,0.28), rgba(245,158,11,0.15), rgba(9,9,11,0.95))'
-                  : 'linear-gradient(135deg, rgba(245,158,11,0.25), rgba(217,119,6,0.12), rgba(9,9,11,0.95))',
-            }}
-          >
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+        <div className="relative w-full max-w-2xl bg-zinc-950 border border-zinc-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] text-white">
+          <div className="px-5 py-4 border-b border-zinc-800 flex items-start justify-between gap-3 bg-zinc-900/70">
             <div className="flex items-start gap-3 min-w-0">
               <div
-                className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shrink-0 border-2 shadow-lg"
+                className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shrink-0 border-2"
                 style={{
                   borderColor: visual.outerRingColor,
                   backgroundColor: 'rgba(0,0,0,0.65)',
@@ -157,43 +150,46 @@ export default function MerchantDetailModal({
                 {visual.icon}
               </div>
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${visual.badgeClass}`}>
-                    {visual.badgeLabel}
-                  </span>
+                <div className="text-[11px] font-bold text-amber-300">
+                  {visual.badgeLabel} · {(selectedBusiness.rating ?? 4.9).toFixed(1)} ★
                 </div>
-                <h2 className="text-lg font-black text-white truncate">{selectedBusiness.name}</h2>
-                <p className="text-xs text-zinc-300 flex items-center gap-1.5">
-                  <span>{selectedBusiness.categoryLabel || selectedBusiness.category || 'Attività Locale'}</span>
-                  <span>•</span>
-                  <span className="flex items-center gap-0.5 text-amber-300 font-bold">
-                    <Star className="w-3 h-3 fill-amber-300" />
-                    {(selectedBusiness.rating ?? 4.9).toFixed(1)}
-                  </span>
+                <h2 className="text-lg font-black text-white break-words">{selectedBusiness.name}</h2>
+                <p className="text-xs text-zinc-400">
+                  {selectedBusiness.categoryLabel || selectedBusiness.category || 'Attività Locale'}
                 </p>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-700 cursor-pointer shrink-0"
+              className="min-h-[40px] min-w-[40px] p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-700 cursor-pointer shrink-0 flex items-center justify-center"
               title="Chiudi scheda"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          {/* Contenuto dettagliato */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-4 text-xs">
+          <div className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
+            {(activeVideoUrl || selectedBusiness.hasAd || selectedBusiness.isAd) && (
+              <VideoBannerAndPin
+                mode="BANNER"
+                adId={`merchant_${selectedBusiness.id}`}
+                title={selectedBusiness.adHeadline || selectedBusiness.promo || selectedBusiness.name}
+                subtitle={selectedBusiness.city ? `${selectedBusiness.city} · Spot Attività` : 'Spot Attività Locale'}
+                videoUrl={activeVideoUrl}
+                posterUrl={selectedBusiness.flyerUrl}
+                badgeText={visual.badgeLabel}
+              />
+            )}
+
             <p className="text-zinc-200 leading-relaxed text-sm">
               {selectedBusiness.description || visual.description}
             </p>
 
-            {/* Vetrina / Volantino se presente */}
             {(selectedBusiness.adHeadline || selectedBusiness.promo) && (
-              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-400/40 space-y-1">
+              <div className="py-3 border-y border-zinc-800 space-y-1">
                 <div className="flex items-center gap-1.5 text-amber-300 font-black uppercase tracking-wider text-[11px]">
                   <Megaphone className="w-4 h-4" />
-                  <span>Volantino & Promo Attiva</span>
+                  <span>Promo Attiva</span>
                 </div>
                 <p className="text-sm font-bold text-white">
                   {selectedBusiness.adHeadline || selectedBusiness.promo}
@@ -201,19 +197,15 @@ export default function MerchantDetailModal({
               </div>
             )}
 
-            {/* Box Pagamento diretto in Pi se il commerciante accetta Pi */}
             {visual.hasPi ? (
-              <div className="p-4 rounded-2xl bg-purple-950/35 border border-purple-500/40 space-y-3">
+              <div className="p-4 rounded-2xl bg-purple-950/30 border border-purple-500/40 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Coins className="w-4 h-4 text-purple-300" />
                     <span className="font-black text-purple-200 uppercase tracking-wider text-[11px]">
-                      Accetta Pagamenti Pi Network (π)
+                      Paga in Pi Network (π)
                     </span>
                   </div>
-                  <span className="px-2 py-0.5 rounded bg-amber-400/20 text-amber-300 font-bold text-[10px] border border-amber-400/30">
-                    Viola / Oro
-                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -222,36 +214,30 @@ export default function MerchantDetailModal({
                     min="0.01"
                     value={piAmount}
                     onChange={(e) => setPiAmount(e.target.value)}
-                    className="w-28 px-3 py-2 rounded-xl bg-black border border-purple-500/40 text-white font-mono font-bold focus:outline-none focus:border-amber-400"
+                    className="w-28 px-3 py-2 rounded-xl bg-black border border-purple-500/40 text-white font-mono font-bold tabular-nums focus:outline-none focus:border-amber-400"
                     aria-label="Importo in Pi"
                   />
                   <button
                     onClick={() => handlePayWithPi(selectedBusiness)}
                     disabled={isPayingPi}
-                    className="flex-1 py-2 px-4 rounded-xl bg-gradient-to-r from-purple-600 to-amber-500 hover:from-purple-500 hover:to-amber-400 text-white font-black text-xs cursor-pointer transition-all active:scale-95 disabled:opacity-50"
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 to-amber-500 hover:from-purple-500 hover:to-amber-400 text-white font-black text-xs cursor-pointer transition-all active:scale-95 disabled:opacity-50"
                   >
                     {isPayingPi ? 'Connessione Pi Wallet...' : `Paga ${piAmount} π in Negozio`}
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="p-3.5 rounded-2xl bg-amber-950/30 border border-amber-500/30 flex items-center justify-between">
-                <span className="text-amber-200 font-semibold">
-                  Vetrina commerciale solo pubblicitaria (pagamento tradizionale in sede).
-                </span>
-                <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold text-[10px] border border-amber-500/40 shrink-0">
-                  Oro Puro
-                </span>
+              <div className="py-2.5 border-y border-zinc-800 text-amber-200 font-semibold">
+                Vetrina commerciale promozionale · pagamento diretto in sede.
               </div>
             )}
 
-            {/* Metadati logistici */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div className="flex items-center gap-2.5 py-2 border-b border-zinc-800/80">
                 <MapPin className="w-4 h-4 text-[#00ff66] shrink-0" />
-                <div className="min-w-0">
+                <div>
                   <span className="text-[10px] text-zinc-400 block uppercase font-bold">Territorio</span>
-                  <span className="text-zinc-100 font-semibold truncate block">
+                  <span className="text-zinc-100 font-semibold">
                     {selectedBusiness.city || 'Locale'}
                     {selectedBusiness.region ? ` (${selectedBusiness.region})` : ''}
                   </span>
@@ -456,21 +442,21 @@ export default function MerchantDetailModal({
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-xl shrink-0">{visual.icon}</span>
                     <div className="min-w-0">
-                      <h3 className="text-sm font-black text-white truncate group-hover:text-[#00ff66] transition-colors">
+                      <h3 className="text-sm font-black text-white break-words group-hover:text-[#00ff66] transition-colors">
                         {biz.name}
                       </h3>
-                      <span className="text-[11px] text-zinc-400 block truncate">
-                        {biz.city} {biz.region ? `• ${biz.region}` : ''}
+                      <span className="text-[11px] text-zinc-400 block">
+                        {biz.city} {biz.region ? `· ${biz.region}` : ''}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${visual.badgeClass}`}>
+                <div className="text-[10px] font-black uppercase text-amber-300">
                   {visual.badgeLabel}
-                </span>
+                </div>
 
-                <p className="text-xs text-zinc-300 line-clamp-2">
+                <p className="text-xs text-zinc-300 leading-relaxed">
                   {biz.adHeadline || biz.promo || biz.description}
                 </p>
               </div>

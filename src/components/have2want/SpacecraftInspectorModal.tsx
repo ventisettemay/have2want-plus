@@ -452,10 +452,10 @@ export default function SpacecraftInspectorModal({
                             }`}
                           />
                         </div>
-                        <span className="text-[10px] font-bold text-white truncate w-full">
+                        <span className="text-[11px] font-bold text-white w-full break-words leading-snug">
                           {s.name}
                         </span>
-                        <span className="text-[8px] font-mono text-zinc-400 truncate w-full">
+                        <span className="text-[9px] font-mono text-zinc-400 w-full">
                           {t?.status === 'live'
                             ? `${formatCoordLat(t.lat)} · ${t.altitudeKm?.toFixed(0)}km`
                             : t?.status === 'logical_channel'
@@ -560,15 +560,15 @@ export default function SpacecraftInspectorModal({
                         <div className="flex items-center gap-3 min-w-0">
                           <span className="text-xl shrink-0">{sat.icon}</span>
                           <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-black text-white truncate">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs font-black text-white">
                                 {sat.name}
                               </span>
-                              <span className="text-[9px] font-mono font-bold text-zinc-400">
+                              <span className="text-[10px] font-mono font-bold text-zinc-400">
                                 {sat.codeName}
                               </span>
                             </div>
-                            <p className="text-[10px] text-zinc-400 truncate">
+                            <p className="text-[11px] text-zinc-400 leading-snug">
                               {sat.h2wRole}
                             </p>
                           </div>

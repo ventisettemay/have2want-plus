@@ -4,6 +4,8 @@ import { X, Video, Mic, MicOff, Minimize, Maximize2, Monitor, PhoneOff, AlertCir
 import { toast } from "sonner";
 import { auth } from "@/lib/firebase";
 import { publishRtcSignalToCloud, subscribeRtcSignals } from "@/lib/firestoreService";
+import { GOOGLE_PUBLIC_STUN_SERVERS, IceServerEntry } from "@/lib/freeServicesConfig";
+import { getDynamicIceServers } from "@/lib/turnService";
 
 interface VideoChatModalProps {
   isOpen?: boolean;
@@ -12,6 +14,7 @@ interface VideoChatModalProps {
   otherUserName?: string;
   otherUserAvatar?: string;
   currentUserId?: string;
+  iceServersOverride?: IceServerEntry[];
 }
 
 export function VideoChatModal({
@@ -19,6 +22,7 @@ export function VideoChatModal({
   onClose,
   listingId = "h2w_call",
   otherUserName = "Fornitore Partner",
+  iceServersOverride,
 }: VideoChatModalProps) {
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
@@ -31,6 +35,9 @@ export function VideoChatModal({
     "awaiting_signaling" | "signaling_ready" | "connected" | "disconnected"
   >("awaiting_signaling");
   const [peerConnection, setPeerConnection] = useState<RTCPeerConnection | null>(null);
+  const [iceServers, setIceServers] = useState<IceServerEntry[]>(
+    () => iceServersOverride || GOOGLE_PUBLIC_STUN_SERVERS
+  );
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -38,12 +45,21 @@ export function VideoChatModal({
   const iceBufferRef = useRef<RTCIceCandidateInit[]>([]);
   const callRoomId = `call_${String(listingId || "h2w").replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 
-  const ICE_SERVERS = {
-    iceServers: [
-      { urls: "stun:stun.l.google.com:19302" },
-      { urls: "stun:stun1.l.google.com:19302" },
-    ],
-  };
+  useEffect(() => {
+    if (iceServersOverride && iceServersOverride.length > 0) {
+      setIceServers(iceServersOverride);
+      return;
+    }
+    let mounted = true;
+    getDynamicIceServers().then((servers) => {
+      if (mounted && Array.isArray(servers) && servers.length > 0) {
+        setIceServers(servers);
+      }
+    }).catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, [iceServersOverride]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -54,7 +70,7 @@ export function VideoChatModal({
     let cancelled = false;
     setConnectionState("awaiting_signaling");
     setIsMinimized(false);
-    const pc = initializePeerConnection();
+    const pc = initializePeerConnection(iceServers);
 
     const unsubSignals = subscribeRtcSignals(
       callRoomId,
@@ -152,9 +168,9 @@ export function VideoChatModal({
     }
   };
 
-  const initializePeerConnection = (): RTCPeerConnection | null => {
+  const initializePeerConnection = (servers: IceServerEntry[] = iceServers): RTCPeerConnection | null => {
     if (typeof RTCPeerConnection === "undefined") return null;
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS.iceServers });
+    const pc = new RTCPeerConnection({ iceServers: servers as RTCIceServer[] });
     pc.onicecandidate = (event) => {
       if (event.candidate) {
         iceBufferRef.current = [...iceBufferRef.current.slice(-12), event.candidate.toJSON()];

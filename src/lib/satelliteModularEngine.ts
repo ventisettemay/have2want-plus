@@ -269,6 +269,9 @@ const LEGACY_CHANNEL_ALIASES: Record<string, string> = {
   LAVORO: 'SUPERMARKET',
   COMUNITA: 'EMERGENCY',
   SOCCORSO: 'EMERGENCY',
+  SOCCORSO_SAT: 'EMERGENCY',
+  RADAR_SAT: 'RADAR',
+  RADAR: 'RADAR',
 };
 
 export function resolveSatelliteChannel(satIdOrChannel: SatelliteId | string): string {

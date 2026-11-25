@@ -787,36 +787,31 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
               </p>
             </div>
 
-            {/* BANNER PRODOTTI DAL MONDO & BARATTO PI NETWORK */}
-            <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-zinc-950 via-zinc-900 to-emerald-950/70 border-2 border-emerald-500/50 flex flex-col md:flex-row items-center justify-between gap-5 shadow-2xl relative overflow-hidden group">
-              <div className="space-y-2 text-left relative z-10 max-w-2xl">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="px-2.5 py-1 rounded-full bg-[#00ff66]/15 border border-[#00ff66]/40 text-[#00ff66] text-[11px] font-mono font-black uppercase tracking-wider">
-                    🌐 Prodotti Fisici dal Mondo
-                  </span>
-                  <span className="px-2.5 py-0.5 rounded-full bg-zinc-800 text-zinc-300 text-[10px] font-bold">
-                    Spedizioni a Casa • Rete Pi Network
-                  </span>
+            {/* BANNER PRODOTTI DAL MONDO & BARATTO PI NETWORK (Slot compatto anti-muro di testo) */}
+            <div className="px-4 py-3.5 sm:px-5 rounded-2xl bg-gradient-to-r from-zinc-950 via-zinc-900 to-emerald-950/70 border border-emerald-500/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#00ff66]/15 border border-[#00ff66]/40 text-[#00ff66] flex items-center justify-center shrink-0">
+                  <ShoppingBag className="w-5 h-5" />
                 </div>
-                <h2 className="text-lg sm:text-xl font-black text-white">
-                  Catalogo Internazionale & Conversione in Baratto
-                </h2>
-                <p className="text-xs sm:text-sm text-zinc-300 leading-relaxed">
-                  Scopri prodotti fisici autentici dai partner mondiali con consegna a domicilio. Vuoi scambiare senza spendere denaro? Clicca <strong className="text-[#00ff66]">"Cerco in Baratto"</strong> per trasformare qualsiasi prodotto in una richiesta nella bacheca Have2Want in Pi Coin!
-                </p>
+                <div>
+                  <div className="text-[10px] font-mono font-black uppercase tracking-wider text-[#00ff66]">
+                    Prodotti Fisici dal Mondo • Spedizione o Baratto
+                  </div>
+                  <h2 className="text-sm sm:text-base font-black text-white">
+                    Catalogo Internazionale &amp; Richieste in Pi Coin
+                  </h2>
+                </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto relative z-10 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => handleSelectSection('ESTERNI')}
-                  className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-[#00ff66] hover:bg-[#00e65c] text-black font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg hover:shadow-[#00ff66]/20 transition-all cursor-pointer"
-                >
-                  <ShoppingBag className="w-4 h-4 stroke-[2.5]" />
-                  <span>Apri Prodotti dal Mondo</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => handleSelectSection('ESTERNI')}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-[#00ff66] hover:bg-[#00e65c] text-black font-black text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer shrink-0"
+              >
+                <ShoppingBag className="w-4 h-4 stroke-[2.5]" />
+                <span>Apri Catalogo Mondo</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
             </div>
 
             {/* LE 3 GRANDI SCHEDE REGINE: VENDO • SCAMBIO • CERCO */}
@@ -1013,7 +1008,7 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
                             </span>
                           )}
                         </div>
-                        <h4 className="text-xs font-black text-white group-hover:text-[#00ff66] transition-colors line-clamp-1 drop-shadow-sm">
+                        <h4 className="text-xs font-black text-white group-hover:text-[#00ff66] transition-colors leading-snug break-words drop-shadow-sm">
                           {cat.label}
                         </h4>
                       </div>
@@ -1258,9 +1253,9 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
                           )}
                         </div>
 
-                        <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-black/80 text-white backdrop-blur-md border border-white/10 shadow-md flex items-center gap-1 shrink-0">
-                          <MapPin className="w-3 h-3 text-[#00ff66]" />
-                          <span className="truncate max-w-[110px]">{item.author?.city || item.city || "Mondo"}</span>
+                        <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-black/80 text-white backdrop-blur-md border border-white/10 shadow-md flex items-center gap-1 max-w-[140px]">
+                          <MapPin className="w-3 h-3 text-[#00ff66] shrink-0" />
+                          <span className="break-words">{item.author?.city || item.city || "Mondo"}</span>
                         </span>
                       </div>
 
@@ -1274,7 +1269,7 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
                           )}
                         </div>
 
-                        <h3 className="text-base sm:text-lg font-black text-white leading-tight drop-shadow-md group-hover:text-[#00ff66] transition-colors line-clamp-1">
+                        <h3 className="text-base sm:text-lg font-black text-white leading-tight drop-shadow-md group-hover:text-[#00ff66] transition-colors break-words">
                           {item.title}
                         </h3>
 
@@ -1419,15 +1414,15 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
                   </div>
 
                   {newIntent === "VENDO" || newIntent === "ACQUISTO_CERCO" ? (
-                    <div className="col-span-1 sm:col-span-2 p-3 rounded-xl bg-zinc-950 border border-zinc-800 space-y-2">
+                    <div className="col-span-1 sm:col-span-2 py-3 border-t border-b border-zinc-900 space-y-2">
                       <div className="flex flex-wrap items-center justify-between gap-1">
                         <label className="block text-xs font-bold text-zinc-300">
-                          {newIntent === "VENDO" ? "Prezzo di Vendita" : "Budget / Prezzo d'Acquisto"} (Conversione Automatica)
+                          {newIntent === "VENDO" ? "Prezzo di Vendita" : "Budget / Prezzo d'Acquisto"} (Conversione Live)
                         </label>
                         {/* Riferimento Reale CoinMarketCap */}
-                        <div className="flex items-center gap-1.5 bg-black px-2.5 py-1 rounded-lg border border-zinc-800 text-[10px] text-emerald-400 font-mono">
+                        <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-mono">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                          CoinMarketCap Live: 1 π ≈ {currentRate} {selectedCurrency}
+                          1 π ≈ {currentRate} {selectedCurrency}
                         </div>
                       </div>
 
@@ -1437,7 +1432,7 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
                           <label className="text-[10px] text-zinc-400 font-bold block mb-1">
                             Valuta Locale ({selectedCurrency})
                           </label>
-                          <div className="flex items-center rounded-lg bg-black border border-zinc-700 overflow-hidden focus-within:border-[#00ff66]">
+                          <div className="flex items-center rounded-lg bg-black border border-zinc-800 overflow-hidden focus-within:border-[#00ff66]">
                             <select
                               value={selectedCurrency}
                               onChange={(e) => setSelectedCurrency(e.target.value)}
@@ -1470,7 +1465,7 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
                           <label className="text-[10px] text-[#00ff66] font-bold block mb-1">
                             Equivalente Pi Coin (π)
                           </label>
-                          <div className="flex items-center rounded-lg bg-black border border-[#00ff66]/50 overflow-hidden focus-within:border-[#00ff66]">
+                          <div className="flex items-center rounded-lg bg-black border border-[#00ff66]/40 overflow-hidden focus-within:border-[#00ff66]">
                             <span className="px-2.5 py-2 bg-[#00ff66]/10 text-[#00ff66] font-bold text-xs border-r border-zinc-800 font-mono">
                               π
                             </span>
@@ -1486,11 +1481,6 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
                             />
                           </div>
                         </div>
-                      </div>
-
-                      <div className="text-[10px] text-zinc-400 flex items-center justify-between pt-0.5">
-                        <span>1 π ≈ {currentRate} {selectedCurrency}</span>
-                        <span className="text-[#00ff66] font-mono">Conversione automatica attiva ✓</span>
                       </div>
                     </div>
                   ) : (
@@ -1590,7 +1580,7 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
                     <h3 className="text-sm font-black text-white">Contatta {quickContactListing.author.name}</h3>
                     <ListingOriginBadge listing={quickContactListing} size="xs" />
                   </div>
-                  <p className="text-xs text-zinc-400 truncate">{quickContactListing.title}</p>
+                  <p className="text-xs text-zinc-400 break-words">{quickContactListing.title}</p>
                 </div>
                 <button
                   onClick={() => setQuickContactListing(null)}
@@ -1658,7 +1648,7 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
                   <X className="w-4 h-4" />
                 </button>
               </div>
-              <p className="text-xs text-zinc-400 truncate">
+              <p className="text-xs text-zinc-400 break-words">
                 Annuncio: <strong className="text-white">{reportTargetListing.title}</strong>
               </p>
               <form onSubmit={handleConfirmAbuseReport} className="space-y-3">

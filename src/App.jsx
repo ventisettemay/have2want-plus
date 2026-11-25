@@ -849,7 +849,7 @@ function Have2WantPlusMain() {
                 title="Scegli una categoria dal menu a tendina"
               >
                 <span>📂</span>
-                <span className="max-w-[130px] truncate">
+                <span>
                   {selectedCategory === 'ALL'
                     ? 'Tutte le Categorie'
                     : REAL_CATEGORIES_MATRIX.find((c) => c.key === selectedCategory)?.label || selectedCategory}
@@ -864,7 +864,7 @@ function Have2WantPlusMain() {
                     className="fixed inset-0 z-40"
                     onClick={() => setShowCategoryDropdown(false)}
                   />
-                  <div className="absolute left-0 top-full mt-1.5 w-64 max-h-80 overflow-y-auto bg-zinc-950 border-2 border-emerald-500/50 rounded-2xl p-1.5 z-50 shadow-2xl space-y-1">
+                  <div className="absolute left-0 top-full mt-1.5 w-72 max-h-80 overflow-y-auto bg-zinc-950 border-2 border-emerald-500/50 rounded-2xl p-1.5 z-50 shadow-2xl space-y-1">
                     <button
                       type="button"
                       onClick={() => {
@@ -896,8 +896,8 @@ function Have2WantPlusMain() {
                             : 'text-zinc-200 hover:bg-zinc-900'
                         }`}
                       >
-                        <span className="text-sm">📌</span>
-                        <span className="truncate">{cat.label}</span>
+                        <span className="text-sm shrink-0">📌</span>
+                        <span className="break-words">{cat.label}</span>
                       </button>
                     ))}
                   </div>
@@ -1566,6 +1566,11 @@ function Have2WantPlusMain() {
             <div className="flex-1 overflow-y-auto pt-3">
               <SalvavatuttoArchive
                 guides={guides}
+                onRedirectToDefiancePulse={() => {
+                  setShowGuides(false);
+                  ensureGlobeMountedForAction();
+                  setActiveSatelliteChannel('DEFIANCE_PULSE');
+                }}
                 onAddGuide={async (newGuide) => {
                   setGuides((prev) => [newGuide, ...prev]);
                   const ok = await saveGuideToCloud({

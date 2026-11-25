@@ -16,6 +16,7 @@ interface SalvavatuttoArchiveProps {
   guides: SalvavatuttoGuide[];
   onAddGuide: (guide: SalvavatuttoGuide) => void;
   onUpvoteGuide?: (guideId: string) => void;
+  onRedirectToDefiancePulse?: () => void;
 }
 
 const SALVAVATUTTO_SYNONYMS: Record<string, string[]> = {
@@ -31,6 +32,7 @@ export const SalvavatuttoArchive: React.FC<SalvavatuttoArchiveProps> = ({
   guides,
   onAddGuide,
   onUpvoteGuide,
+  onRedirectToDefiancePulse,
 }) => {
   const [upvotedIds, setUpvotedIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
@@ -177,41 +179,51 @@ export const SalvavatuttoArchive: React.FC<SalvavatuttoArchiveProps> = ({
   };
 
   return (
-    <div className="space-y-6">
-      {/* Luminous Banner */}
-      <div className="p-6 sm:p-7 rounded-3xl bg-gradient-to-r from-sky-950/70 via-slate-900/90 to-sky-900/40 border border-sky-400/40 shadow-[0_0_40px_rgba(56,189,248,0.15)]">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
-          <div>
-            <div className="flex items-center gap-2 text-sky-300 text-xs sm:text-sm font-bold uppercase tracking-wider mb-1.5">
-              <Archive className="w-4 h-4" />
-              GUIDE PRATICHE &amp; RISPARMIO
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">Riparazioni, Fai-da-Te e Consigli Utili</h2>
-            <p className="text-sm sm:text-base text-slate-300 mt-2 max-w-2xl leading-relaxed">
-              Consigli pratici su come riparare oggetti invece di buttarli, risparmiare risorse e condividere le tue abilità con la comunità locale.
+    <div className="space-y-5">
+      {/* Banner compatto + Redirect verso DEFIANCE PULSE */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-zinc-900/90 border border-zinc-800 space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+              Guide Pratiche &amp; Riparazioni
+            </h2>
+            <p className="text-xs sm:text-sm text-zinc-400">
+              Tutorial essenziali di riuso, manutenzione e autonomia locale.
             </p>
           </div>
 
-          <button
-            onClick={() => setIsModalOpen(true)}
-            id="open-add-guide-modal-btn"
-            className="inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-sky-400 to-blue-500 hover:from-sky-300 hover:to-blue-400 text-slate-950 font-black text-sm sm:text-base shadow-xl shadow-sky-500/25 transition-all cursor-pointer shrink-0"
-          >
-            <Plus className="w-5 h-5 stroke-[3]" />
-            <span>Aggiungi una Guida</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {onRedirectToDefiancePulse && (
+              <button
+                type="button"
+                id="btn-salvavatutto-redirect-defiance"
+                onClick={onRedirectToDefiancePulse}
+                className="min-h-[42px] inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-400 text-white font-black text-xs sm:text-sm transition-colors cursor-pointer"
+              >
+                <span>Apri in DEFIANCE PULSE</span>
+              </button>
+            )}
+            <button
+              onClick={() => setIsModalOpen(true)}
+              id="open-add-guide-modal-btn"
+              className="min-h-[42px] inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-sky-400 hover:bg-sky-300 text-slate-950 font-black text-xs sm:text-sm transition-colors cursor-pointer"
+            >
+              <Plus className="w-4 h-4 stroke-[3]" />
+              <span>Aggiungi Guida</span>
+            </button>
+          </div>
         </div>
 
         {/* Search & Filter */}
-        <div className="mt-6 pt-5 border-t border-sky-500/20 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <div className="pt-3 border-t border-zinc-800 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Cerca guida: riparare biciclette, conservare cibi, orto, risparmio energetico..."
+              placeholder="Cerca guida: biciclette, cibi, orto, energia..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-11 pr-4 py-2.5 bg-slate-950 border border-slate-700 rounded-2xl text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-sky-400"
+              className="w-full pl-10 pr-4 py-2.5 bg-zinc-950 border border-zinc-700 rounded-xl text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-sky-400"
             />
           </div>
 
@@ -227,10 +239,10 @@ export const SalvavatuttoArchive: React.FC<SalvavatuttoArchiveProps> = ({
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
-                className={`px-3.5 py-2 rounded-xl border text-xs sm:text-sm whitespace-nowrap transition-all font-semibold cursor-pointer ${
+                className={`px-3.5 py-2 rounded-xl border text-xs whitespace-nowrap transition-colors font-bold cursor-pointer ${
                   selectedCategory === cat
-                    ? "bg-sky-400 text-slate-950 font-extrabold shadow-md border-sky-300"
-                    : "bg-slate-950 border-slate-800 text-slate-300 hover:text-white hover:bg-slate-900"
+                    ? "bg-sky-400 text-slate-950 font-black border-sky-300"
+                    : "bg-zinc-950 border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-900"
                 }`}
               >
                 {cat === "ALL" ? "Tutte le Guide" : cat}
@@ -258,32 +270,24 @@ export const SalvavatuttoArchive: React.FC<SalvavatuttoArchiveProps> = ({
                 className="p-6 cursor-pointer flex items-start justify-between gap-5"
               >
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2.5 mb-2">
-                    <span className="text-xs font-black uppercase tracking-wider px-3 py-1 rounded-lg bg-sky-500/20 text-sky-300 border border-sky-500/30">
-                      {guide.category}
-                    </span>
-                    {guide.isEssential && (
-                      <span className="text-xs font-black uppercase tracking-wider px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
-                        <Shield className="w-3.5 h-3.5" /> Essenziale
-                      </span>
-                    )}
-                    <span className="text-xs text-slate-400 flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5" /> {guide.readTimeMin} min lettura
-                    </span>
+                  <div className="text-xs text-sky-300 font-bold mb-1.5">
+                    {guide.category}
+                    {guide.isEssential ? ' · Essenziale' : ''}
+                    {` · ${guide.readTimeMin} min`}
                   </div>
 
-                  <h3 className="text-lg sm:text-xl font-bold text-white hover:text-sky-300 transition-colors">
+                  <h3 className="text-lg font-bold text-white hover:text-sky-300 transition-colors">
                     {guide.title}
                   </h3>
 
-                  <p className="text-xs sm:text-sm text-slate-300 mt-2 line-clamp-2 leading-relaxed">
+                  <p className="text-xs sm:text-sm text-slate-300 mt-1.5 leading-relaxed">
                     {guide.summary}
                   </p>
                 </div>
 
                 <div className="flex items-center gap-3.5 shrink-0">
                   <div className="text-right hidden sm:block">
-                    <div className="text-xs font-bold text-slate-200">Autore: {guide.author}</div>
+                    <div className="text-xs font-bold text-slate-200">{guide.author}</div>
                     <div className="text-xs text-slate-500">{guide.lastUpdated}</div>
                   </div>
                   <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-slate-300">
@@ -294,20 +298,15 @@ export const SalvavatuttoArchive: React.FC<SalvavatuttoArchiveProps> = ({
 
               {isExpanded && (
                 <div className="px-6 pb-6 pt-3 border-t border-slate-800 space-y-4 text-sm animate-in fade-in duration-200">
-                  <div>
-                    <h4 className="text-xs font-black text-sky-300 uppercase tracking-wider mb-3">
-                      Procedura &amp; Passaggi Operativi
-                    </h4>
-                    <div className="space-y-3">
-                      {guide.steps.map((step, idx) => (
-                        <div key={idx} className="p-4 rounded-2xl bg-slate-950 border border-slate-800 flex items-start gap-3.5">
-                          <div className="w-6 h-6 rounded-full bg-sky-500/20 text-sky-300 font-mono font-bold flex items-center justify-center text-xs shrink-0 mt-0.5 border border-sky-500/30">
-                            {idx + 1}
-                          </div>
-                          <p className="text-slate-200 leading-relaxed text-sm sm:text-base">{step}</p>
-                        </div>
-                      ))}
-                    </div>
+                  <div className="space-y-2.5">
+                    {guide.steps.map((step, idx) => (
+                      <div key={idx} className="py-2 border-b border-slate-800/70 last:border-b-0 flex items-start gap-3">
+                        <span className="font-mono font-black text-sky-300 text-xs tabular-nums shrink-0 mt-0.5">
+                          0{idx + 1}.
+                        </span>
+                        <p className="text-slate-200 leading-relaxed text-sm">{step}</p>
+                      </div>
+                    ))}
                   </div>
 
                   <div className="pt-4 flex items-center justify-between gap-3 text-xs text-slate-400">

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Globo3D from './Globo3D';
 import Urbano3D from './Urbano3D';
-import VoiceNoteChat from './VoiceNoteChat';
+import PiChatUnifiedHub from './PiChatUnifiedHub';
+import RadarProximityModal from './RadarProximityModal';
 import PiNetworkHub from './PiNetworkHub';
 import { PioneerRewardsHubModal } from './PioneerRewardsHubModal';
 import BusinessSponsorModal from './BusinessSponsorModal';
@@ -15,8 +16,8 @@ import StreetView360Modal from './StreetView360Modal';
 import SpacecraftInspectorModal from './SpacecraftInspectorModal';
 import ActionFlowHubModal from './ActionFlowHubModal';
 import DefiancePulseHub from './DefiancePulseHub';
-import VideoChatModal from './VideoChatModal';
 import { SATELLITE_TO_CHANNEL, resolveSatelliteChannel } from '@/lib/satelliteModularEngine';
+import { subscribeSyncMessages } from '@/lib/freeServicesConfig';
 import { ExternalListings } from './ExternalListings';
 import { COUNTRIES } from '@/data/countries';
 import { SPONSORED_BUSINESSES, ITALIAN_REGIONS } from '@/data/regions';
@@ -379,7 +380,14 @@ export default function MapView3DContainer({
     () => resolveCountryData(selectedCountryId)?.code || 'GLOBAL'
   );
 
+  const [creatorPromos, setCreatorPromos] = useState([]);
+
   useEffect(() => {
+    const unsubSync = subscribeSyncMessages('CREATOR_PROMO_PUBLISHED', (payload) => {
+      if (payload && payload.mediaUrl) {
+        setCreatorPromos((prev) => [payload, ...prev.slice(0, 11)]);
+      }
+    });
     const unsubscribe = subscribeToCloudShops((cloudShops) => {
       if (cloudShops && cloudShops.length > 0) {
         setSponsoredBusinesses(() => {
@@ -390,7 +398,10 @@ export default function MapView3DContainer({
         });
       }
     });
-    return () => unsubscribe();
+    return () => {
+      unsubSync();
+      unsubscribe();
+    };
   }, []);
 
   const handleCountrySelection = (selectedIdOrObj) => {
@@ -948,6 +959,19 @@ export default function MapView3DContainer({
                   }
                   break;
 
+                case 'RADAR_SAT':
+                case 'RADAR':
+                  if (activeSatellite === 'RADAR') {
+                    setActiveSatellite(null);
+                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
+                    toast.info('📡 Radar Prossimità Chiuso', { duration: 1800 });
+                  } else {
+                    setActiveSatellite('RADAR');
+                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('RADAR');
+                    toast.success('📡 Radar Prossimità Locale Attivo');
+                  }
+                  break;
+
                 default:
                   setInspectorTab('INSPECTOR');
                   setScientificSatellite(satIdentifier);
@@ -1223,32 +1247,21 @@ export default function MapView3DContainer({
         }}
       />
 
-      <VoiceNoteChat
-        isOpen={isVoiceChatOpen}
+      {/* CHAT VOCALE & VIDEOCHIAMATA P2P UNIFICATE (WebRTC + STUN/TURN zero-cost) */}
+      <PiChatUnifiedHub
+        isOpen={isVoiceChatOpen || isVideoChatOpen}
         onClose={() => {
           setIsVoiceChatOpen(false);
+          setIsVideoChatOpen(false);
           if (activeSatellite === 'CHAT') {
             handleCloseSatelliteModal();
           }
         }}
-        recipientName={voiceChatRecipient.name}
+        initialTab={isVideoChatOpen ? 'VIDEO' : 'CHAT'}
+        chatRoomId={videoChatTarget.roomId || 'h2w_p2p'}
+        recipientName={isVideoChatOpen ? videoChatTarget.name : voiceChatRecipient.name}
         recipientRole={voiceChatRecipient.role}
         initialVoiceIntro={voiceChatRecipient.intro}
-        onOpenVideoChat={(info) => {
-          setVideoChatTarget({
-            roomId: info?.roomId || 'h2w_p2p',
-            name: info?.name || voiceChatRecipient.name,
-          });
-          setIsVideoChatOpen(true);
-        }}
-      />
-
-      {/* VIDEOCHAT SEPARATA (WebRTC + Signaling) */}
-      <VideoChatModal
-        isOpen={isVideoChatOpen}
-        onClose={() => setIsVideoChatOpen(false)}
-        listingId={videoChatTarget.roomId}
-        otherUserName={videoChatTarget.name}
         currentUserId={currentProfile?.id || 'pioneer_local'}
       />
 
@@ -1318,7 +1331,16 @@ export default function MapView3DContainer({
             }
           }}
           businesses={sponsoredBusinesses}
-          selectedBusiness={selectedMerchantModal}
+          selectedBusiness={
+            selectedMerchantModal
+              ? {
+                  ...selectedMerchantModal,
+                  creatorVideoUrl:
+                    selectedMerchantModal.creatorVideoUrl ||
+                    creatorPromos.find((p) => p.placement === 'PIN' || p.placement === 'BANNER')?.mediaUrl,
+                }
+              : null
+          }
           onSelectBusiness={(biz) => setSelectedMerchantModal(biz)}
           onOpenVoiceChat={(biz) => handleOpenVoiceChatForStore(biz)}
           onFlyToBusiness={(biz) => {
@@ -1443,6 +1465,31 @@ export default function MapView3DContainer({
           onOpenBusinessSponsor={() => {
             handleCloseSatelliteModal();
             setIsAdModalOpen(true);
+          }}
+          onPublishCreatorPromo={(promo) => {
+            if (promo?.mediaUrl) {
+              setCreatorPromos((prev) => [promo, ...prev.slice(0, 11)]);
+            }
+          }}
+        />
+      )}
+      {activeSatellite === 'RADAR' && (
+        <RadarProximityModal
+          isOpen={true}
+          onClose={handleCloseSatelliteModal}
+          listings={listings}
+          businesses={sponsoredBusinesses}
+          centerLat={targetCoords?.lat ?? selectedCountry?.lat}
+          centerLng={targetCoords?.lng ?? selectedCountry?.lng}
+          territoryLabel={selectedCountry?.name || 'Area Selezionata'}
+          onSelectListing={(item) => {
+            handleCloseSatelliteModal();
+            handleBuildingSelect(item);
+          }}
+          onFlyToCoords={(lat, lng) => {
+            handleCloseSatelliteModal();
+            setTargetCoords({ lat, lng });
+            setLodLevel('URBANO_3D');
           }}
         />
       )}

@@ -12,6 +12,9 @@ import {
   Plus,
   CheckCircle2,
   Layers,
+  Upload,
+  MapPin,
+  Tv,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -20,12 +23,26 @@ import {
   setConfiguredLaunchCoefficient,
   AdDurationTier,
 } from '@/lib/countryAdvertisingPricing';
+import {
+  resolveCreatorMediaSource,
+  publishSyncMessage,
+} from '@/lib/freeServicesConfig';
+import VideoBannerAndPin from './VideoBannerAndPin';
+import TextTailsBackdrop from './TextTailsBackdrop';
+
+export type CreatorPlacementTarget = 'PIN' | 'BANNER' | 'CREATOR_SPACE';
 
 interface DefiancePulseHubProps {
   isOpen: boolean;
   onClose: () => void;
   currentCountryCode?: string;
   onOpenBusinessSponsor?: () => void;
+  onPublishCreatorPromo?: (promo: {
+    id: string;
+    title: string;
+    mediaUrl: string;
+    placement: CreatorPlacementTarget;
+  }) => void;
 }
 
 type PulseSection = 'CREATOR' | 'MUSICA' | 'VIDEO' | 'PROMOZIONE';
@@ -39,6 +56,7 @@ interface MusicTrack {
   chordFreqs: number[];
   durationSec: number;
   isPromoSlot?: boolean;
+  audioUrl?: string;
 }
 
 interface VideoReelItem {
@@ -49,6 +67,8 @@ interface VideoReelItem {
   accentHex: string;
   durationSec: number;
   description: string;
+  videoUrl?: string;
+  placement?: CreatorPlacementTarget;
 }
 
 const INITIAL_MUSIC_TRACKS: MusicTrack[] = [
@@ -91,6 +111,7 @@ const INITIAL_VIDEO_REELS: VideoReelItem[] = [
     accentHex: '#00ff66',
     durationSec: 45,
     description: 'Mini-documentario sul restauro e lo scambio locale a filiera zero.',
+    placement: 'CREATOR_SPACE',
   },
   {
     id: 'vid_2',
@@ -100,6 +121,7 @@ const INITIAL_VIDEO_REELS: VideoReelItem[] = [
     accentHex: '#f43f5e',
     durationSec: 60,
     description: 'Rotazione promozionale interna per artisti indipendenti.',
+    placement: 'BANNER',
   },
   {
     id: 'vid_3',
@@ -109,6 +131,7 @@ const INITIAL_VIDEO_REELS: VideoReelItem[] = [
     accentHex: '#38bdf8',
     durationSec: 38,
     description: 'Presentazione interattiva di botteghe e mercati rionali.',
+    placement: 'PIN',
   },
 ];
 
@@ -117,17 +140,29 @@ export default function DefiancePulseHub({
   onClose,
   currentCountryCode = 'IT',
   onOpenBusinessSponsor,
+  onPublishCreatorPromo,
 }: DefiancePulseHubProps) {
   const [section, setSection] = useState<PulseSection>('CREATOR');
 
-  // 1. CREATOR STATE
-  const [creatorPosts, setCreatorPosts] = useState([
+  // 1. CREATOR STATE (Self-promotion file upload + remote URL + placement PIN / BANNER / CREATOR_SPACE)
+  const [creatorPosts, setCreatorPosts] = useState<
+    Array<{
+      id: string;
+      author: string;
+      title: string;
+      tag: string;
+      likes: number;
+      mediaUrl?: string;
+      placement?: CreatorPlacementTarget;
+    }>
+  >([
     {
       id: 'cp_1',
       author: '@atelier_nord',
       title: 'Guida fotografica al baratto di attrezzatura',
       tag: 'Creator Locale',
       likes: 24,
+      placement: 'CREATOR_SPACE',
     },
     {
       id: 'cp_2',
@@ -135,10 +170,15 @@ export default function DefiancePulseHub({
       title: 'Anteprima EP digitale con distribuzione diretta Pi',
       tag: 'Musica Indipendente',
       likes: 18,
+      placement: 'BANNER',
     },
   ]);
   const [newPostTitle, setNewPostTitle] = useState('');
   const [newPostTag, setNewPostTag] = useState('Creator Locale');
+  const [remoteMediaUrl, setRemoteMediaUrl] = useState('');
+  const [localMediaFile, setLocalMediaFile] = useState<File | null>(null);
+  const [placementTarget, setPlacementTarget] = useState<CreatorPlacementTarget>('CREATOR_SPACE');
+  const createdObjectUrlsRef = useRef<string[]>([]);
 
   // 2. MUSICA STATE (Web Audio API real synth playback)
   const [tracks, setTracks] = useState<MusicTrack[]>(INITIAL_MUSIC_TRACKS);
@@ -153,7 +193,7 @@ export default function DefiancePulseHub({
   const gainNodeRef = useRef<GainNode | null>(null);
   const oscNodesRef = useRef<OscillatorNode[]>([]);
 
-  // 3. VIDEO STATE (Interactive Canvas reel renderer)
+  // 3. VIDEO STATE (Interactive Canvas reel renderer + real VideoBannerAndPin for uploaded/remote videos)
   const [videoReels, setVideoReels] = useState<VideoReelItem[]>(INITIAL_VIDEO_REELS);
   const [activeVideoIdx, setActiveVideoIdx] = useState(0);
   const [isPlayingVideo, setIsPlayingVideo] = useState(false);
@@ -190,6 +230,19 @@ export default function DefiancePulseHub({
       stopAudioEngine();
     };
   }, [isOpen]);
+
+  useEffect(() => {
+    return () => {
+      createdObjectUrlsRef.current.forEach((url) => {
+        try {
+          URL.revokeObjectURL(url);
+        } catch {
+          // ignore revoke failures
+        }
+      });
+      createdObjectUrlsRef.current = [];
+    };
+  }, []);
 
   useEffect(() => {
     if (gainNodeRef.current) {
@@ -326,18 +379,66 @@ export default function DefiancePulseHub({
   const handlePublishCreatorPost = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPostTitle.trim()) return;
+
+    const resolved = resolveCreatorMediaSource(localMediaFile || remoteMediaUrl);
+    const mediaUrl = resolved?.url || '';
+    if (resolved?.kind === 'object_url' && mediaUrl) {
+      createdObjectUrlsRef.current.push(mediaUrl);
+    }
+
+    const postId = `cp_${Date.now()}`;
     setCreatorPosts((prev) => [
       {
-        id: `cp_${Date.now()}`,
+        id: postId,
         author: '@pioneer_creator',
         title: newPostTitle.trim(),
         tag: newPostTag,
         likes: 1,
+        mediaUrl: mediaUrl || undefined,
+        placement: placementTarget,
       },
       ...prev,
     ]);
+
+    if (mediaUrl) {
+      const reelId = `vid_${Date.now()}`;
+      setVideoReels((prev) => [
+        {
+          id: reelId,
+          title: newPostTitle.trim(),
+          creator: '@pioneer_creator',
+          category: newPostTag,
+          accentHex: '#f43f5e',
+          durationSec: 60,
+          description: `Destinazione: ${placementTarget}`,
+          videoUrl: mediaUrl,
+          placement: placementTarget,
+        },
+        ...prev,
+      ]);
+      setActiveVideoIdx(0);
+    }
+
+    publishSyncMessage('CREATOR_PROMO_PUBLISHED', {
+      id: postId,
+      title: newPostTitle.trim(),
+      mediaUrl,
+      placement: placementTarget,
+    });
+
+    if (onPublishCreatorPromo) {
+      onPublishCreatorPromo({
+        id: postId,
+        title: newPostTitle.trim(),
+        mediaUrl,
+        placement: placementTarget,
+      });
+    }
+
     setNewPostTitle('');
-    toast.success('Contenuto Creator pubblicato nella rotazione Pulse');
+    setRemoteMediaUrl('');
+    setLocalMediaFile(null);
+    toast.success(`Contenuto Creator pubblicato in: ${placementTarget}`);
   };
 
   const handleAddTrack = (e: React.FormEvent) => {
@@ -370,8 +471,9 @@ export default function DefiancePulseHub({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
       <div className="relative w-full max-w-4xl max-h-[92vh] bg-zinc-950 border border-rose-500/40 rounded-3xl overflow-hidden shadow-2xl flex flex-col text-white">
+        <TextTailsBackdrop showLogo={false} className="absolute inset-0 opacity-20" />
         {/* Header */}
-        <div className="px-5 py-4 border-b border-zinc-800 bg-zinc-900/70 flex flex-wrap items-center justify-between gap-3">
+        <div className="relative z-10 px-5 py-4 border-b border-zinc-800 bg-zinc-900/70 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-rose-500/20 border border-rose-400/50 flex items-center justify-center text-rose-300">
               <Sparkles className="w-5 h-5" />
@@ -436,14 +538,14 @@ export default function DefiancePulseHub({
                 className="p-4 rounded-2xl bg-zinc-900/70 border border-zinc-800 space-y-3"
               >
                 <div className="text-xs font-black text-rose-300 uppercase">
-                  Pubblica Spazio Creator nella Bacheca Pulse
+                  Auto-Promozione Creator (File Locale o URL · PIN / Banner / Spazio Creator)
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <input
                     type="text"
                     value={newPostTitle}
                     onChange={(e) => setNewPostTitle(e.target.value)}
-                    placeholder="Titolo progetto, podcast, opera o guida..."
+                    placeholder="Titolo opera, video, audio o promo..."
                     className="flex-1 px-3 py-2 rounded-xl bg-black border border-zinc-700 text-xs text-white placeholder-zinc-500 focus:border-rose-400 focus:outline-none"
                     required
                   />
@@ -456,12 +558,67 @@ export default function DefiancePulseHub({
                     <option value="Musica Indipendente">Musica Indipendente</option>
                     <option value="Video & Documentari">Video & Documentari</option>
                   </select>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <label className="flex items-center gap-2 px-3 py-2 rounded-xl bg-black border border-zinc-700 text-xs text-zinc-300 cursor-pointer hover:border-rose-400">
+                    <Upload className="w-4 h-4 text-rose-400 shrink-0" />
+                    <span className="break-words">
+                      {localMediaFile ? localMediaFile.name : 'Carica file locale (Video / Audio)'}
+                    </span>
+                    <input
+                      type="file"
+                      accept="video/*,audio/*"
+                      onChange={(e) => setLocalMediaFile(e.target.files?.[0] || null)}
+                      className="hidden"
+                    />
+                  </label>
+
+                  <input
+                    type="url"
+                    value={remoteMediaUrl}
+                    onChange={(e) => setRemoteMediaUrl(e.target.value)}
+                    placeholder="Oppure URL remoto (es. https://archive.org/embed/...)"
+                    className="px-3 py-2 rounded-xl bg-black border border-zinc-700 text-xs text-white placeholder-zinc-500 focus:border-rose-400 focus:outline-none"
+                  />
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] font-bold text-zinc-400 mr-1">Posizionamento:</span>
+                    {(
+                      [
+                        { id: 'CREATOR_SPACE' as const, label: 'Spazio Creator', icon: Sparkles },
+                        { id: 'PIN' as const, label: 'Pin Mappa', icon: MapPin },
+                        { id: 'BANNER' as const, label: 'Banner Spot', icon: Tv },
+                      ] as const
+                    ).map((opt) => {
+                      const Icon = opt.icon;
+                      const selected = placementTarget === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => setPlacementTarget(opt.id)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer border transition-colors ${
+                            selected
+                              ? 'bg-rose-500 text-white border-rose-400'
+                              : 'bg-black text-zinc-300 border-zinc-700 hover:bg-zinc-900'
+                          }`}
+                        >
+                          <Icon className="w-3.5 h-3.5" />
+                          <span>{opt.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
                   <button
                     type="submit"
                     className="px-4 py-2 rounded-xl bg-rose-500 hover:bg-rose-400 text-white text-xs font-black flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>Pubblica</span>
+                    <span>Pubblica Promo</span>
                   </button>
                 </div>
               </form>
@@ -472,13 +629,22 @@ export default function DefiancePulseHub({
                     key={post.id}
                     className="p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800 space-y-2"
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                        {post.tag}
+                    <div className="flex items-center justify-between gap-2 text-xs text-zinc-400">
+                      <span className="font-bold text-rose-300">
+                        {post.tag} · {post.placement || 'CREATOR_SPACE'}
                       </span>
-                      <span className="text-[11px] font-mono text-zinc-400">{post.author}</span>
+                      <span className="font-mono">{post.author}</span>
                     </div>
-                    <h4 className="text-sm font-black text-white">{post.title}</h4>
+                    <h4 className="text-sm font-black text-white break-words">{post.title}</h4>
+                    {post.mediaUrl && (
+                      <VideoBannerAndPin
+                        mode={post.placement === 'PIN' ? 'PIN' : 'BANNER'}
+                        adId={post.id}
+                        title={post.title}
+                        videoUrl={post.mediaUrl}
+                        badgeText={post.tag}
+                      />
+                    )}
                     <button
                       type="button"
                       onClick={() =>
@@ -624,28 +790,39 @@ export default function DefiancePulseHub({
 
           {section === 'VIDEO' && (
             <div className="space-y-4">
-              <div className="rounded-2xl overflow-hidden border border-zinc-800 bg-black">
-                <canvas
-                  ref={videoCanvasRef}
-                  width={680}
-                  height={240}
-                  className="w-full h-52 object-cover block"
+              {currentVideo.videoUrl ? (
+                <VideoBannerAndPin
+                  mode={currentVideo.placement === 'PIN' ? 'PIN' : 'BANNER'}
+                  adId={currentVideo.id}
+                  title={currentVideo.title}
+                  subtitle={`${currentVideo.creator} · ${currentVideo.description}`}
+                  videoUrl={currentVideo.videoUrl}
+                  badgeText={currentVideo.category}
                 />
-                <div className="p-3.5 bg-zinc-900/80 border-t border-zinc-800 flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-xs font-black text-white">{currentVideo.title}</div>
-                    <div className="text-[11px] text-zinc-400">{currentVideo.description}</div>
+              ) : (
+                <div className="rounded-2xl overflow-hidden border border-zinc-800 bg-black">
+                  <canvas
+                    ref={videoCanvasRef}
+                    width={680}
+                    height={240}
+                    className="w-full h-52 object-cover block"
+                  />
+                  <div className="p-3.5 bg-zinc-900/80 border-t border-zinc-800 flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-black text-white">{currentVideo.title}</div>
+                      <div className="text-[11px] text-zinc-400">{currentVideo.description}</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsPlayingVideo((prev) => !prev)}
+                      className="px-4 py-2 rounded-xl bg-rose-500 hover:bg-rose-400 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer shrink-0"
+                    >
+                      {isPlayingVideo ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                      <span>{isPlayingVideo ? 'Pausa' : 'Avvia Video'}</span>
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsPlayingVideo((prev) => !prev)}
-                    className="px-4 py-2 rounded-xl bg-rose-500 hover:bg-rose-400 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer shrink-0"
-                  >
-                    {isPlayingVideo ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                    <span>{isPlayingVideo ? 'Pausa' : 'Avvia Video'}</span>
-                  </button>
                 </div>
-              </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 {videoReels.map((v, idx) => (
@@ -665,8 +842,8 @@ export default function DefiancePulseHub({
                     <div className="text-[10px] font-bold" style={{ color: v.accentHex }}>
                       {v.category}
                     </div>
-                    <div className="text-xs font-black text-white mt-0.5 truncate">{v.title}</div>
-                    <div className="text-[10px] text-zinc-400 mt-1">{v.creator} • {v.durationSec}s</div>
+                    <div className="text-xs font-black text-white mt-0.5 break-words">{v.title}</div>
+                    <div className="text-[10px] text-zinc-400 mt-1">{v.creator} · {v.durationSec}s</div>
                   </button>
                 ))}
               </div>

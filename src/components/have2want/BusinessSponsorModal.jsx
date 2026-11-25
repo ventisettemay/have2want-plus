@@ -11,6 +11,7 @@ import {
 import { executePiSdkPayment } from '@/lib/piSdkService';
 import { findCountryByNameOrCode, WORLD_COUNTRIES } from '@/lib/worldAtlas';
 import { spendMerchantPiBalance } from '@/lib/communityRewardsService';
+import TextTailsBackdrop from './TextTailsBackdrop';
 
 export default function BusinessSponsorModal({
   isOpen = false,
@@ -185,8 +186,9 @@ export default function BusinessSponsorModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="relative w-full max-w-2xl bg-black border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] text-white">
+        <TextTailsBackdrop showLogo={false} className="absolute inset-0 opacity-20" />
         {/* Header Modale Sponsor */}
-        <div className="px-6 py-4 bg-black border-b border-zinc-900 flex items-center justify-between shrink-0">
+        <div className="relative z-10 px-6 py-4 bg-black/80 border-b border-zinc-900 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-zinc-950 border border-amber-500/40 flex items-center justify-center text-amber-400">
               <Megaphone className="w-5 h-5" />
@@ -209,7 +211,7 @@ export default function BusinessSponsorModal({
         </div>
 
         {/* Form Sponsorizzazione */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto text-xs">
+        <form onSubmit={handleSubmit} className="relative z-10 p-6 space-y-4 overflow-y-auto text-xs">
           {/* Tipo Inserzione + Durata */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
@@ -335,16 +337,16 @@ export default function BusinessSponsorModal({
             </div>
           </div>
 
-          {/* Classificazione Pin + Coefficiente Lancio Pioniere */}
-          <div className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800 space-y-3">
+          {/* Classificazione Pin + Coefficiente Lancio Pioniere (Sezioni lineari senza cornici annidate) */}
+          <div className="pt-3 border-t border-zinc-900 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-black border border-purple-500/50 text-purple-300 font-black flex items-center justify-center text-sm">
+                <span className="w-7 h-7 rounded-lg bg-zinc-950 text-purple-300 font-black flex items-center justify-center text-sm shrink-0">
                   π
-                </div>
+                </span>
                 <div>
                   <span className="font-bold text-white">Accetta Pi Network (π)</span>
-                  <p className="text-[11px] text-zinc-400">Pin Viola/Oro (o Doppio Anello se inserzione attiva)</p>
+                  <p className="text-[11px] text-zinc-400">Pin Viola/Oro (Doppio Anello con inserzione)</p>
                 </div>
               </div>
               <input
@@ -355,14 +357,14 @@ export default function BusinessSponsorModal({
               />
             </div>
 
-            <div className="flex items-center justify-between pt-2 border-t border-zinc-900">
+            <div className="flex items-center justify-between pt-2.5 border-t border-zinc-900">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-black border border-amber-500/50 text-amber-300 font-black flex items-center justify-center text-sm">
+                <span className="w-7 h-7 rounded-lg bg-zinc-950 text-amber-300 font-black flex items-center justify-center text-sm shrink-0">
                   📢
-                </div>
+                </span>
                 <div>
                   <span className="font-bold text-white">Spilla Pubblicitaria Attiva</span>
-                  <p className="text-[11px] text-zinc-400">Apre scheda vetrina + animazione pin ingrandimento periodico</p>
+                  <p className="text-[11px] text-zinc-400">Scheda vetrina + animazione periodica sul globo</p>
                 </div>
               </div>
               <input
@@ -374,11 +376,11 @@ export default function BusinessSponsorModal({
             </div>
 
             {/* Regolazione Coefficiente Lancio Pioniere (default 0.20) */}
-            <div className="p-2.5 rounded-xl bg-black border border-zinc-900 space-y-1.5">
+            <div className="pt-2.5 border-t border-zinc-900 space-y-1.5">
               <div className="flex items-center justify-between text-[11px]">
                 <span className="font-bold text-sky-300 flex items-center gap-1.5">
                   <Sliders className="w-3.5 h-3.5" />
-                  <span>Coefficiente Lancio Pioniere modificabile</span>
+                  <span>Coefficiente Lancio Pioniere</span>
                 </span>
                 <span className="font-mono font-black text-[#00ff66]">{launchCoeff.toFixed(2)}x ({Math.round(launchCoeff * 100)}%)</span>
               </div>
@@ -394,8 +396,8 @@ export default function BusinessSponsorModal({
             </div>
 
             {/* Riepilogo Prezzo Reale Pi & USDT */}
-            <div className="p-3 rounded-xl bg-black border border-zinc-900 space-y-2">
-              <div className="flex items-center justify-between">
+            <div className="p-3 rounded-xl bg-zinc-950 border border-zinc-800 space-y-2">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-1.5 text-zinc-300">
                   <Calendar className="w-3.5 h-3.5 text-zinc-400" />
                   <span className="font-semibold text-xs">{pricing.durationLabel} • {AD_PLACEMENT_CATALOG[adType]?.shortLabel}</span>
@@ -412,20 +414,20 @@ export default function BusinessSponsorModal({
                   </span>
                 </div>
               </div>
-              <div className="flex items-center justify-between text-[11px] text-zinc-400 border-t border-zinc-900/80 pt-2">
+              <div className="flex items-center justify-between text-[11px] text-zinc-400 border-t border-zinc-900 pt-2">
                 <span className="flex items-center gap-1">
                   <Eye className="w-3 h-3 text-zinc-500" />
                   <span>{pricing.trafficTierLabel}</span>
                 </span>
-                <span className="px-2 py-0.5 rounded-md bg-zinc-900 text-amber-300/90 text-[10px] font-medium border border-zinc-800">
-                  Zero Fiat • 100% Crypto &amp; Crediti
+                <span className="text-amber-300/90 text-[10px] font-bold">
+                  100% Crypto &amp; Crediti (Zero Fiat)
                 </span>
               </div>
             </div>
           </div>
 
           {/* Metodo di Pagamento Esclusivo Crypto & Crediti */}
-          <div className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800 space-y-2.5">
+          <div className="pt-3 border-t border-zinc-900 space-y-2.5">
             <div className="flex items-center gap-2 font-bold text-white text-xs">
               <Wallet className="w-4 h-4 text-[#00ff66]" />
               <span>Metodo di Regolamento (Solo Crypto Non-Custodial o Crediti)</span>
@@ -436,13 +438,13 @@ export default function BusinessSponsorModal({
                   key={m.id}
                   type="button"
                   onClick={() => setPaymentMethod(m.id)}
-                  className={`p-2 rounded-xl border text-left cursor-pointer transition-all ${
+                  className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all ${
                     paymentMethod === m.id
                       ? 'bg-emerald-950/60 border-[#00ff66] text-white'
-                      : 'bg-black border-zinc-800 text-zinc-400 hover:text-white'
+                      : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
                   }`}
                 >
-                  <div className="font-black text-[11px] truncate">{m.label}</div>
+                  <div className="font-black text-[11px] break-words leading-snug">{m.label}</div>
                   <div className="text-[9px] text-sky-300 mt-0.5">{m.networkBadge}</div>
                 </button>
               ))}
@@ -457,7 +459,7 @@ export default function BusinessSponsorModal({
                   value={externalCryptoTx}
                   onChange={(e) => setExternalCryptoTx(e.target.value)}
                   placeholder="Incolla TX Hash non-custodial su Polygon / TRC20..."
-                  className="w-full px-3 py-2 rounded-xl bg-black border border-sky-500/40 font-mono text-[11px] text-white focus:outline-none focus:border-sky-400"
+                  className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-sky-500/40 font-mono text-[11px] text-white focus:outline-none focus:border-sky-400"
                 />
               </div>
             )}

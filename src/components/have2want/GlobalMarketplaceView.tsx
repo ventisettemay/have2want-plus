@@ -211,11 +211,11 @@ export function GlobalMarketplaceView({
             className="w-full sm:w-auto px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-850 border border-zinc-700 hover:border-amber-400 text-amber-300 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm active:scale-95"
             title="Imposta il tuo indirizzo wallet USDT per ricevere le commissioni degli ordini"
           >
-            <Wallet className="w-4 h-4 text-amber-400" />
-            <span className="truncate max-w-[200px]">
-              Wallet: {walletConfig.payoutWalletAddress.slice(0, 8)}...{walletConfig.payoutWalletAddress.slice(-4)}
+            <Wallet className="w-4 h-4 text-amber-400 shrink-0" />
+            <span className="font-mono whitespace-nowrap">
+              {walletConfig.payoutWalletAddress.slice(0, 6)}...{walletConfig.payoutWalletAddress.slice(-4)}
             </span>
-            <Settings className="w-3.5 h-3.5 text-zinc-400" />
+            <Settings className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
           </button>
         </div>
       </div>
@@ -506,7 +506,7 @@ export function GlobalMarketplaceView({
                         <span>{item.rating}</span>
                         <span className="text-zinc-500 font-normal">({item.reviewsCount} recensioni verificate)</span>
                       </div>
-                      <h3 className="text-sm font-bold text-white group-hover:text-[#00ff66] transition-colors line-clamp-2 leading-snug">
+                      <h3 className="text-sm font-bold text-white group-hover:text-[#00ff66] transition-colors leading-snug break-words">
                         {item.title}
                       </h3>
 

@@ -2223,7 +2223,7 @@ export default function Urbano3D({
                 <Navigation className="w-4 h-4 fill-current" />
               </div>
               <div className="min-w-0">
-                <div className="text-xs sm:text-sm font-black text-sky-300 truncate">
+                <div className="text-xs sm:text-sm font-black text-sky-300 break-words">
                   {nextTurnBanner.text}
                 </div>
                 <div className="text-[11px] text-zinc-200 font-bold flex items-center gap-2 mt-0.5 flex-wrap">
@@ -2287,13 +2287,13 @@ export default function Urbano3D({
                 <Navigation className="w-4 h-4 fill-current" />
               </div>
               <div className="min-w-0">
-                <div className="text-xs font-black flex items-center gap-2 truncate">
+                <div className="text-xs font-black flex items-center gap-2 break-words">
                   <span>Verso: {activeRoute.destinationName}</span>
                 </div>
                 <div className="text-[11px] text-zinc-300 font-bold mt-0.5">
                   {activeRoute.totalDistanceKm} km • {activeRoute.totalDurationMinutes} min ({navProfile === 'walking' ? '🚶 A piedi' : navProfile === 'cycling' ? '🚲 In bici' : '🚗 In auto'})
                 </div>
-                <div className="text-[10px] text-sky-300 font-bold truncate max-w-xs mt-0.5">
+                <div className="text-[10px] text-sky-300 font-bold break-words mt-0.5">
                   {nextTurnBanner.text}
                 </div>
               </div>
@@ -2413,7 +2413,7 @@ export default function Urbano3D({
                     }}
                     className="flex-1 text-left min-w-0 cursor-pointer"
                   >
-                    <div className="text-xs font-bold text-white truncate">{resItem.displayName || resItem.name}</div>
+                    <div className="text-xs font-bold text-white break-words leading-snug">{resItem.displayName || resItem.name}</div>
                   </button>
                   <div className="flex items-center gap-1 shrink-0">
                     <button
@@ -2983,8 +2983,8 @@ export default function Urbano3D({
                 </button>
               </div>
 
-              {/* Certificato di Presenza Fisica */}
-              <div className="bg-zinc-950/90 p-2.5 rounded-xl border border-zinc-800/80 flex items-center justify-between text-[11px]">
+              {/* Certificato di Presenza Fisica (righe piane senza doppie cornici annidate) */}
+              <div className="flex items-center justify-between text-[11px] pb-2 border-b border-zinc-800/80">
                 <div className="flex items-center gap-2">
                   <span className="text-base">🏢</span>
                   <div>
@@ -2996,40 +2996,36 @@ export default function Urbano3D({
                     </span>
                   </div>
                 </div>
-                <span className="px-2 py-1 rounded-md bg-amber-500/10 text-amber-300 text-[10px] font-bold border border-amber-500/30">
+                <span className="text-amber-300 text-[10px] font-bold">
                   Quota: ~32m
                 </span>
               </div>
 
-              <p className="text-xs text-zinc-300 leading-relaxed bg-zinc-950/60 p-2.5 rounded-xl border border-zinc-900">
+              <p className="text-xs text-zinc-300 leading-relaxed">
                 {selectedSponsor.description || 'Attività commerciale verificata sul posto. Disponibile per transazioni P2P dirette e scambi concordati.'}
               </p>
 
-              {/* Sezione 1: Condizioni Pi Network (Se accetta Pi Coin o Doppio Anello) */}
+              {/* Sezione 1: Condizioni Pi Network */}
               {pinType.hasPi && (
-                <div className="flex flex-col gap-1 text-xs bg-purple-950/40 border border-purple-500/40 px-3 py-2 rounded-xl text-purple-200">
-                  <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-1 text-xs pt-2 border-t border-purple-500/30 text-purple-200">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="font-bold flex items-center gap-1.5">
                       <span className="text-sm">🪙</span>
-                      <span>Condizioni Pi Network:</span>
-                      <span className="text-amber-400 font-extrabold">{selectedSponsor.promo || 'Accetta Pagamenti Pi Coin (π)'}</span>
+                      <span>Pi Network:</span>
+                      <span className="text-amber-400 font-extrabold">{selectedSponsor.promo || 'Accetta Pi Coin (π)'}</span>
                     </span>
-                    <span className="text-[10px] text-zinc-400 font-medium">{selectedSponsor.hours || 'Aperto'}</span>
+                    <span className="text-[10px] text-zinc-400 font-medium shrink-0">{selectedSponsor.hours || 'Aperto'}</span>
                   </div>
-                  <span className="text-[10px] text-purple-300/80">Transazioni P2P verificate sulla Pi Mainnet / Tasso e modalità concordate con l'esercente.</span>
                 </div>
               )}
 
-              {/* Sezione 2: Volantino & Vetrina Pubblicitaria (Se ha Pubblicità o Doppio Anello) */}
+              {/* Sezione 2: Volantino & Vetrina Pubblicitaria */}
               {pinType.hasAd && (
-                <div className="flex flex-col gap-1 text-xs bg-amber-950/40 border border-amber-500/40 px-3 py-2 rounded-xl text-amber-200">
+                <div className="flex flex-col gap-1 text-xs pt-2 border-t border-amber-500/30 text-amber-200">
                   <span className="font-bold flex items-center gap-1.5">
                     <span className="text-sm">📢</span>
-                    <span>Vetrina & Volantino Offerte:</span>
+                    <span>Vetrina:</span>
                     <span className="text-amber-300 font-extrabold">{selectedSponsor.adHeadline || selectedSponsor.promo || 'Promozione Attiva'}</span>
-                  </span>
-                  <span className="text-[10px] text-amber-300/80">
-                    {selectedSponsor.flyerUrl ? 'Volantino promozionale disponibile per consultazione diretta.' : 'Prodotti e promozioni in vetrina verificati direttamente presso il punto vendita.'}
                   </span>
                 </div>
               )}

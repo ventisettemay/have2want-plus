@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Satellite } from 'lucide-react';
+import { Satellite, Radar } from 'lucide-react';
 import SpacecraftInspectorModal from './SpacecraftInspectorModal';
 import { SatelliteId } from '@/lib/satelliteModularEngine';
 
@@ -25,8 +25,8 @@ export default function OrbitalSatellitesHub({
 
   return (
     <>
-      {/* Pulsante Controllo Flotta 10 Satelliti (zero modali duplicati: delega sempre a MapView3DContainer) */}
-      <div className="relative">
+      {/* Pulsante Controllo Flotta 10 Satelliti + Radar Prossimità */}
+      <div className="relative flex items-center gap-1.5">
         <button
           id="btn-orbital-satellites-menu"
           type="button"
@@ -44,6 +44,19 @@ export default function OrbitalSatellitesHub({
           <Satellite className="w-3.5 h-3.5 text-[#00ff66] shrink-0" />
           <span className="font-black tracking-wide">FLOTTA 10 SATELLITI</span>
         </button>
+
+        {onLaunchSatellite && (
+          <button
+            id="btn-orbital-radar-proximity"
+            type="button"
+            onClick={() => onLaunchSatellite('RADAR_SAT' as SatelliteId)}
+            className="px-2.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer transition-all shadow-lg border bg-zinc-950/90 hover:bg-zinc-900 text-sky-300 border-zinc-700/80 hover:border-sky-400/70"
+            title="Apri Radar Prossimità Haversine"
+          >
+            <Radar className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+            <span className="hidden sm:inline">Radar</span>
+          </button>
+        )}
       </div>
 
       {/* 🛰️ MODALE CONTROLLO FLOTTA 10 SATELLITI & ISPEZIONE 3D */}

@@ -126,14 +126,6 @@ export default function GlobalCarpoolModal({
 
         {/* Modal Content */}
         <div className="p-5 space-y-4 overflow-y-auto flex-1">
-          {/* 💡 AIUTO AUTOMATICO NON INVASIVO */}
-          <div className="px-3.5 py-2 rounded-xl bg-teal-950/40 border border-teal-500/30 flex items-center gap-2 text-xs text-teal-200">
-            <span className="text-base shrink-0">💡</span>
-            <span className="text-[11px] leading-tight text-teal-300">
-              <strong className="text-white font-semibold">Viaggi & Trasferte:</strong> Trova chi fa la tua stessa tratta o condividi i posti liberi della tua auto. Rimborso spese diretto in Pi Coin o baratto, senza intermediari né commissioni bancarie.
-            </span>
-          </div>
-
           {showCreateForm && (
             <form
               onSubmit={handlePublishTrip}

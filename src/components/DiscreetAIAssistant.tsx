@@ -38,24 +38,12 @@ interface Message {
 
 export function WelcomeTechnologyCard() {
   return (
-    <div className="bg-gray-900 text-white p-4 rounded-xl border border-blue-500 shadow-lg my-4">
-      <h3 className="text-lg font-bold text-blue-400 mb-2 flex items-center gap-2">
-        <span>✨ Ricerca &amp; Orientamento HAVE2WANT PLUS</span>
-      </h3>
-      <p className="text-sm text-gray-300 mb-3">
-        Interagisci <strong>digitando</strong>, parlando al <strong>microfono</strong> o <strong>allegando una foto</strong>. La ricerca interroga annunci attivi reali, guide Salvavatutto e catalogo Testnet:
-      </p>
-      <ul className="text-xs space-y-2 text-gray-400">
-        <li>
-          🎙️ <strong className="text-white">Ricerca Vocale Locale:</strong> Riconoscimento vocale del browser elaborato sul dispositivo.
-        </li>
-        <li>
-          📍 <strong className="text-white">Prossimità Reale GPS:</strong> Calcolo distanza Haversine solo quando il GPS del dispositivo è autorizzato.
-        </li>
-        <li>
-          🛡️ <strong className="text-white">Nessun LLM Esterno Dichiarato:</strong> Le risposte usano il motore semantico locale su annunci e guide reali.
-        </li>
-      </ul>
+    <div className="bg-slate-900/80 text-slate-200 px-3 py-2 rounded-xl border border-slate-800 flex flex-wrap items-center gap-3 text-[11px]">
+      <span>🎙️ Voce Locale</span>
+      <span>•</span>
+      <span>📍 Prossimità GPS</span>
+      <span>•</span>
+      <span>🛡️ Annunci &amp; Guide Reali</span>
     </div>
   );
 }
@@ -395,40 +383,38 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
   };
 
   return (
-    <div className="p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4">
-      <div className="space-y-3 pb-3 border-b border-slate-800">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-300">
-              <Bot className="w-5 h-5" />
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-800">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-300 shrink-0">
+            <Bot className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-sm font-bold text-slate-100">Motore di Ricerca Locale</h3>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                <ShieldCheck className="w-3 h-3" /> Discreto
+              </span>
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-slate-100">Assistente Discreto Locale</h3>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
-                  <ShieldCheck className="w-3 h-3" /> Motore Locale
+            <p className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-0.5">
+              {userCoords ? (
+                <>
+                  <span>GPS: {userCoords.lat.toFixed(3)}, {userCoords.lng.toFixed(3)}</span>
+                  <span className="text-slate-600">•</span>
+                  <span className="text-cyan-400">Posizione reale attiva</span>
+                </>
+              ) : (
+                <span className="text-amber-400">
+                  {gpsStatus === "waiting" ? "Rilevamento GPS..." : "Ricerca globale (GPS non attivo)"}
                 </span>
-              </div>
-              <p className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-0.5">
-                {userCoords ? (
-                  <>
-                    <span>GPS: {userCoords.lat.toFixed(3)}, {userCoords.lng.toFixed(3)}</span>
-                    <span className="text-slate-600">•</span>
-                    <span className="text-cyan-400">Posizione reale attiva</span>
-                  </>
-                ) : (
-                  <span className="text-amber-400">
-                    {gpsStatus === "waiting" ? "Rilevamento GPS..." : "GPS non autorizzato (ricerca globale senza coordinate fittizie)"}
-                  </span>
-                )}
-              </p>
-            </div>
+              )}
+            </p>
           </div>
+        </div>
 
-          <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-slate-300 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800">
-            <Navigation className="w-3.5 h-3.5 text-cyan-400" />
-            <span>{userCoords ? "Haversine Attivo" : "Solo Testo"}</span>
-          </div>
+        <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-slate-300 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800 shrink-0">
+          <Navigation className="w-3.5 h-3.5 text-cyan-400" />
+          <span>{userCoords ? "Haversine Attivo" : "Solo Testo"}</span>
         </div>
       </div>
 
@@ -445,7 +431,7 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
               setInputQuery(promptText);
               sendToBackendAndClassify(promptText, userCoords);
             }}
-            className="px-3 py-1.5 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-cyan-300 whitespace-nowrap transition-colors text-[11px] cursor-pointer"
+            className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-cyan-300 whitespace-nowrap transition-colors text-[11px] cursor-pointer"
           >
             {promptText}
           </button>
@@ -453,7 +439,6 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
       </div>
 
       <div className="h-72 overflow-y-auto space-y-3 pr-2 text-xs">
-        <WelcomeTechnologyCard />
         {messages.map((m, idx) => (
           <div
             key={idx}
@@ -473,7 +458,7 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
               className={`p-3.5 rounded-2xl max-w-[85%] leading-relaxed ${
                 m.sender === "user"
                   ? "bg-cyan-500 text-slate-950 font-medium rounded-tr-none"
-                  : "bg-slate-950 border border-slate-800 text-slate-200 rounded-tl-none"
+                  : "bg-slate-900/90 border border-slate-800 text-slate-200 rounded-tl-none"
               }`}
             >
               {m.imageUrl && (
@@ -485,7 +470,7 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
                   />
                   {m.imageName && (
                     <span
-                      className={`text-[10px] mt-1 block truncate ${
+                      className={`text-[10px] mt-1 block break-all ${
                         m.sender === "user" ? "text-slate-900 font-semibold" : "text-slate-400"
                       }`}
                     >
@@ -532,7 +517,7 @@ export const DiscreetAIAssistant: React.FC<DiscreetAIAssistantProps> = ({
             className="w-10 h-10 object-cover rounded-lg border border-slate-700 shrink-0"
           />
           <div className="flex-1 min-w-0">
-            <p className="font-semibold text-slate-200 truncate">{attachedImage.name}</p>
+            <p className="font-semibold text-slate-200 break-all">{attachedImage.name}</p>
             <p className="text-[10px] text-cyan-400 flex items-center gap-1">
               <Sparkles className="w-3 h-3" /> Immagine pronta per l'invio
             </p>

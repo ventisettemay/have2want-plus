@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useH2W } from '../../lib/h2wContext';
-import VideoChatModal from './VideoChatModal';
+import PiChatUnifiedHub from './PiChatUnifiedHub';
 import MarketplaceOrderModal, { MarketplaceOrderTarget } from './MarketplaceOrderModal';
 import { toast } from 'sonner';
 import { X, Sprout, Navigation, Plus, Video, MessageCircle, MapPin, ShoppingBag } from 'lucide-react';
@@ -200,7 +200,7 @@ export default function VetrinaKmZero({
                 />
               </div>
 
-              <div className="flex items-center justify-between bg-zinc-950 p-3 rounded-xl border border-zinc-800 text-xs">
+              <div className="flex items-center justify-between py-2.5 border-t border-b border-zinc-800 text-xs">
                 <span className="font-bold text-zinc-300">Accetti pagamenti diretti in Pi Network? (Tariffa agevolata)</span>
                 <input
                   type="checkbox"
@@ -324,9 +324,12 @@ export default function VetrinaKmZero({
         </div>
 
         {selectedVideoProduct && (
-          <VideoChatModal
-            currentUserId={currentUser?.id || "u1"}
-            listingId={`km0_${selectedVideoProduct.id}`}
+          <PiChatUnifiedHub
+            isOpen={true}
+            initialTab="VIDEO"
+            currentUserId={currentUser?.id || 'u1'}
+            chatRoomId={`km0_${selectedVideoProduct.id}`}
+            recipientName={selectedVideoProduct.name}
             onClose={() => setSelectedVideoProduct(null)}
           />
         )}
