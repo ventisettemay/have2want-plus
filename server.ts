@@ -56,6 +56,39 @@ import {
   getUserAdHistory as adGetUserAdHistory,
   getGlobalReconciliation as adGetGlobalReconciliation,
 } from './server/adService';
+import {
+  createOrder as adCreateOrder,
+  listAllOrders as adListAllOrders,
+  listOrdersByAdvertiser as adListOrdersByAdvertiser,
+  listOrdersByCreator as adListOrdersByCreator,
+  getOrder as adGetOrder,
+  updateOrderStatus as adUpdateOrderStatus,
+  assignCreator as adAssignCreator,
+  submitDraft as adSubmitDraft,
+  addOrderMessage as adAddOrderMessage,
+  listOrderMessages as adListOrderMessages,
+  reviewOrder as adReviewOrder,
+  deleteOrder as adDeleteOrder,
+  linkOrderToCreative as adLinkOrderToCreative,
+  flushStore as adOrdersFlushStore,
+  resetForTests as adOrdersResetForTests,
+  type CreateCreativeOrderInput,
+  type SubmitDraftInput,
+  type ReviewOrderInput,
+  type ChangeOrderStatusInput,
+} from './server/adOrders';
+import {
+  adsAuthMiddleware,
+  adsRoleMiddleware,
+  adsRateLimitMiddleware,
+  writeAuditLog,
+  getAuditLog,
+  authenticateRequest,
+  authorizeRole,
+  validateFileUpload,
+  validateUrlNoSsrf,
+  type AdRole,
+} from './server/adSecurity';
 import type {
   CreateCampaignInput,
   CertifyImpressionInput,
@@ -1968,6 +2001,449 @@ async function startServer() {
       return res.status(500).json({ success: false, error: err?.message || 'Errore execute' });
     }
   });
+
+  // === Rotte ordini creativi e servizi creativi (Punto 9) ===
+  // Tutte protette da autenticazione, autorizzazione per ruolo e rate limiting.
+
+  // POST /api/ads/orders — crea ordine creativo (banner o video)
+  app.post(
+    '/api/ads/orders',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const auth = (req as any).adAuth;
+        const body = req.body as CreateCreativeOrderInput;
+        if (!body || !body.title || !body.type) {
+          return res.status(400).json({
+            success: false,
+            error: 'Campi obbligatori: title, type (banner o video)',
+            code: 'VALIDATION_ERROR',
+          });
+        }
+        if (!['banner', 'video'].includes(body.type)) {
+          return res.status(400).json({
+            success: false,
+            error: 'type deve essere "banner" o "video"',
+            code: 'VALIDATION_ERROR',
+          });
+        }
+        // L'advertiser è l'utente autenticato se non specificato diversamente
+        const advertiserId = body.advertiserId || auth.userId;
+        const order = adCreateOrder({
+          ...body,
+          advertiserId,
+          advertiserUsername: body.advertiserUsername,
+        });
+        writeAuditLog({
+          action: 'ads_order_create',
+          userId: auth.userId,
+          role: auth.role,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 201,
+          success: true,
+          details: { orderId: order.id, type: order.type },
+        });
+        return res.status(201).json({ success: true, order });
+      } catch (err: any) {
+        writeAuditLog({
+          action: 'ads_order_create_fail',
+          userId: (req as any).adAuth?.userId,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 500,
+          success: false,
+          error: err?.message || 'Errore creazione ordine',
+        });
+        return res.status(500).json({ success: false, error: err?.message || 'Errore creazione ordine' });
+      }
+    }
+  );
+
+  // GET /api/ads/orders — lista ordini (filtri opzionali: advertiserId, creatorId, status)
+  app.get(
+    '/api/ads/orders',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform', 'user']),
+    async (req, res) => {
+      try {
+        const auth = (req as any).adAuth;
+        const { advertiserId, creatorId, status } = req.query as {
+          advertiserId?: string;
+          creatorId?: string;
+          status?: string;
+        };
+        let orders = adListAllOrders();
+        if (advertiserId) {
+          orders = orders.filter((o) => o.advertiserId === advertiserId);
+        }
+        if (creatorId) {
+          orders = orders.filter((o) => o.creatorId === creatorId);
+        }
+        if (status) {
+          orders = orders.filter((o) => o.status === status);
+        }
+        // Un utente normale vede solo i propri ordini (come advertiser)
+        if (auth.role === 'user' && !advertiserId) {
+          orders = orders.filter((o) => o.advertiserId === auth.userId);
+        }
+        return res.json({ success: true, orders, count: orders.length });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore lista ordini' });
+      }
+    }
+  );
+
+  // GET /api/ads/orders/:id — dettaglio ordine
+  app.get(
+    '/api/ads/orders/:id',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform', 'user']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const order = adGetOrder(id);
+        if (!order) {
+          return res.status(404).json({ success: false, error: 'Ordine non trovato' });
+        }
+        const auth = (req as any).adAuth;
+        // Un utente può vedere solo i propri ordini (salvo platform)
+        if (auth.role === 'user' && order.advertiserId !== auth.userId && auth.role !== 'platform') {
+          return res.status(403).json({ success: false, error: 'Accesso negato a questo ordine' });
+        }
+        return res.json({ success: true, order });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore dettaglio ordine' });
+      }
+    }
+  );
+
+  // POST /api/ads/orders/:id/draft — invia bozza/file per un ordine creativo
+  app.post(
+    '/api/ads/orders/:id/draft',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const auth = (req as any).adAuth;
+        const body = req.body as SubmitDraftInput;
+        if (!body || !body.fileKey || !body.fileUrl || !body.fileName || !body.mimeType) {
+          return res.status(400).json({
+            success: false,
+            error: 'Campi obbligatori: fileKey, fileUrl, fileName, mimeType',
+            code: 'VALIDATION_ERROR',
+          });
+        }
+        // Validazione MIME e dimensione (sicurezza punto 12)
+        const fileValidation = validateFileUpload({
+          fileName: body.fileName,
+          mimeType: body.mimeType,
+          sizeBytes: body.sizeBytes,
+        });
+        if (!fileValidation.valid) {
+          return res.status(400).json({ success: false, error: fileValidation.error, code: 'VALIDATION_ERROR' });
+        }
+        // Protezione SSRF sull'URL del file
+        const urlCheck = validateUrlNoSsrf(body.fileUrl);
+        if (!urlCheck.safe) {
+          return res.status(400).json({ success: false, error: urlCheck.error, code: 'SSRF_BLOCKED' });
+        }
+
+        const result = adSubmitDraft(id, {
+          ...body,
+          uploadedBy: auth.userId,
+        });
+        if (!result.order) {
+          return res.status(404).json({ success: false, error: result.error || 'Ordine non trovato' });
+        }
+        writeAuditLog({
+          action: 'ads_order_draft',
+          userId: auth.userId,
+          role: auth.role,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 200,
+          success: true,
+          details: { orderId: id, fileId: result.file?.id },
+        });
+        return res.json({ success: true, order: result.order, file: result.file });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore invio bozza' });
+      }
+    }
+  );
+
+  // POST /api/ads/orders/:id/review — approva, richiede revisione o rifiuta un ordine
+  app.post(
+    '/api/ads/orders/:id/review',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const auth = (req as any).adAuth;
+        const body = req.body as ReviewOrderInput;
+        if (!body || !body.action) {
+          return res.status(400).json({
+            success: false,
+            error: 'Campo obbligatorio: action (approve, request_revision, reject)',
+            code: 'VALIDATION_ERROR',
+          });
+        }
+        if (!['approve', 'request_revision', 'reject'].includes(body.action)) {
+          return res.status(400).json({
+            success: false,
+            error: 'action deve essere approve, request_revision o reject',
+            code: 'VALIDATION_ERROR',
+          });
+        }
+        const result = adReviewOrder(id, {
+          ...body,
+          reviewerId: auth.userId,
+          reviewerRole: auth.role,
+        });
+        if (!result.order) {
+          return res.status(404).json({ success: false, error: result.error || 'Ordine non trovato' });
+        }
+        writeAuditLog({
+          action: `ads_order_review_${body.action}`,
+          userId: auth.userId,
+          role: auth.role,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 200,
+          success: true,
+          details: { orderId: id, notes: body.notes },
+        });
+        return res.json({ success: true, order: result.order });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore revisione ordine' });
+      }
+    }
+  );
+
+  // POST /api/ads/orders/:id/status — cambio stato ordine
+  app.post(
+    '/api/ads/orders/:id/status',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const auth = (req as any).adAuth;
+        const body = req.body as ChangeOrderStatusInput;
+        if (!body || !body.status) {
+          return res.status(400).json({
+            success: false,
+            error: 'Campo obbligatorio: status',
+            code: 'VALIDATION_ERROR',
+          });
+        }
+        const validStatuses = [
+          'requested', 'in_production', 'draft_submitted', 'revision_requested',
+          'approved', 'rejected', 'completed', 'cancelled',
+        ];
+        if (!validStatuses.includes(body.status)) {
+          return res.status(400).json({
+            success: false,
+            error: `status non valido. Valori ammessi: ${validStatuses.join(', ')}`,
+            code: 'VALIDATION_ERROR',
+          });
+        }
+        const order = adUpdateOrderStatus(id, body.status, auth.userId, body.reason);
+        if (!order) {
+          return res.status(404).json({ success: false, error: 'Ordine non trovato' });
+        }
+        writeAuditLog({
+          action: 'ads_order_status_change',
+          userId: auth.userId,
+          role: auth.role,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 200,
+          success: true,
+          details: { orderId: id, newStatus: body.status, reason: body.reason },
+        });
+        return res.json({ success: true, order });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore cambio stato ordine' });
+      }
+    }
+  );
+
+  // GET /api/ads/orders/:id/messages — storico messaggi di un ordine
+  app.get(
+    '/api/ads/orders/:id/messages',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform', 'user']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const order = adGetOrder(id);
+        if (!order) {
+          return res.status(404).json({ success: false, error: 'Ordine non trovato' });
+        }
+        const auth = (req as any).adAuth;
+        if (auth.role === 'user' && order.advertiserId !== auth.userId) {
+          return res.status(403).json({ success: false, error: 'Accesso negato' });
+        }
+        const messages = adListOrderMessages(id);
+        return res.json({ success: true, messages, count: messages.length });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore storico messaggi' });
+      }
+    }
+  );
+
+  // POST /api/ads/orders/:id/messages — invia messaggio in un ordine
+  app.post(
+    '/api/ads/orders/:id/messages',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const auth = (req as any).adAuth;
+        const { content, fileId } = req.body as { content?: string; fileId?: string };
+        if (!content || typeof content !== 'string') {
+          return res.status(400).json({
+            success: false,
+            error: 'Campo obbligatorio: content',
+            code: 'VALIDATION_ERROR',
+          });
+        }
+        const message = adAddOrderMessage(id, auth.userId, auth.role, content, fileId);
+        if (!message) {
+          return res.status(404).json({ success: false, error: 'Ordine non trovato' });
+        }
+        writeAuditLog({
+          action: 'ads_order_message',
+          userId: auth.userId,
+          role: auth.role,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 201,
+          success: true,
+          details: { orderId: id, messageId: message.id },
+        });
+        return res.status(201).json({ success: true, message });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore invio messaggio' });
+      }
+    }
+  );
+
+  // POST /api/ads/orders/:id/link-creative — collega ordine approvato a creatività pubblicitaria
+  app.post(
+    '/api/ads/orders/:id/link-creative',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { creativeId } = req.body as { creativeId?: string };
+        if (!creativeId) {
+          return res.status(400).json({
+            success: false,
+            error: 'Campo obbligatorio: creativeId',
+            code: 'VALIDATION_ERROR',
+          });
+        }
+        const result = adLinkOrderToCreative(id, creativeId);
+        if (!result.order) {
+          return res.status(400).json({ success: false, error: result.error || 'Ordine non trovato' });
+        }
+        writeAuditLog({
+          action: 'ads_order_link_creative',
+          userId: (req as any).adAuth?.userId,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 200,
+          success: true,
+          details: { orderId: id, creativeId },
+        });
+        return res.json({ success: true, order: result.order, creative: result.creative });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore collegamento creatività' });
+      }
+    }
+  );
+
+  // DELETE /api/ads/orders/:id — elimina un ordine (solo platform o proprietario)
+  app.delete(
+    '/api/ads/orders/:id',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const auth = (req as any).adAuth;
+        const order = adGetOrder(id);
+        if (!order) {
+          return res.status(404).json({ success: false, error: 'Ordine non trovato' });
+        }
+        // Solo platform può eliminare qualsiasi ordine; advertiser/creator solo i propri
+        if (auth.role !== 'platform' && order.advertiserId !== auth.userId) {
+          return res.status(403).json({ success: false, error: 'Accesso negato' });
+        }
+        const deleted = adDeleteOrder(id);
+        if (!deleted) {
+          return res.status(404).json({ success: false, error: 'Ordine non trovato' });
+        }
+        writeAuditLog({
+          action: 'ads_order_delete',
+          userId: auth.userId,
+          role: auth.role,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 200,
+          success: true,
+          details: { orderId: id },
+        });
+        return res.json({ success: true });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore eliminazione ordine' });
+      }
+    }
+  );
+
+  // === Rotte audit log (Punto 10/12) ===
+  // GET /api/ads/audit — recupera le voci di audit log (solo platform)
+  app.get(
+    '/api/ads/audit',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['platform']),
+    async (_req, res) => {
+      try {
+        const limit = parseInt((_req.query.limit as string) || '100', 10);
+        const entries = getAuditLog(limit);
+        return res.json({ success: true, audit: entries, count: entries.length });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore lettura audit log' });
+      }
+    }
+  );
 
   // 4. Integrazione Vite (dev) o Dist (produzione)
   const isRunningCompiledServer = Boolean(process.argv[1] && process.argv[1].endsWith('server.cjs'));

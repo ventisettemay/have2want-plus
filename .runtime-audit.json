@@ -1,0 +1,62 @@
+[
+  {
+    "id": "mwwsc1x0-d14208f3",
+    "timestamp": 1795651154100,
+    "action": "test_action",
+    "userId": "user_audit",
+    "role": "advertiser",
+    "ip": "1.2.3.4",
+    "path": "/api/ads/test",
+    "method": "POST",
+    "status": 200,
+    "success": true,
+    "details": {
+      "test": true
+    }
+  },
+  {
+    "id": "mwwse58v-3d453306",
+    "timestamp": 1795651251727,
+    "action": "test_action",
+    "userId": "user_audit",
+    "role": "advertiser",
+    "ip": "1.2.3.4",
+    "path": "/api/ads/test",
+    "method": "POST",
+    "status": 200,
+    "success": true,
+    "details": {
+      "test": true
+    }
+  },
+  {
+    "id": "mwwsf7k2-49e962d9",
+    "timestamp": 1795651301378,
+    "action": "test_action",
+    "userId": "user_audit",
+    "role": "advertiser",
+    "ip": "1.2.3.4",
+    "path": "/api/ads/test",
+    "method": "POST",
+    "status": 200,
+    "success": true,
+    "details": {
+      "test": true
+    }
+  },
+  {
+    "id": "mwwsftpu-0c6c2ef1",
+    "timestamp": 1795651330098,
+    "action": "test_action",
+    "userId": "user_audit",
+    "role": "advertiser",
+    "ip": "1.2.3.4",
+    "path": "/api/ads/test",
+    "method": "POST",
+    "status": 200,
+    "success": true,
+    "details": {
+      "test": true
+    }
+  }
+]
