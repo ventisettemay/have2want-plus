@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { validateFileUpload, generateFileKey } from '../../worker/src/r2';
 import { selectProvider } from '../../worker/src/ai';
-import { verifyWebhookSignature, computeHmacSha256 } from '../../worker/src/auth';
+import { verifyWebhookSignature, computeHmacSha256, signActionToken, verifyActionToken } from '../../worker/src/auth';
 
 // ------------------------------------------------------------------
 // Mock D1Database
@@ -49,6 +49,7 @@ class MockD1Database {
   private campaigns: Map<string, any> = new Map();
   private providers: Map<string, any> = new Map();
   private impressions: Map<string, any> = new Map();
+  private actionTokens: Map<string, any> = new Map();
 
   prepare(sql: string): MockD1Statement {
     return new MockD1Statement(sql);
@@ -61,6 +62,14 @@ class MockD1Database {
   getProvider(name: string) { return this.providers.get(name) ?? null; }
   setImpression(i: any) { this.impressions.set(i.idempotency_key, i); }
   getImpressionByIdempotency(key: string) { return this.impressions.get(key) ?? null; }
+
+  // Token azione
+  setActionToken(t: any) { this.actionTokens.set(t.token, t); }
+  getActionToken(token: string) { return this.actionTokens.get(token) ?? null; }
+  markActionTokenUsed(token: string) {
+    const t = this.actionTokens.get(token);
+    if (t) { t.used = 1; t.used_at = Date.now(); this.actionTokens.set(token, t); }
+  }
 }
 
 // ------------------------------------------------------------------
@@ -210,5 +219,109 @@ describe('Blocco 2 — firma webhook HMAC', () => {
   it('computeHmacSha256 restituisce esadecimale', async () => {
     const sig = await computeHmacSha256(secret, body);
     expect(sig).toMatch(/^[0-9a-f]{64}$/);
+  });
+});
+
+// ------------------------------------------------------------------
+// Test token azione Watch-to-Unlock (auth.ts)
+// ------------------------------------------------------------------
+
+describe('Blocco 2 — token azione Watch-to-Unlock', () => {
+  const secret = 'test_secret';
+  const now = Date.now();
+
+  it('firma e verifica token valido', async () => {
+    const token = await signActionToken({
+      sub: 'user_1',
+      act: 'UNLOCK_FEATURE',
+      cid: 'camp_1',
+      iid: 'imp_1',
+      exp: now + 600000,
+      iat: now,
+      jti: 'tok_1',
+    }, secret);
+
+    const result = await verifyActionToken(token, secret, 'UNLOCK_FEATURE', 'user_1');
+    expect(result.valid).toBe(true);
+    expect(result.payload?.sub).toBe('user_1');
+    expect(result.payload?.act).toBe('UNLOCK_FEATURE');
+  });
+
+  it('rifiuta token con azione non corrispondente', async () => {
+    const token = await signActionToken({
+      sub: 'user_1',
+      act: 'FREE_POST',
+      cid: 'camp_1',
+      iid: 'imp_1',
+      exp: now + 600000,
+      iat: now,
+      jti: 'tok_2',
+    }, secret);
+
+    const result = await verifyActionToken(token, secret, 'UNLOCK_FEATURE', 'user_1');
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('Azione non corrispondente');
+  });
+
+  it('rifiuta token con utente non corrispondente', async () => {
+    const token = await signActionToken({
+      sub: 'user_1',
+      act: 'UNLOCK_FEATURE',
+      cid: 'camp_1',
+      iid: 'imp_1',
+      exp: now + 600000,
+      iat: now,
+      jti: 'tok_3',
+    }, secret);
+
+    const result = await verifyActionToken(token, secret, 'UNLOCK_FEATURE', 'user_2');
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('Utente non corrispondente');
+  });
+
+  it('rifiuta token scaduto', async () => {
+    const token = await signActionToken({
+      sub: 'user_1',
+      act: 'UNLOCK_FEATURE',
+      cid: 'camp_1',
+      iid: 'imp_1',
+      exp: now - 1000, // già scaduto
+      iat: now - 600000,
+      jti: 'tok_4',
+    }, secret);
+
+    const result = await verifyActionToken(token, secret, 'UNLOCK_FEATURE', 'user_1');
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('scaduto');
+  });
+
+  it('rifiuta token malformato', async () => {
+    const result = await verifyActionToken('non-un-token-valido', secret);
+    expect(result.valid).toBe(false);
+  });
+
+  it('crea, recupera e segna usato token azione (mock DB)', async () => {
+    const db = new MockD1Database();
+    const tokenStr = 'tok_test_123';
+    db.setActionToken({
+      id: 't1',
+      token: tokenStr,
+      user_id: 'user_1',
+      action_type: 'UNLOCK_FEATURE',
+      campaign_id: 'camp_1',
+      impression_id: 'imp_1',
+      expires_at: now + 600000,
+      used: 0,
+      created_at: now,
+    });
+
+    const stored = db.getActionToken(tokenStr);
+    expect(stored).not.toBeNull();
+    expect(stored.used).toBe(0);
+
+    db.markActionTokenUsed(tokenStr);
+    const after = db.getActionToken(tokenStr);
+    expect(after.used).toBe(1);
+    expect(after.used_at).toBeDefined();
   });
 });

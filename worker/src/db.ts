@@ -1,4 +1,4 @@
-import type { D1Database, D1Statement, CampaignRow, ImpressionRow, ProviderRow } from './types';
+import type { D1Database, D1Statement, CampaignRow, ImpressionRow, ProviderRow, ActionUnlockTokenRow } from './types';
 
 /* ------------------------------------------------------------------ */
 /* Helper D1                                                          */
@@ -295,5 +295,39 @@ export async function addOrderMessage(db: D1Database, msg: any): Promise<void> {
     msg.content,
     msg.fileId ?? null,
     msg.createdAt
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Token azione monouso (Watch-to-Unlock)                             */
+/* ------------------------------------------------------------------ */
+
+export async function getActionUnlockToken(db: D1Database, token: string): Promise<ActionUnlockTokenRow | null> {
+  return first<ActionUnlockTokenRow>(db, 'SELECT * FROM action_unlock_tokens WHERE token = ?', token);
+}
+
+export async function createActionUnlockToken(db: D1Database, t: ActionUnlockTokenRow): Promise<void> {
+  await run(
+    db,
+    `INSERT INTO action_unlock_tokens (id, token, user_id, action_type, campaign_id, impression_id,
+      expires_at, used, used_at, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, ?)`,
+    t.id,
+    t.token,
+    t.user_id,
+    t.action_type,
+    t.campaign_id,
+    t.impression_id,
+    t.expires_at,
+    t.created_at
+  );
+}
+
+export async function markActionUnlockTokenUsed(db: D1Database, token: string): Promise<void> {
+  await run(
+    db,
+    `UPDATE action_unlock_tokens SET used = 1, used_at = ? WHERE token = ?`,
+    Date.now(),
+    token
   );
 }

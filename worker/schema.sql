@@ -133,6 +133,22 @@ CREATE TABLE IF NOT EXISTS order_messages (
   FOREIGN KEY (order_id) REFERENCES creative_orders(id)
 );
 
+-- Token azione monouso (Watch-to-Unlock): rilasciato dopo visione pubblicitaria certificata.
+-- Valido per una specifica action_type, scadenza breve, consumo singolo.
+CREATE TABLE IF NOT EXISTS action_unlock_tokens (
+  id TEXT PRIMARY KEY,
+  token TEXT NOT NULL UNIQUE,
+  user_id TEXT NOT NULL,
+  action_type TEXT NOT NULL,
+  campaign_id TEXT NOT NULL,
+  impression_id TEXT NOT NULL,
+  expires_at INTEGER NOT NULL,
+  used INTEGER NOT NULL DEFAULT 0,
+  used_at INTEGER,
+  created_at INTEGER NOT NULL,
+  FOREIGN KEY (impression_id) REFERENCES impressions(id)
+);
+
 -- Indici per performance
 CREATE INDEX IF NOT EXISTS idx_impressions_user ON impressions(user_id);
 CREATE INDEX IF NOT EXISTS idx_impressions_campaign ON impressions(campaign_id);
@@ -145,3 +161,6 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_advertiser ON subscriptions(adverti
 CREATE INDEX IF NOT EXISTS idx_orders_advertiser ON creative_orders(advertiser_id);
 CREATE INDEX IF NOT EXISTS idx_orders_creator ON creative_orders(creator_id);
 CREATE INDEX IF NOT EXISTS idx_messages_order ON order_messages(order_id);
+CREATE INDEX IF NOT EXISTS idx_action_tokens_token ON action_unlock_tokens(token);
+CREATE INDEX IF NOT EXISTS idx_action_tokens_user ON action_unlock_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_action_tokens_used ON action_unlock_tokens(used);

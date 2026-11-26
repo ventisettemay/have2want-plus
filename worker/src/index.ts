@@ -1,5 +1,5 @@
 import type { CloudflareEnv, CampaignRow, ExecutionContext } from './types';
-import { WEBHOOK_SECRET, verifyWebhookSignature, generateId, nowMs } from './auth';
+import { WEBHOOK_SECRET, verifyWebhookSignature, generateId, nowMs, signActionToken, verifyActionToken } from './auth';
 import {
   getCampaign,
   createCampaign,
@@ -15,6 +15,9 @@ import {
   createOrder,
   updateOrderStatus,
   addOrderMessage,
+  getActionUnlockToken,
+  createActionUnlockToken,
+  markActionUnlockTokenUsed,
 } from './db';
 import { generateImage, moderateVision } from './ai';
 import { presignUpload, cleanupExpiredR2Files } from './r2';
@@ -74,7 +77,9 @@ async function sendAdImpressionVerifiedWebhook(
     impressionId: string;
     userId: string;
     campaignId: string;
-    points: number;
+    actionType: string;
+    actionUnlockToken: string;
+    expiresAt?: number;
     timestamp: number;
     idempotencyKey: string;
   },
@@ -402,6 +407,7 @@ export default {
         ipHash,
         userAgentHash,
         visibilityDurationMs,
+        actionType,
       } = body as {
         campaignId?: string;
         userId?: string;
@@ -413,6 +419,7 @@ export default {
         ipHash?: string;
         userAgentHash?: string;
         visibilityDurationMs?: number;
+        actionType?: 'UNLOCK_FEATURE' | 'FREE_POST' | 'STUDIO_EXPORT';
       };
 
       if (!campaignId || !userId || !sessionToken || !nonce || !idempotencyKey) {
@@ -448,8 +455,11 @@ export default {
         return errorResponse('Nessuna creatività disponibile per questa campagna', 'NO_CREATIVE', 400);
       }
 
-      const rewardPoints = Math.round(((amount ?? campaign.cost_per_impression) * campaign.reward_percent_to_user) / 100);
+      // Watch-to-Unlock: nessun accredito punti. Rilascio action_unlock_token monouso.
+      const actionTypeFinal = actionType ?? 'UNLOCK_FEATURE';
+      const unlockTtlMs = 10 * 60 * 1000; // 10 minuti
       const now = nowMs();
+      const expiresAt = now + unlockTtlMs;
 
       await createImpression(env.DB, {
         id: generateId(),
@@ -461,8 +471,8 @@ export default {
         idempotency_key: idempotencyKey,
         status: 'certified',
         amount: amount ?? campaign.cost_per_impression,
-        reward_points: rewardPoints,
-        promo_points: rewardPoints,
+        reward_points: 0,
+        promo_points: 0,
         monetary_value: amount ?? campaign.cost_per_impression,
         viewed_at: now,
         certified_at: now,
@@ -474,16 +484,42 @@ export default {
         rate_limited: 0,
       });
 
-      await incrementCampaignStats(env.DB, campaignId, { impressions: 1, certified: 1, spend: amount ?? campaign.cost_per_impression, rewards: rewardPoints });
+      await incrementCampaignStats(env.DB, campaignId, { impressions: 1, certified: 1, spend: amount ?? campaign.cost_per_impression, rewards: 0 });
 
-      // Invio webhook AD_IMPRESSION_VERIFIED a Blocco 1
+      // Genera e firma il token azione monouso
+      const tokenId = generateId();
+      const actionUnlockToken = await signActionToken({
+        sub: userId,
+        act: actionTypeFinal,
+        cid: campaignId,
+        iid: generateId(),
+        exp: expiresAt,
+        iat: now,
+        jti: tokenId,
+      });
+
+      // Salva il token in D1 (consumo singolo)
+      await createActionUnlockToken(env.DB, {
+        id: tokenId,
+        token: actionUnlockToken,
+        user_id: userId,
+        action_type: actionTypeFinal,
+        campaign_id: campaignId,
+        impression_id: generateId(),
+        expires_at: expiresAt,
+        created_at: now,
+      } as any);
+
+      // Invio webhook AD_IMPRESSION_VERIFIED a Blocco 1 (solo audit, nessun punto)
       if (blocco1WebhookUrl) {
         try {
           await sendAdImpressionVerifiedWebhook(env, {
             impressionId: generateId(),
             userId,
             campaignId,
-            points: rewardPoints,
+            actionType: actionTypeFinal,
+            actionUnlockToken,
+            expiresAt,
             timestamp: now,
             idempotencyKey: `imp_${idempotencyKey}`,
           }, blocco1WebhookUrl);
@@ -495,9 +531,56 @@ export default {
       return json({
         success: true,
         duplicate: false,
-        impression: { id: generateId(), campaignId, creativeId: creativeIdFinal, userId, status: 'certified', amount: amount ?? campaign.cost_per_impression, rewardPoints },
-        reward: { points: rewardPoints, type: 'promo_points' },
+        impression: { id: generateId(), campaignId, creativeId: creativeIdFinal, userId, status: 'certified', amount: amount ?? campaign.cost_per_impression },
+        actionUnlockToken,
+        actionType: actionTypeFinal,
+        expiresAt,
+        ttlSeconds: Math.round(unlockTtlMs / 1000),
       }, 201);
+    }
+
+    /* -------------------------------------------------------------- */
+    // POST /api/ads/unlock/verify — verifica e consuma token azione
+    /* -------------------------------------------------------------- */
+    if (path === '/api/ads/unlock/verify' && request.method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const { token, actionType, userId } = body as {
+        token?: string;
+        actionType?: string;
+        userId?: string;
+      };
+      if (!token) {
+        return errorResponse('Campo obbligatorio: token', 'VALIDATION_ERROR', 400);
+      }
+
+      // 1. Verifica firma, scadenza, azione e utente
+      const verification = await verifyActionToken(token, WEBHOOK_SECRET, actionType, userId);
+      if (!verification.valid) {
+        return json({ success: false, valid: false, error: verification.error }, 401);
+      }
+
+      // 2. Controlla che il token esista in D1, non sia già usato e non scaduto
+      const stored = await getActionUnlockToken(env.DB, token);
+      if (!stored) {
+        return json({ success: false, valid: false, error: 'Token non trovato' }, 404);
+      }
+      if (stored.used === 1) {
+        return json({ success: false, valid: false, error: 'Token già utilizzato' }, 409);
+      }
+      if (Date.now() > stored.expires_at) {
+        return json({ success: false, valid: false, error: 'Token scaduto' }, 410);
+      }
+
+      // 3. Segna come usato (consumo singolo)
+      await markActionUnlockTokenUsed(env.DB, token);
+
+      return json({
+        success: true,
+        valid: true,
+        actionType: stored.action_type,
+        campaignId: stored.campaign_id,
+        userId: stored.user_id,
+      });
     }
 
     /* -------------------------------------------------------------- */

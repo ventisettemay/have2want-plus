@@ -50,3 +50,123 @@ export function generateId(): string {
 export function nowMs(): number {
   return Date.now();
 }
+
+/* ------------------------------------------------------------------ */
+/* Token azione monouso (JWT-like firmato HMAC-SHA256)                */
+/* ------------------------------------------------------------------ */
+
+function base64urlEncode(buf: Uint8Array): string {
+  let binary = '';
+  for (let i = 0; i < buf.length; i++) binary += String.fromCharCode(buf[i]);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function base64urlDecode(str: string): Uint8Array {
+  const normalized = str.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+export interface ActionTokenPayload {
+  sub: string;      // user_id
+  act: string;      // action_type
+  cid: string;      // campaign_id
+  iid: string;      // impression_id
+  exp: number;      // scadenza ms
+  iat: number;      // emissione ms
+  jti: string;      // id univoco del token
+}
+
+export async function signActionToken(
+  payload: ActionTokenPayload,
+  secret: string = WEBHOOK_SECRET
+): Promise<string> {
+  const header = { alg: 'HS256', typ: 'JWT' };
+  const headerB64 = base64urlEncode(new TextEncoder().encode(JSON.stringify(header)));
+  const payloadB64 = base64urlEncode(new TextEncoder().encode(JSON.stringify(payload)));
+  const signingInput = `${headerB64}.${payloadB64}`;
+
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(signingInput));
+  const sigB64 = base64urlEncode(new Uint8Array(sig));
+
+  return `${signingInput}.${sigB64}`;
+}
+
+export interface VerifyActionTokenResult {
+  valid: boolean;
+  payload?: ActionTokenPayload;
+  error?: string;
+}
+
+export async function verifyActionToken(
+  token: string,
+  secret: string = WEBHOOK_SECRET,
+  expectedAction?: string,
+  expectedUserId?: string
+): Promise<VerifyActionTokenResult> {
+  const parts = token.split('.');
+  if (parts.length !== 3) {
+    return { valid: false, error: 'Token malformato' };
+  }
+
+  const [headerB64, payloadB64, sigB64] = parts;
+  const signingInput = `${headerB64}.${payloadB64}`;
+
+  // Verifica firma
+  try {
+    const key = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['verify']
+    );
+    const sigBytes = base64urlDecode(sigB64);
+    const ok = await crypto.subtle.verify(
+      'HMAC',
+      key,
+      sigBytes,
+      new TextEncoder().encode(signingInput)
+    );
+    if (!ok) {
+      return { valid: false, error: 'Firma non valida' };
+    }
+  } catch {
+    return { valid: false, error: 'Errore verifica firma' };
+  }
+
+  // Decodifica payload
+  let payload: ActionTokenPayload;
+  try {
+    payload = JSON.parse(new TextDecoder().decode(base64urlDecode(payloadB64))) as ActionTokenPayload;
+  } catch {
+    return { valid: false, error: 'Payload non decodificabile' };
+  }
+
+  // Scadenza
+  if (!payload.exp || Date.now() > payload.exp) {
+    return { valid: false, error: 'Token scaduto' };
+  }
+
+  // Azione attesa
+  if (expectedAction && payload.act !== expectedAction) {
+    return { valid: false, error: `Azione non corrispondente: attesa ${expectedAction}, trovata ${payload.act}` };
+  }
+
+  // Utente atteso
+  if (expectedUserId && payload.sub !== expectedUserId) {
+    return { valid: false, error: 'Utente non corrispondente' };
+  }
+
+  return { valid: true, payload };
+}

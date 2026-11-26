@@ -362,6 +362,8 @@ async function startServer() {
   }
 
   // --- Ricezione webhook AD_IMPRESSION_VERIFIED dal Blocco 2 ---
+  // Watch-to-Unlock: il Blocco 2 NON accredita punti. Rilascia un action_unlock_token
+  // monouso; questo webhook serve solo ad audit/registrazione sul Blocco 1.
   app.post(
     '/webhooks/ad-impression-verified',
     express.raw({ type: 'application/json' }),
@@ -373,11 +375,13 @@ async function startServer() {
           impressionId: string;
           userId: string;
           campaignId: string;
-          points: number;
+          actionType: string;
+          actionUnlockToken: string;
+          expiresAt?: number;
           timestamp: number;
           idempotencyKey: string;
         };
-        if (!payload || !payload.impressionId || !payload.userId || !payload.campaignId || !payload.points) {
+        if (!payload || !payload.impressionId || !payload.userId || !payload.campaignId || !payload.actionUnlockToken || !payload.actionType) {
           return res.status(400).json({ success: false, error: 'Payload webhook incompleto', code: 'WEBHOOK_PAYLOAD_INVALID' });
         }
 
@@ -396,31 +400,29 @@ async function startServer() {
           };
         }
 
-        const pointsToAward = payload.points && payload.points > 0 ? payload.points : 5;
-
-        const tx: any = {
-          id: `tx_webhook_adimp_${payload.impressionId}`,
-          type: 'AD_IMPRESSION_VERIFIED',
-          description: 'Visione pubblicitaria certificata (webhook Blocco 2)',
-          pointsDelta: pointsToAward,
-          piEquivalent: Number((pointsToAward / 1000).toFixed(4)),
-          timestamp: payload.timestamp || Date.now(),
-          status: 'completed',
-          campaignId: payload.campaignId,
-          impressionId: payload.impressionId,
-        };
-
-        // Idempotenza: evita doppia accredito se stesso impressionId già presente
+        // Idempotenza: evita doppio audit se stesso impressionId già presente
         const alreadyExists = Array.isArray(wallet.history) && wallet.history.some(
           (t: any) => t.impressionId === payload.impressionId && t.type === 'AD_IMPRESSION_VERIFIED'
         );
         if (alreadyExists) {
-          return res.status(200).json({ success: true, duplicate: true, credited: 0 });
+          return res.status(200).json({ success: true, duplicate: true });
         }
 
-        wallet.pointsBalance = Number((wallet.pointsBalance + pointsToAward).toFixed(0));
-        wallet.totalPointsEarned = Number((wallet.totalPointsEarned + pointsToAward).toFixed(0));
-        wallet.history.unshift(tx);
+        // Registra audit senza toccare pointsBalance / totalPointsEarned
+        wallet.history.unshift({
+          id: `tx_webhook_adimp_${payload.impressionId}`,
+          type: 'AD_IMPRESSION_VERIFIED',
+          description: `Visione pubblicitaria certificata - sblocco azione: ${payload.actionType}`,
+          pointsDelta: 0,
+          piEquivalent: 0,
+          timestamp: payload.timestamp || Date.now(),
+          status: 'completed',
+          campaignId: payload.campaignId,
+          impressionId: payload.impressionId,
+          actionUnlockToken: payload.actionUnlockToken,
+          actionType: payload.actionType,
+          expiresAt: payload.expiresAt,
+        });
         wallet.updatedAt = Date.now();
 
         await fwSaveWalletToCloud(walletId, {
@@ -439,12 +441,13 @@ async function startServer() {
         return res.status(200).json({
           success: true,
           duplicate: false,
-          credited: pointsToAward,
-          newBalance: wallet.pointsBalance,
+          actionUnlockToken: payload.actionUnlockToken,
+          actionType: payload.actionType,
           impressionId: payload.impressionId,
         });
       } catch (err: any) {
-        return res.status(500).json({ success: false, error: err?.message || 'Errore elaborazione webhook AD_IMPRESSION_VERIFIED', code: 'WEBHOOK_PROCESSING_ERROR' });
+        console.error('Errore webhook ad-impression-verified:', err);
+        return res.status(500).json({ success: false, error: 'Errore interno server', code: 'WEBHOOK_ERROR' });
       }
     }
   );

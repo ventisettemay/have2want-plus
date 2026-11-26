@@ -25,6 +25,10 @@ export interface RewardTransaction {
   status: 'completed' | 'pending' | 'rejected';
   campaignId?: string;
   impressionId?: string;
+  // Watch-to-Unlock: token azione monouso rilasciato dopo visione certificata
+  actionUnlockToken?: string;
+  actionType?: string; // 'UNLOCK_FEATURE' | 'FREE_POST' | 'STUDIO_EXPORT' | ...
+  expiresAt?: number;  // scadenza token (ms)
 }
 
 export interface PioneerRewardsState {
@@ -574,20 +578,27 @@ export function spendPoints(
 
 /**
  * Costruisce una transazione premio AD_IMPRESSION_VERIFIED pura (senza effetti collaterali).
+ * Watch-to-Unlock: invece di pointsDelta accredita un actionUnlockToken monouso.
  * Usabile sia dal frontend che dal backend per allineare la struttura della causale.
  */
 export function buildAdImpressionTransaction({
-  points,
+  points = 0,
   campaignId,
   impressionId,
   userId,
   description,
+  actionUnlockToken,
+  actionType,
+  expiresAt,
 }: {
-  points: number;
+  points?: number;
   campaignId: string;
   impressionId: string;
   userId?: string;
   description?: string;
+  actionUnlockToken?: string;
+  actionType?: string;
+  expiresAt?: number;
 }): RewardTransaction {
   return {
     id: `tx_adimp_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
@@ -599,51 +610,58 @@ export function buildAdImpressionTransaction({
     status: 'completed',
     campaignId,
     impressionId,
+    actionUnlockToken,
+    actionType,
+    expiresAt,
   };
 }
 
 /**
- * Accredita punti per un'impressione pubblicitaria verificata (causale AD_IMPRESSION_VERIFIED).
- * Il valore points viene fornito dal chiamante (es. Blocco 2). Se mancante o <= 0,
- * si usa EARN_RATES.AD_IMPRESSION_VERIFIED come fallback.
+ * Registra un'impressione pubblicitaria verificata in modalità Watch-to-Unlock.
+ * NON accredita punti: rilascia solo un record di audit con actionUnlockToken.
+ * Il token azione monouso è generato e firmato dal Blocco 2 e passato qui per audit.
  * Frontend-only: opera su localStorage + sincronizzazione Firestore.
  */
-export function awardAdImpressionVerified({
-  points,
+export function recordAdImpressionUnlock({
+  actionUnlockToken,
+  actionType,
+  expiresAt,
   campaignId,
   impressionId,
   userId,
   description,
 }: {
-  points?: number;
+  actionUnlockToken: string;
+  actionType: string;
+  expiresAt?: number;
   campaignId: string;
   impressionId: string;
   userId?: string;
   description?: string;
-}): { success: boolean; newBalance: number; pointsEarned: number } {
-  const pointsToAward = points && points > 0 ? points : REWARDS_CONFIG.EARN_RATES.AD_IMPRESSION_VERIFIED;
-  if (!pointsToAward || pointsToAward <= 0) {
-    return { success: false, newBalance: 0, pointsEarned: 0 };
+}): { success: boolean; actionUnlockToken: string } {
+  const state = getPioneerRewardsState();
+
+  // Idempotenza: evita doppio audit se stesso impressionId già presente
+  const alreadyExists = Array.isArray(state.history) && state.history.some(
+    (t) => t.impressionId === impressionId && t.type === 'AD_IMPRESSION_VERIFIED'
+  );
+  if (alreadyExists) {
+    return { success: true, actionUnlockToken };
   }
 
-  const state = getPioneerRewardsState();
-  state.pointsBalance += pointsToAward;
-  state.totalPointsEarned += pointsToAward;
-
   const tx = buildAdImpressionTransaction({
-    points: pointsToAward,
+    points: 0,
     campaignId,
     impressionId,
     userId,
     description,
+    actionUnlockToken,
+    actionType,
+    expiresAt,
   });
 
   state.history.unshift(tx);
   savePioneerRewardsState(state);
 
-  return {
-    success: true,
-    newBalance: state.pointsBalance,
-    pointsEarned: pointsToAward,
-  };
+  return { success: true, actionUnlockToken };
 }

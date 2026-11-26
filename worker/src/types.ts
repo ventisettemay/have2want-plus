@@ -133,3 +133,16 @@ export interface ProviderRow {
   ok: number;
   error?: string;
 }
+
+export interface ActionUnlockTokenRow {
+  id: string;
+  token: string;
+  user_id: string;
+  action_type: string;
+  campaign_id: string;
+  impression_id: string;
+  expires_at: number;
+  used: number;
+  used_at?: number;
+  created_at: number;
+}
