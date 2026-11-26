@@ -29,6 +29,7 @@ import { publishShopToCloud, subscribeToCloudShops } from '@/lib/firestoreServic
 import { satelliteEngine, INITIAL_SATELLITES_CATALOG } from '@/lib/satelliteModularEngine';
 import MerchantDetailModal from './MerchantDetailModal';
 import StrettaDiMano from './StrettaDiMano';
+import WatchToUnlockModal from './WatchToUnlockModal';
 import { toast } from 'sonner';
 import {
   Globe2,
@@ -295,6 +296,22 @@ export default function MapView3DContainer({
   const [isRewardsHubOpen, setIsRewardsHubOpen] = useState(false);
   const [isAdModalOpen, setIsAdModalOpen] = useState(false);
   const [isVoiceChatOpen, setIsVoiceChatOpen] = useState(false);
+
+  // --- Watch-to-Unlock: modale "Guarda 1 annuncio per sbloccare" ---
+  const [isWatchToUnlockOpen, setIsWatchToUnlockOpen] = useState(false);
+  const [watchToUnlockActionType, setWatchToUnlockActionType] = useState('UNLOCK_FEATURE');
+  const [watchToUnlockActionLabel, setWatchToUnlockActionLabel] = useState('Sblocca azione');
+
+  const handleOpenWatchToUnlock = (actionType, actionLabel) => {
+    setWatchToUnlockActionType(actionType);
+    setWatchToUnlockActionLabel(actionLabel);
+    setIsWatchToUnlockOpen(true);
+  };
+
+  const handleWatchToUnlockSuccess = () => {
+    toast.success('Azione sbloccata con successo!');
+    setIsWatchToUnlockOpen(false);
+  };
 
   // Modali Servizi Diretti & Utilità Globali (Zero spese, zero database interno)
   const [isEmergencyModalOpen, setIsEmergencyModalOpen] = useState(false);
@@ -1390,6 +1407,15 @@ export default function MapView3DContainer({
             setShowVideoCreator(false);
             toast.success('Video renderizzato', { description: `${result.width}×${result.height}`, duration: 3000 });
           }}
+        />
+      )}
+      {isWatchToUnlockOpen && (
+        <WatchToUnlockModal
+          isOpen={isWatchToUnlockOpen}
+          onClose={() => setIsWatchToUnlockOpen(false)}
+          actionType={watchToUnlockActionType}
+          actionLabel={watchToUnlockActionLabel}
+          onSuccess={handleWatchToUnlockSuccess}
         />
       )}
     </div>

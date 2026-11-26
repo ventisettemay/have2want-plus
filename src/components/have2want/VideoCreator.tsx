@@ -26,7 +26,18 @@ import {
   Link,
   ArrowLeft,
   Plus,
+  RefreshCw,
+  CloudUpload,
+  Film as FilmIcon,
 } from 'lucide-react';
+
+// FFmpeg browser-side (single-thread) per esportazione MP4
+// Tipi risolti dinamicamente (@ffmpeg/ffmpeg non shipping .d.ts)
+const fetchFile = async (url: string | URL): Promise<Uint8Array> => {
+  const res = await fetch(url.toString());
+  const ab = await res.arrayBuffer();
+  return new Uint8Array(ab);
+};
 
 export type VideoFormat = '16:9' | '9:16' | '1:1' | '4:3' | 'custom';
 
@@ -90,6 +101,18 @@ export const VideoCreator: React.FC<VideoCreatorProps> = ({
   const [duration, setDuration] = useState<number>(0);
   const [mediaOpen, setMediaOpen] = useState(false);
   const [renderedBlobUrl, setRenderedBlobUrl] = useState<string | null>(null);
+
+  // --- Stati FFmpeg Step 3 ---
+  const [isFfmpegLoading, setIsFfmpegLoading] = useState(false);
+  const [isFfmpegExporting, setIsFfmpegExporting] = useState(false);
+  const [ffmpegProgress, setFfmpegProgress] = useState<string>('');
+  const ffmpegRef = useRef<any>(null);
+  const ffmpegAbortRef = useRef<AbortController | null>(null);
+
+  const MAX_WIDTH = 1280;   // 720p max
+  const MAX_HEIGHT = 720;
+  const MAX_WIDTH_1080 = 1920; // 1080p max
+  const MAX_HEIGHT_1080 = 1080;
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number | null>(null);
@@ -336,6 +359,192 @@ export const VideoCreator: React.FC<VideoCreatorProps> = ({
     setIsRendering(false);
   };
 
+  // ------------------------------------------------------------------
+  // FFmpeg Step 3 — Export MP4 (single-thread, browser-side)
+  // ------------------------------------------------------------------
+  const ensureFfmpeg = async (): Promise<any> => {
+    if (ffmpegRef.current) return ffmpegRef.current;
+    setIsFfmpegLoading(true);
+    try {
+      const { FFmpeg } = await import('@ffmpeg/ffmpeg');
+      const ffmpeg = new FFmpeg();
+      ffmpeg.on('progress', ({ progress }: any) => {
+        setFfmpegProgress(Math.round(progress * 100) + '%');
+      });
+      ffmpeg.on('log', () => {});
+      await ffmpeg.load();
+      ffmpegRef.current = ffmpeg;
+      return ffmpeg;
+    } finally {
+      setIsFfmpegLoading(false);
+    }
+  };
+
+  const scaleForPiBrowser = (w: number, h: number): { w: number; h: number } => {
+    // Limite max 720p (1280x720) per compatibilità Pi Browser; 1080p opzionale
+    const ratio = w / h;
+    let maxW = MAX_WIDTH;
+    let maxH = MAX_HEIGHT;
+    if (w > MAX_WIDTH_1080 || h > MAX_HEIGHT_1080) {
+      maxW = MAX_WIDTH_1080;
+      maxH = MAX_HEIGHT_1080;
+    }
+    if (w > maxW || h > maxH) {
+      const scale = Math.min(maxW / w, maxH / h);
+      return { w: Math.round(w * scale), h: Math.round(h * scale) };
+    }
+    return { w, h };
+  };
+
+  const handleUploadVideoToCloud = async (blob: Blob, fileName: string) => {
+    setIsFfmpegExporting(true);
+    ffmpegAbortRef.current = new AbortController();
+    try {
+      const presignRes = await fetch('/api/uploads/presign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName,
+          contentType: 'video/mp4',
+          sizeBytes: blob.size,
+          advertiserId: (currentUserId || (user as any)?.id || 'local_user'),
+        }),
+        signal: ffmpegAbortRef.current.signal,
+      });
+      if (!presignRes.ok) throw new Error(`Presign fallito (${presignRes.status})`);
+      const presign = await presignRes.json();
+      if (!presign.success || !presign.uploadUrl) throw new Error(presign.error || 'Presign non valido');
+
+      const putRes = await fetch(presign.uploadUrl, {
+        method: 'PUT',
+        body: blob,
+        headers: { 'Content-Type': 'video/mp4' },
+        signal: ffmpegAbortRef.current.signal,
+      });
+      if (!putRes.ok) throw new Error(`Upload R2 fallito (${putRes.status})`);
+
+      toast.success(`Video caricato su cloud (R2): ${presign.fileKey}`);
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
+      toast.error('Upload video cloud fallito: ' + (err?.message || 'sconosciuto'));
+    } finally {
+      setIsFfmpegExporting(false);
+      ffmpegAbortRef.current = null;
+    }
+  };
+
+  const handleExportMp4 = async () => {
+    if (clips.length === 0 && texts.length === 0) {
+      toast.error('Aggiungi almeno un clip o un testo prima di esportare.');
+      return;
+    }
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+
+    const { w, h } = scaleForPiBrowser(dimensions.w, dimensions.h);
+    canvas.width = w;
+    canvas.height = h;
+
+    const fps = 24;
+    const totalFrames = Math.ceil(duration * fps);
+    let frame = 0;
+
+    try {
+      const ffmpeg = await ensureFfmpeg();
+      ffmpegAbortRef.current = new AbortController();
+
+      // Scrivi i frame come immagini PNG in una cartella temporanea FFmpeg
+      // Nota: FFmpeg nel browser non può leggere direttamente il canvas; scriviamo frame singoli
+      for (let i = 0; i < totalFrames; i++) {
+        const t = i / fps;
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, w, h);
+        for (const clip of clips) {
+          if (t < clip.startTime || t > clip.startTime + clip.duration) continue;
+          ctx.save();
+          ctx.globalAlpha = clip.opacity ?? 1;
+          if (clip.rotate) ctx.rotate((clip.rotate * Math.PI) / 180);
+          const drawW = w * (clip.scale ?? 1);
+          const drawH = h * (clip.scale ?? 1);
+          const drawX = (w - drawW) / 2 + clip.x * w * 0.3;
+          const drawY = (h - drawH) / 2 + clip.y * h * 0.3;
+          if ((clip.type === 'video' || clip.type === 'image') && clip.url) {
+            const img = new Image();
+            img.src = clip.url;
+            await new Promise((res) => { img.onload = res; });
+            ctx.drawImage(img, drawX, drawY, drawW, drawH);
+          } else if (clip.type === 'text' && clip.content) {
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `bold ${Math.max(16, (clip.scale ?? 1) * 24)}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(clip.content, drawX + drawW / 2, drawY + drawH / 2);
+          }
+          ctx.restore();
+        }
+        for (const txt of texts) {
+          if (t < txt.startTime || t > txt.startTime + txt.duration) continue;
+          ctx.save();
+          ctx.fillStyle = txt.color ?? '#ffffff';
+          ctx.font = `bold ${txt.fontSize}px ${txt.fontFamily}`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(txt.content, txt.x * w, txt.y * h);
+          ctx.restore();
+        }
+
+        const frameDataUrl = canvas.toDataURL('image/png');
+        const frameResp = await fetch(frameDataUrl);
+        const frameBlob = await frameResp.blob();
+        await ffmpeg.FS('writeFile', `frame_${String(i).padStart(5, '0')}.png`, await fetchFile(frameDataUrl));
+        setFfmpegProgress(`Frame ${i + 1}/${totalFrames}`);
+      }
+
+      // Esegui FFmpeg per assemblare i frame in MP4 (H.264, single-thread)
+      await ffmpeg.run(
+        '-framerate', String(fps),
+        '-i', 'frame_%05d.png',
+        '-c:v', 'libx264',
+        '-pix_fmt', 'yuv420p',
+        '-movflags', '+faststart',
+        '-preset', 'fast',
+        '-crf', '23',
+        'output.mp4'
+      );
+
+      const data = await ffmpeg.FS('readFile', 'output.mp4');
+      const blob = new Blob([data.buffer as ArrayBuffer], { type: 'video/mp4' });
+      const blobUrl = URL.createObjectURL(blob);
+      setRenderedBlobUrl(blobUrl);
+      setIsFfmpegExporting(false);
+
+      // Download locale
+      const link = document.createElement('a');
+      link.download = `video_${format}_${Date.now()}.mp4`;
+      link.href = blobUrl;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast.success('Video MP4 esportato (FFmpeg single-thread, browser-side)');
+
+      // Upload su cloud R2
+      await handleUploadVideoToCloud(blob, `video_${format}_${Date.now()}.mp4`);
+
+      if (onExport) {
+        onExport({ format, width: w, height: h, blobUrl, mimeType: 'video/mp4' });
+      }
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
+      toast.error('Export FFmpeg fallito: ' + (err?.message || 'sconosciuto'));
+      setIsFfmpegExporting(false);
+    } finally {
+      setIsFfmpegLoading(false);
+      setFfmpegProgress('');
+    }
+  };
+
   const saveProjectToBackend = async (blobUrl: string, mimeType: string) => {
     const uid = currentUserId || (user as any)?.id || 'local_user';
     try {
@@ -565,6 +774,25 @@ export const VideoCreator: React.FC<VideoCreatorProps> = ({
                   📥 Scarica WebM
                 </button>
               )}
+              <button
+                onClick={isFfmpegLoading ? undefined : handleExportMp4}
+                disabled={isFfmpegLoading || isFfmpegExporting}
+                className={`w-full py-2.5 rounded-xl font-bold text-xs transition-all disabled:opacity-50 ${
+                  isFfmpegLoading || isFfmpegExporting
+                    ? 'bg-zinc-800 text-zinc-500'
+                    : 'bg-violet-500/10 text-violet-300 border border-violet-500/30 hover:bg-violet-500/20'
+                }`}
+              >
+                {isFfmpegLoading ? 'Carica FFmpeg...' : isFfmpegExporting ? 'Export MP4...' : '🎞️ Esporta MP4 (FFmpeg)'}
+              </button>
+              {ffmpegProgress && (
+                <div className="w-full py-1 rounded bg-zinc-900 border border-zinc-700">
+                  <div className="h-1.5 bg-violet-500 rounded-full" style={{ width: ffmpegProgress }}></div>
+                </div>
+              )}
+              <div className="text-[9px] text-zinc-500 text-center">
+                FFmpeg single-thread • max 720p/1080p (Pi Browser) • header COOP/COEP richiesti dal server
+              </div>
             </div>
           </div>
 

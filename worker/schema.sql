@@ -87,8 +87,10 @@ CREATE TABLE IF NOT EXISTS provider_registry (
 CREATE TABLE IF NOT EXISTS subscriptions (
   id TEXT PRIMARY KEY,
   advertiser_id TEXT NOT NULL,
+  advertiser_username TEXT,
   level TEXT NOT NULL CHECK (level IN ('base','vetrina','inserzionista')),
   price_pi REAL NOT NULL,
+  accepts_pi INTEGER NOT NULL DEFAULT 0,
   start_date INTEGER NOT NULL,
   end_date INTEGER NOT NULL,
   status TEXT NOT NULL DEFAULT 'active',

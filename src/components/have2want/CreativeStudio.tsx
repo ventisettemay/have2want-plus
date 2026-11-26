@@ -18,7 +18,19 @@ import {
   Palette,
   Layout,
   Filter,
+  Trash2,
+  RefreshCw,
+  CloudUpload,
+  Phone,
 } from 'lucide-react';
+
+// --- Dipendenze AI Step 3 (frontend) ---
+// Rimozione sfondo AI client-side (ONNX, browser-native)
+import { removeBackground } from '@imgly/background-removal';
+// Upscaling / super-risoluzione client-side
+import { Upscaler } from 'upscalerjs';
+// OCR client-side
+import { createWorker, Worker } from 'tesseract.js';
 
 export type CreativeFormat = '300x250' | '728x90' | '320x50' | '1080x1080' | '1200x628' | 'custom';
 
@@ -68,6 +80,23 @@ export const CreativeStudio: React.FC<CreativeStudioProps> = ({
   const [bgImage, setBgImage] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // --- Stati AI Step 3 ---
+  const [isBgRemoving, setIsBgRemoving] = useState(false);
+  const [bgRemovedUrl, setBgRemovedUrl] = useState<string | null>(null);
+  const [bgRemovedBlob, setBgRemovedBlob] = useState<Blob | null>(null);
+  const [isUpscaling, setIsUpscaling] = useState(false);
+  const [upscaledUrl, setUpscaledUrl] = useState<string | null>(null);
+  const [isOcrRunning, setIsOcrRunning] = useState(false);
+  const [ocrText, setOcrText] = useState<string>('');
+  const [ocrLang, setOcrLang] = useState<string>('ita+eng');
+  const [isUploading, setIsUploading] = useState(false);
+  const [cloudUploadUrl, setCloudUploadUrl] = useState<string | null>(null);
+  const [cloudFileKey, setCloudFileKey] = useState<string | null>(null);
+
+  const upscalerRef = useRef<Upscaler | null>(null);
+  const ocrWorkerRef = useRef<Worker | null>(null);
+  const cloudUploadAbortRef = useRef<AbortController | null>(null);
   const [mediaOpen, setMediaOpen] = useState(false);
   const [mediaItems, setMediaItems] = useState<Array<{ id: string; fileUrl: string; fileName: string }>>([]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -159,6 +188,143 @@ export const CreativeStudio: React.FC<CreativeStudioProps> = ({
       URL.revokeObjectURL(url);
     };
     img.src = url;
+  };
+
+  // ------------------------------------------------------------------
+  // AI Step 3 — Rimozione sfondo (@imgly/background-removal, ONNX client-side)
+  // ------------------------------------------------------------------
+  const handleRemoveBackground = async () => {
+    if (!bgImage) {
+      toast.error('Nessuna immagine sfondo selezionata');
+      return;
+    }
+    setIsBgRemoving(true);
+    try {
+      // Carica l'immagine da URL in un blob
+      const resp = await fetch(bgImage);
+      const blob = await resp.blob();
+      const file = new File([blob], 'input.png', { type: blob.type || 'image/png' });
+
+      const result = await removeBackground(file, {
+        model: 'isnet', // modello generale, buono per soggetti generici
+      });
+
+      const outBlob = result as Blob;
+      const outUrl = URL.createObjectURL(outBlob);
+      setBgRemovedUrl(outUrl);
+      setBgRemovedBlob(outBlob);
+      toast.success('Sfondo rimosso (AI client-side)');
+    } catch (err: any) {
+      toast.error('Rimozione sfondo fallita: ' + (err?.message || 'sconosciuto'));
+    } finally {
+      setIsBgRemoving(false);
+    }
+  };
+
+  // ------------------------------------------------------------------
+  // AI Step 3 — Upscaling / Super-risoluzione (UpscalerJS client-side)
+  // ------------------------------------------------------------------
+  const handleUpscale = async () => {
+    const source = bgRemovedUrl || bgImage || (canvasRef.current?.toDataURL('image/png') || undefined);
+    if (!source) {
+      toast.error('Nessuna immagine da upscalare');
+      return;
+    }
+    setIsUpscaling(true);
+    try {
+      if (!upscalerRef.current) {
+        upscalerRef.current = new Upscaler();
+        await upscalerRef.current.loadModel('x4'); // modello 4x
+      }
+      const img = new Image();
+      img.src = source;
+      await new Promise((res) => { img.onload = res; });
+
+      const result = await upscalerRef.current.scale(img as any);
+      const canvas = document.createElement('canvas');
+      canvas.width = result.width;
+      canvas.height = result.height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) ctx.drawImage(result as any, 0, 0);
+      const outUrl = canvas.toDataURL('image/png');
+      setUpscaledUrl(outUrl);
+      toast.success('Upscaling completato (4x)');
+    } catch (err: any) {
+      toast.error('Upscaling fallito: ' + (err?.message || 'sconosciuto'));
+    } finally {
+      setIsUpscaling(false);
+    }
+  };
+
+  // ------------------------------------------------------------------
+  // AI Step 3 — OCR / Estrazione testo (Tesseract.js client-side)
+  // ------------------------------------------------------------------
+  const handleOcr = async () => {
+    const source = bgRemovedUrl || bgImage || (canvasRef.current?.toDataURL('image/png') || undefined);
+    if (!source) {
+      toast.error('Nessuna immagine per OCR');
+      return;
+    }
+    setIsOcrRunning(true);
+    setOcrText('');
+    try {
+      if (!ocrWorkerRef.current) {
+        ocrWorkerRef.current = await createWorker('ita+eng');
+      }
+      const worker = ocrWorkerRef.current;
+      await worker.setParameters({ tessedit_pageseg_mode: '6' });
+      const ret = await worker.recognize(source);
+      setOcrText(ret.data.text);
+      toast.success('OCR completato — testo estratto');
+    } catch (err: any) {
+      toast.error('OCR fallito: ' + (err?.message || 'sconosciuto'));
+    } finally {
+      setIsOcrRunning(false);
+    }
+  };
+
+  // ------------------------------------------------------------------
+  // Cloud R2 — Presign upload diretto (POST /api/uploads/presign → PUT R2)
+  // ------------------------------------------------------------------
+  const handleUploadToCloud = async (blob: Blob, fileName: string) => {
+    setIsUploading(true);
+    cloudUploadAbortRef.current = new AbortController();
+    try {
+      // 1. Ottieni presign URL dal Blocco 2
+      const presignRes = await fetch('/api/uploads/presign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName,
+          contentType: blob.type || 'image/png',
+          sizeBytes: blob.size,
+          advertiserId: (currentUserId || (user as any)?.id || 'local_user'),
+        }),
+        signal: cloudUploadAbortRef.current.signal,
+      });
+      if (!presignRes.ok) throw new Error(`Presign fallito (${presignRes.status})`);
+      const presign = await presignRes.json();
+      if (!presign.success || !presign.uploadUrl) throw new Error(presign.error || 'Presign non valido');
+
+      // 2. PUT diretto su R2
+      const putRes = await fetch(presign.uploadUrl, {
+        method: 'PUT',
+        body: blob,
+        headers: { 'Content-Type': blob.type || 'image/png' },
+        signal: cloudUploadAbortRef.current.signal,
+      });
+      if (!putRes.ok) throw new Error(`Upload R2 fallito (${putRes.status})`);
+
+      setCloudUploadUrl(presign.uploadUrl);
+      setCloudFileKey(presign.fileKey);
+      toast.success(`Caricato su cloud (R2): ${presign.fileKey}`);
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
+      toast.error('Upload cloud fallito: ' + (err?.message || 'sconosciuto'));
+    } finally {
+      setIsUploading(false);
+      cloudUploadAbortRef.current = null;
+    }
   };
 
   const handleExport = async (mimeType: 'image/png' | 'image/jpeg' | 'image/webp') => {
@@ -536,6 +702,66 @@ export const CreativeStudio: React.FC<CreativeStudioProps> = ({
                   ))}
                 </div>
               </div>
+
+              <div>
+                <label className="text-[10px] text-zinc-400 uppercase font-bold mb-2 block">Strumenti AI</label>
+                <div className="grid grid-cols-2 gap-1">
+                  <button
+                    onClick={handleRemoveBackground}
+                    disabled={isBgRemoving || !bgImage}
+                    className={`px-2 py-1.5 rounded text-[9px] font-bold transition-all disabled:opacity-50 ${
+                      isBgRemoving ? 'bg-zinc-800 text-zinc-500' : 'bg-purple-500/10 text-purple-300 border border-purple-500/30 hover:bg-purple-500/20'
+                    }`}
+                  >
+                    {isBgRemoving ? 'Rimuovi...' : '🪄 Rimuovi Sfondo'}
+                  </button>
+                  <button
+                    onClick={handleUpscale}
+                    disabled={isUpscaling}
+                    className={`px-2 py-1.5 rounded text-[9px] font-bold transition-all disabled:opacity-50 ${
+                      isUpscaling ? 'bg-zinc-800 text-zinc-500' : 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/20'
+                    }`}
+                  >
+                    {isUpscaling ? 'Upscale...' : '🔍 Upscale 4x'}
+                  </button>
+                  <button
+                    onClick={handleOcr}
+                    disabled={isOcrRunning}
+                    className={`px-2 py-1.5 rounded text-[9px] font-bold transition-all disabled:opacity-50 ${
+                      isOcrRunning ? 'bg-zinc-800 text-zinc-500' : 'bg-blue-500/10 text-blue-300 border border-blue-500/30 hover:bg-blue-500/20'
+                    }`}
+                  >
+                    {isOcrRunning ? 'OCR...' : '📝 OCR Testo'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      const source = bgRemovedBlob || (canvasRef.current?.toDataURL('image/png') ? null : null);
+                      if (!source) { toast.error('Nessuna immagine da caricare'); return; }
+                      // Converte dataURL in blob se necessario
+                      if (typeof source === 'string') {
+                        fetch(source).then(r => r.blob()).then(b => handleUploadToCloud(b, `creative_${Date.now()}.png`));
+                      } else {
+                        handleUploadToCloud(source, `creative_${Date.now()}.png`);
+                      }
+                    }}
+                    disabled={isUploading || (!bgRemovedUrl && !bgImage && !canvasRef.current)}
+                    className={`px-2 py-1.5 rounded text-[9px] font-bold transition-all disabled:opacity-50 ${
+                      isUploading ? 'bg-zinc-800 text-zinc-500' : 'bg-blue-500/10 text-blue-300 border border-blue-500/30 hover:bg-blue-500/20'
+                    }`}
+                  >
+                    {isUploading ? 'Carica...' : '☁️ Upload Cloud (R2)'}
+                  </button>
+                </div>
+                {ocrText && (
+                  <div className="mt-2 p-2 rounded-lg bg-zinc-900 border border-zinc-700 text-[10px] text-zinc-200 max-h-32 overflow-y-auto">
+                    <div className="flex items-center gap-1 mb-1">
+                      <span className="text-blue-400">📝</span>
+                      <span className="font-bold uppercase tracking-wider">OCR estratto:</span>
+                    </div>
+                    <div className="whitespace-pre-wrap break-words text-xs">{ocrText}</div>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="mt-4 pt-4 border-t border-zinc-800 space-y-2">
@@ -553,6 +779,29 @@ export const CreativeStudio: React.FC<CreativeStudioProps> = ({
               >
                 📥 Esporta PNG
               </button>
+              <button
+                onClick={async () => {
+                  const source = bgRemovedBlob || (canvasRef.current?.toDataURL('image/png') ? null : null);
+                  if (!source) { toast.error('Nessuna immagine da scaricare'); return; }
+                  const blob = typeof source === 'string' ? await (await fetch(source)).blob() : source;
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement('a');
+                  link.download = `creative_${format}_${Date.now()}.png`;
+                  link.href = url;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  URL.revokeObjectURL(url);
+                  toast.success('Scaricato sul dispositivo. Nota: i file caricati su cloud R2 vengono rimossi automaticamente 7 giorni dopo la fine della campagna.');
+                }}
+                disabled={isExporting}
+                className={`w-full py-2.5 rounded-xl font-bold text-xs transition-all disabled:opacity-50 ${isExporting ? 'bg-zinc-800 text-zinc-500' : 'bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/20'}`}
+              >
+                💾 Scarica sul dispositivo
+              </button>
+              <div className="text-[9px] text-zinc-500 text-center">
+                File cloud R2: rimozione automatica +7 gg da fine campagna
+              </div>
             </div>
           </div>
 

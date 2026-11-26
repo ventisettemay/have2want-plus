@@ -18,6 +18,7 @@ import {
   getActionUnlockToken,
   createActionUnlockToken,
   markActionUnlockTokenUsed,
+  getActiveMerchants,
 } from './db';
 import { generateImage, moderateVision } from './ai';
 import { presignUpload, cleanupExpiredR2Files } from './r2';
@@ -661,6 +662,18 @@ export default {
         idempotencyKey,
       });
       return json({ success: true, order: { id, advertiserId, title, type, status: 'requested' } }, 201);
+    }
+
+    /* -------------------------------------------------------------- */
+    // GET /api/merchants/active — commercianti che accettano Pi (cache KV 60s)
+    /* -------------------------------------------------------------- */
+    if (path === '/api/merchants/active' && request.method === 'GET') {
+      const cacheKey = 'merchants:active';
+      const data = await getCachedFeed(env, cacheKey, async () => {
+        const merchants = await getActiveMerchants(env.DB);
+        return { success: true, merchants, count: merchants.length, cached: false };
+      });
+      return json({ ...data, cached: true });
     }
 
     /* -------------------------------------------------------------- */

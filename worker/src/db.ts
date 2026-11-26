@@ -212,21 +212,55 @@ export async function getSubscriptionByAdvertiser(
 export async function createSubscription(db: D1Database, sub: {
   id: string;
   advertiser_id: string;
+  advertiser_username?: string;
   level: string;
   price_pi: number;
+  accepts_pi?: number;
   start_date: number;
   end_date: number;
 }): Promise<void> {
   await run(
     db,
-    `INSERT INTO subscriptions (id, advertiser_id, level, price_pi, start_date, end_date, status, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, 'active', ?)`,
+    `INSERT INTO subscriptions (id, advertiser_id, advertiser_username, level, price_pi, accepts_pi, start_date, end_date, status, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)`,
     sub.id,
     sub.advertiser_id,
+    sub.advertiser_username ?? null,
     sub.level,
     sub.price_pi,
+    sub.accepts_pi ?? 0,
     sub.start_date,
     sub.end_date,
+    Date.now()
+  );
+}
+
+/**
+ * Restituisce i commercianti attivi che accettano Pi (per mappa/globo e vetrina).
+ * Cache KV 60s gestita dal chiamante (index.ts).
+ */
+export async function getActiveMerchants(db: D1Database): Promise<{
+  id: string;
+  advertiser_id: string;
+  advertiser_username?: string;
+  level: string;
+  price_pi: number;
+  accepts_pi: number;
+  end_date: number;
+  status: string;
+}[]> {
+  return all<{
+    id: string;
+    advertiser_id: string;
+    advertiser_username?: string;
+    level: string;
+    price_pi: number;
+    accepts_pi: number;
+    end_date: number;
+    status: string;
+  }>(
+    db,
+    "SELECT id, advertiser_id, advertiser_username, level, price_pi, accepts_pi, end_date, status FROM subscriptions WHERE status = 'active' AND end_date > ? ORDER BY level ASC",
     Date.now()
   );
 }
