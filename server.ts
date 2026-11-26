@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { createServer as createViteServer } from 'vite';
 
 import type {
@@ -76,9 +77,40 @@ import {
   addMedia as adAddMedia,
   deleteMedia as adDeleteMedia,
 } from './src/lib/adCreativeStore';
+import {
+  saveWalletToCloud as fwSaveWalletToCloud,
+  loadWalletFromCloud as fwLoadWalletFromCloud,
+  normalizeWalletId as fwNormalizeWalletId,
+} from './src/lib/firestoreService';
 
 const VALIDATION_KEY = '41d098c27068bf811f67caeefe5dc094a6304c413d84b17e9e0c5ae364e3af4ac4086bc073ce287d5bdc3f21cdf45a09ea1f1a842d5a6ccd784777aae7a286b7';
 const PI_API_BASE = 'https://api.minepi.com/v2';
+
+// --- Webhook inter-blocco (HMAC-SHA256) ---
+const WEBHOOK_SECRET = (process.env.WEBHOOK_SECRET || 'dev_secret_change_me').trim();
+const BLOCCO2_WEBHOOK_URL = (process.env.BLOCCO2_WEBHOOK_URL || '').replace(/\/$/, '');
+
+function computeHmacSha256(rawBody: string | Buffer): string {
+  return crypto.createHmac('sha256', WEBHOOK_SECRET).update(rawBody).digest('hex');
+}
+
+function verifyWebhookSignature(req: express.Request, res: express.Response, next: express.NextFunction): void {
+  const signature = req.headers['x-webhook-signature'] as string | undefined;
+  if (!signature) {
+    res.status(401).json({ success: false, error: 'Firma webhook mancante', code: 'WEBHOOK_SIGNATURE_MISSING' });
+    return;
+  }
+  const rawBody = (req.body as Buffer) ?? '';
+  const expected = computeHmacSha256(rawBody);
+  // Confronto a tempo costante per evitare timing attack
+  const sigBuf = Buffer.from(signature, 'hex');
+  const expBuf = Buffer.from(expected, 'hex');
+  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+    res.status(401).json({ success: false, error: 'Firma webhook non valida', code: 'WEBHOOK_SIGNATURE_INVALID' });
+    return;
+  }
+  next();
+}
 
 function getConfiguredPiApiKey(): string {
   const key = (process.env.PI_API_KEY || '').trim();
@@ -233,7 +265,7 @@ async function startServer() {
 
   // Pi Network Payment Server-Side Completion (/api/pi/complete)
   app.post('/api/pi/complete', async (req, res) => {
-    const { paymentId, txid } = req.body || {};
+    const { paymentId, txid, campaignId, amountPi, advertiserId, idempotencyKey } = req.body || {};
     if (!paymentId || typeof paymentId !== 'string' || !txid || typeof txid !== 'string') {
       return res.status(400).json({ completed: false, error: 'paymentId e txid obbligatori' });
     }
@@ -269,6 +301,24 @@ async function startServer() {
           details: data,
         });
       }
+
+      // Notifica Blocco 2 (campagna pagata) se URL webhook configurata
+      if (BLOCCO2_WEBHOOK_URL) {
+        try {
+          await sendCampaignPaidWebhook({
+            paymentId,
+            txid,
+            campaignId: campaignId || '',
+            amountPi: amountPi ?? 0,
+            advertiserId: advertiserId || '',
+            idempotencyKey: idempotencyKey || `camp_paid_${paymentId}`,
+          });
+        } catch (webhookErr) {
+          // Non blocca il completamento Pi se il webhook al Blocco 2 fallisce
+          console.warn('Webhook CAMPAIGN_PAID verso Blocco 2 fallito:', webhookErr?.message || webhookErr);
+        }
+      }
+
       return res.status(200).json({
         completed: true,
         paymentId,
@@ -276,6 +326,7 @@ async function startServer() {
         mode: 'live_pi_api',
         payment: data,
         timestamp: new Date().toISOString(),
+        webhookCampaignPaidSent: Boolean(BLOCCO2_WEBHOOK_URL),
       });
     } catch (err: any) {
       return res.status(502).json({
@@ -287,6 +338,114 @@ async function startServer() {
       });
     }
   });
+
+  // --- Invio webhook CAMPAIGN_PAID verso Blocco 2 (Worker + D1 + R2) ---
+  async function sendCampaignPaidWebhook(payload: {
+    paymentId: string;
+    txid: string;
+    campaignId: string;
+    amountPi: number;
+    advertiserId: string;
+    idempotencyKey: string;
+  }): Promise<void> {
+    if (!BLOCCO2_WEBHOOK_URL) return;
+    const body = JSON.stringify(payload);
+    const signature = computeHmacSha256(body);
+    await fetch(`${BLOCCO2_WEBHOOK_URL}/webhooks/campaign-paid`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-webhook-signature': signature,
+      },
+      body,
+    });
+  }
+
+  // --- Ricezione webhook AD_IMPRESSION_VERIFIED dal Blocco 2 ---
+  app.post(
+    '/webhooks/ad-impression-verified',
+    express.raw({ type: 'application/json' }),
+    verifyWebhookSignature,
+    async (req, res) => {
+      try {
+        const raw = req.body as Buffer;
+        const payload = JSON.parse(raw.toString('utf8')) as {
+          impressionId: string;
+          userId: string;
+          campaignId: string;
+          points: number;
+          timestamp: number;
+          idempotencyKey: string;
+        };
+        if (!payload || !payload.impressionId || !payload.userId || !payload.campaignId || !payload.points) {
+          return res.status(400).json({ success: false, error: 'Payload webhook incompleto', code: 'WEBHOOK_PAYLOAD_INVALID' });
+        }
+
+        const walletId = fwNormalizeWalletId(payload.userId);
+        let wallet = await fwLoadWalletFromCloud(walletId);
+        if (!wallet) {
+          wallet = {
+            walletId,
+            pointsBalance: 0,
+            totalPointsEarned: 0,
+            merchantPiBalance: 0,
+            pioneerUsername: '@user',
+            pioneerWalletAddress: '',
+            history: [],
+            updatedAt: Date.now(),
+          };
+        }
+
+        const tx: any = {
+          id: `tx_webhook_adimp_${payload.impressionId}`,
+          type: 'AD_IMPRESSION_VERIFIED',
+          description: 'Visione pubblicitaria certificata (webhook Blocco 2)',
+          pointsDelta: payload.points,
+          piEquivalent: Number((payload.points / 1000).toFixed(4)),
+          timestamp: payload.timestamp || Date.now(),
+          status: 'completed',
+          campaignId: payload.campaignId,
+          impressionId: payload.impressionId,
+        };
+
+        // Idempotenza: evita doppia accredito se stesso impressionId già presente
+        const alreadyExists = Array.isArray(wallet.history) && wallet.history.some(
+          (t: any) => t.impressionId === payload.impressionId && t.type === 'AD_IMPRESSION_VERIFIED'
+        );
+        if (alreadyExists) {
+          return res.status(200).json({ success: true, duplicate: true, credited: 0 });
+        }
+
+        wallet.pointsBalance = Number((wallet.pointsBalance + payload.points).toFixed(0));
+        wallet.totalPointsEarned = Number((wallet.totalPointsEarned + payload.points).toFixed(0));
+        wallet.history.unshift(tx);
+        wallet.updatedAt = Date.now();
+
+        await fwSaveWalletToCloud(walletId, {
+          walletId: wallet.walletId,
+          pointsBalance: wallet.pointsBalance,
+          totalPointsEarned: wallet.totalPointsEarned,
+          merchantPiBalance: wallet.merchantPiBalance,
+          pioneerUsername: wallet.pioneerUsername,
+          pioneerWalletAddress: wallet.pioneerWalletAddress,
+          adStreamEnabled: wallet.adStreamEnabled,
+          adCompletedStreak: wallet.adCompletedStreak,
+          history: wallet.history,
+          updatedAt: wallet.updatedAt,
+        });
+
+        return res.status(200).json({
+          success: true,
+          duplicate: false,
+          credited: payload.points,
+          newBalance: wallet.pointsBalance,
+          impressionId: payload.impressionId,
+        });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore elaborazione webhook AD_IMPRESSION_VERIFIED', code: 'WEBHOOK_PROCESSING_ERROR' });
+      }
+    }
+  );
 
   // Pi Network App-to-User (A2U) Withdrawal Endpoint (/api/pi/withdraw)
   app.post('/api/pi/withdraw', async (req, res) => {

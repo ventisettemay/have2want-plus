@@ -16,13 +16,15 @@ import {
 
 export interface RewardTransaction {
   id: string;
-  type: 'EARN_REAL_LISTING' | 'EARN_AD_VIEW' | 'EARN_COMMUNITY_ENGAGE' | 'WITHDRAW_PI';
+  type: 'EARN_REAL_LISTING' | 'EARN_AD_VIEW' | 'EARN_COMMUNITY_ENGAGE' | 'WITHDRAW_PI' | 'AD_IMPRESSION_VERIFIED';
   description: string;
   pointsDelta: number;
   piEquivalent?: number;
   timestamp: number;
   txHash?: string;
   status: 'completed' | 'pending' | 'rejected';
+  campaignId?: string;
+  impressionId?: string;
 }
 
 export interface PioneerRewardsState {
@@ -50,6 +52,7 @@ export const REWARDS_CONFIG = {
     REAL_LISTING_BASIC: 60,
     REAL_LISTING_VERIFIED: 120,
     REAL_EXCHANGE_CONCLUDED: 250,
+    AD_IMPRESSION_VERIFIED: 5,
   },
 };
 
@@ -567,4 +570,77 @@ export function spendPoints(
   state.history.unshift(tx);
   savePioneerRewardsState(state);
   return { success: true, newBalance: state.pointsBalance, pointsSpent: amount };
+}
+
+/**
+ * Costruisce una transazione premio AD_IMPRESSION_VERIFIED pura (senza effetti collaterali).
+ * Usabile sia dal frontend che dal backend per allineare la struttura della causale.
+ */
+export function buildAdImpressionTransaction({
+  points,
+  campaignId,
+  impressionId,
+  userId,
+  description,
+}: {
+  points: number;
+  campaignId: string;
+  impressionId: string;
+  userId?: string;
+  description?: string;
+}): RewardTransaction {
+  return {
+    id: `tx_adimp_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+    type: 'AD_IMPRESSION_VERIFIED',
+    description: description || 'Visione pubblicitaria certificata',
+    pointsDelta: points,
+    piEquivalent: pointsToPi(points),
+    timestamp: Date.now(),
+    status: 'completed',
+    campaignId,
+    impressionId,
+  };
+}
+
+/**
+ * Accredita punti per un'impressione pubblicitaria verificata (causale AD_IMPRESSION_VERIFIED).
+ * Frontend-only: opera su localStorage + sincronizzazione Firestore.
+ */
+export function awardAdImpressionVerified({
+  points,
+  campaignId,
+  impressionId,
+  userId,
+  description,
+}: {
+  points: number;
+  campaignId: string;
+  impressionId: string;
+  userId?: string;
+  description?: string;
+}): { success: boolean; newBalance: number; pointsEarned: number } {
+  if (!points || points <= 0) {
+    return { success: false, newBalance: 0, pointsEarned: 0 };
+  }
+
+  const state = getPioneerRewardsState();
+  state.pointsBalance += points;
+  state.totalPointsEarned += points;
+
+  const tx = buildAdImpressionTransaction({
+    points,
+    campaignId,
+    impressionId,
+    userId,
+    description,
+  });
+
+  state.history.unshift(tx);
+  savePioneerRewardsState(state);
+
+  return {
+    success: true,
+    newBalance: state.pointsBalance,
+    pointsEarned: points,
+  };
 }

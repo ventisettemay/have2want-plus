@@ -24,6 +24,7 @@ export interface CountryPricingTier {
   externalWeeklyCost: number; // Costo medio settimanale sui portali esterni in valuta locale
   h2wBaseValueLocal: number; // Costo esterno * 0.50
   fullListPricePi: number; // Prezzo pieno ufficiale di listino in Pi (7 giorni)
+  discountedPricePi: number; // Prezzo scontato -50% (sconto lancio)
 }
 
 export const COUNTRY_PRICING_CATALOG: Record<string, CountryPricingTier> = {
@@ -35,6 +36,7 @@ export const COUNTRY_PRICING_CATALOG: Record<string, CountryPricingTier> = {
     externalWeeklyCost: 20,
     h2wBaseValueLocal: 10,
     fullListPricePi: 100,
+    discountedPricePi: 50,
   },
   US: {
     countryCode: 'US',
@@ -44,6 +46,7 @@ export const COUNTRY_PRICING_CATALOG: Record<string, CountryPricingTier> = {
     externalWeeklyCost: 20,
     h2wBaseValueLocal: 10,
     fullListPricePi: 100,
+    discountedPricePi: 50,
   },
   GB: {
     countryCode: 'GB',
@@ -53,6 +56,7 @@ export const COUNTRY_PRICING_CATALOG: Record<string, CountryPricingTier> = {
     externalWeeklyCost: 16,
     h2wBaseValueLocal: 8,
     fullListPricePi: 105,
+    discountedPricePi: 53,
   },
   FR: {
     countryCode: 'FR',
@@ -62,6 +66,7 @@ export const COUNTRY_PRICING_CATALOG: Record<string, CountryPricingTier> = {
     externalWeeklyCost: 20,
     h2wBaseValueLocal: 10,
     fullListPricePi: 100,
+    discountedPricePi: 50,
   },
   DE: {
     countryCode: 'DE',
@@ -71,6 +76,7 @@ export const COUNTRY_PRICING_CATALOG: Record<string, CountryPricingTier> = {
     externalWeeklyCost: 22,
     h2wBaseValueLocal: 11,
     fullListPricePi: 110,
+    discountedPricePi: 55,
   },
   ES: {
     countryCode: 'ES',
@@ -80,6 +86,7 @@ export const COUNTRY_PRICING_CATALOG: Record<string, CountryPricingTier> = {
     externalWeeklyCost: 18,
     h2wBaseValueLocal: 9,
     fullListPricePi: 95,
+    discountedPricePi: 48,
   },
   JP: {
     countryCode: 'JP',
@@ -89,6 +96,7 @@ export const COUNTRY_PRICING_CATALOG: Record<string, CountryPricingTier> = {
     externalWeeklyCost: 3000,
     h2wBaseValueLocal: 1500,
     fullListPricePi: 105,
+    discountedPricePi: 53,
   },
   IN: {
     countryCode: 'IN',
@@ -98,6 +106,7 @@ export const COUNTRY_PRICING_CATALOG: Record<string, CountryPricingTier> = {
     externalWeeklyCost: 800,
     h2wBaseValueLocal: 400,
     fullListPricePi: 50,
+    discountedPricePi: 25,
   },
   BR: {
     countryCode: 'BR',
@@ -107,6 +116,7 @@ export const COUNTRY_PRICING_CATALOG: Record<string, CountryPricingTier> = {
     externalWeeklyCost: 60,
     h2wBaseValueLocal: 30,
     fullListPricePi: 60,
+    discountedPricePi: 30,
   },
   CN: {
     countryCode: 'CN',
@@ -116,6 +126,7 @@ export const COUNTRY_PRICING_CATALOG: Record<string, CountryPricingTier> = {
     externalWeeklyCost: 140,
     h2wBaseValueLocal: 70,
     fullListPricePi: 100,
+    discountedPricePi: 50,
   },
   GLOBAL: {
     countryCode: 'GLOBAL',
@@ -125,6 +136,7 @@ export const COUNTRY_PRICING_CATALOG: Record<string, CountryPricingTier> = {
     externalWeeklyCost: 20,
     h2wBaseValueLocal: 10,
     fullListPricePi: 100,
+    discountedPricePi: 50,
   },
 };
 
