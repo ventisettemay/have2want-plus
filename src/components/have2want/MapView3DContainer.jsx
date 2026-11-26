@@ -5,6 +5,9 @@ import VoiceNoteChat from './VoiceNoteChat';
 import PiNetworkHub from './PiNetworkHub';
 import { PioneerRewardsHubModal } from './PioneerRewardsHubModal';
 import BusinessSponsorModal from './BusinessSponsorModal';
+import CreativeStudio from './CreativeStudio';
+import VideoCreator from './VideoCreator';
+import { resolveApiUrl } from '@/lib/apiConfig';
 import WorldEmergencyModal from './WorldEmergencyModal';
 import GlobalCarpoolModal from './GlobalCarpoolModal';
 import CraftMemoryModal from './CraftMemoryModal';
@@ -380,13 +383,52 @@ export default function MapView3DContainer({
     setIsVoiceChatOpen(true);
   };
 
-  const handleAddSponsoredBusiness = (newBiz) => {
+  const handleAddSponsoredBusiness = async (newBiz) => {
     setSponsoredBusinesses((prev) => [newBiz, ...prev.filter((b) => b?.id !== newBiz?.id)]);
+    try {
+      const uid = (currentProfile?.id || 'current_user');
+      const token = (currentProfile?.accessToken) || localStorage.getItem('access_token') || localStorage.getItem('pi_access_token');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const res = await fetch(resolveApiUrl('/api/campaigns'), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          title: `Sponsorizzazione: ${newBiz.name}`,
+          description: newBiz.description || newBiz.promo || '',
+          advertiserId: uid,
+          advertiserUsername: currentProfile?.username || 'utente',
+          budgetTotal: newBiz.paidPricePi ?? 10,
+          budgetRemaining: newBiz.paidPricePi ?? 10,
+          costPerImpression: 0.5,
+          rewardPercentToUser: 10,
+          status: 'draft',
+          targeting: { countryCode: newBiz.countryCode, city: newBiz.city, category: [newBiz.category] },
+          pricing: { countryCode: newBiz.countryCode, listPricePi: newBiz.listPricePi, currentPricePi: newBiz.paidPricePi, coefficient: 1, trafficTierLabel: newBiz.city ? 'locale' : 'nazionale', durationDays: 7 },
+          creativeIds: [],
+          idempotencyKey: `camp_sponsor_${newBiz.id}`,
+        }),
+      });
+      if (res.ok) {
+        const campaign = await res.json();
+        toast.success('Campagna pubblicitaria creata', { description: `ID campagna: ${campaign.campaign?.id || campaign.id || 'n/d'}`, duration: 3000 });
+      } else if (res.status === 401) {
+        toast.info('Vetrina attivata. Campagna API richiede autenticazione.');
+      } else {
+        toast.warn('Vetrina attivata; creazione campagna API non riuscita.');
+      }
+    } catch {
+      // non bloccante
+    }
     publishShopToCloud(newBiz).catch(() => {});
+    setShowCreativeStudio(true);
   };
 
   // Stato compattamento barra comandi inferiore (per lasciare il globo visibile al 100%)
   const [isBottomBarCollapsed, setIsBottomBarCollapsed] = useState(true);
+  const [showCreativeStudio, setShowCreativeStudio] = useState(false);
+  const [showVideoCreator, setShowVideoCreator] = useState(false);
+  const [creativeExportResult, setCreativeExportResult] = useState(null);
 
   // Stato allargamento cartina a tutto schermo (Fullscreen immersive mode)
   const [isFullscreenMap, setIsFullscreenMap] = useState(false);
@@ -1325,6 +1367,30 @@ export default function MapView3DContainer({
             </button>
           </div>
         </div>
+      )}
+      {showCreativeStudio && (
+        <CreativeStudio
+          isOpen={showCreativeStudio}
+          onClose={() => setShowCreativeStudio(false)}
+          currentUserId={currentProfile?.id || 'current_user'}
+          onExport={(result) => {
+            setCreativeExportResult(result);
+            setShowCreativeStudio(false);
+            toast.success('Creatività esportata', { description: `${result.width}×${result.height} ${result.mimeType}`, duration: 3000 });
+          }}
+        />
+      )}
+      {showVideoCreator && (
+        <VideoCreator
+          isOpen={showVideoCreator}
+          onClose={() => setShowVideoCreator(false)}
+          currentUserId={currentProfile?.id || 'current_user'}
+          onExport={(result) => {
+            setCreativeExportResult(result);
+            setShowVideoCreator(false);
+            toast.success('Video renderizzato', { description: `${result.width}×${result.height}`, duration: 3000 });
+          }}
+        />
       )}
     </div>
   );

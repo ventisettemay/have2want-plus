@@ -4,6 +4,79 @@ import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 
+import type {
+  CreateCampaignInput,
+  CertifyImpressionInput,
+} from './server/adTypes';
+import {
+  createCampaign as adCreateCampaign,
+  getAdFeed as adGetAdFeed,
+  addCreative as adAddCreative,
+  toggleCampaign as adToggleCampaign,
+  getCampaignStats as adGetCampaignStats,
+  reviewCreative as adReviewCreative,
+  createSessionToken as adCreateSessionToken,
+  verifySessionTokenFull as adVerifySessionTokenFull,
+  certifyImpression as adCertifyImpression,
+  getPresignUpload as adGetPresignUpload,
+  getUserAdHistory as adGetUserAdHistory,
+  getGlobalReconciliation as adGetGlobalReconciliation,
+  refundCampaign as adRefundCampaign,
+  reverseRewardAction as adReverseRewardAction,
+} from './server/adService';
+import {
+  createOrder as adCreateOrder,
+  listAllOrders as adListAllOrders,
+  listOrdersByAdvertiser as adListOrdersByAdvertiser,
+  listOrdersByCreator as adListOrdersByCreator,
+  getOrder as adGetOrder,
+  updateOrderStatus as adUpdateOrderStatus,
+  assignCreator as adAssignCreator,
+  submitDraft as adSubmitDraft,
+  addOrderMessage as adAddOrderMessage,
+  listOrderMessages as adListOrderMessages,
+  reviewOrder as adReviewOrder,
+  deleteOrder as adDeleteOrder,
+  linkOrderToCreative as adLinkOrderToCreative,
+  flushStore as adOrdersFlushStore,
+  resetForTests as adOrdersResetForTests,
+  type CreateCreativeOrderInput,
+  type SubmitDraftInput,
+  type ReviewOrderInput,
+  type ChangeOrderStatusInput,
+} from './server/adOrders';
+import {
+  adsAuthMiddleware,
+  adsRoleMiddleware,
+  adsRateLimitMiddleware,
+  writeAuditLog,
+  getAuditLog,
+  authenticateRequest,
+  authorizeRole,
+  validateFileUpload,
+  validateUrlNoSsrf,
+  type AdRole,
+} from './server/adSecurity';
+import {
+  adProviderRegistry,
+  type ModerationInput,
+  type AnalyzeInput,
+  type GenerateAssetInput,
+} from './server/adProviderRegistry';
+import {
+  getProject as adGetProject,
+  listProjectsByAdvertiser as adListProjectsByAdvertiser,
+  createProject as adCreateProject,
+  updateProject as adUpdateProject,
+  deleteProject as adDeleteProject,
+  exportProject as adExportProject,
+  resetCreativeStoreForTests as adCreativeStoreResetForTests,
+  getMedia as adGetMedia,
+  listMediaByAdvertiser as adListMediaByAdvertiser,
+  addMedia as adAddMedia,
+  deleteMedia as adDeleteMedia,
+} from './server/adCreativeStore';
+
 const VALIDATION_KEY = '41d098c27068bf811f67caeefe5dc094a6304c413d84b17e9e0c5ae364e3af4ac4086bc073ce287d5bdc3f21cdf45a09ea1f1a842d5a6ccd784777aae7a286b7';
 const PI_API_BASE = 'https://api.minepi.com/v2';
 
@@ -307,6 +380,884 @@ async function startServer() {
       error: 'Prelievo non completato: risposta non valida dal server Pi Network.',
     });
   });
+
+  // ================================================================
+  // ROTTE PUBBLICITARIE (Punti 4-14) — layer parallelo, retrocompatibile
+  // ================================================================
+
+  // POST /api/campaigns — crea campagna pubblicitaria
+  app.post('/api/campaigns', async (req, res) => {
+    try {
+      const body = req.body as CreateCampaignInput;
+      if (!body || !body.title || !body.advertiserId || !body.budgetTotal) {
+        return res.status(400).json({
+          success: false,
+          error: 'Campi obbligatori: title, advertiserId, budgetTotal',
+          code: 'VALIDATION_ERROR',
+        });
+      }
+      const result = adCreateCampaign({
+        advertiserId: body.advertiserId,
+        advertiserUsername: body.advertiserUsername,
+        title: body.title,
+        description: body.description,
+        budgetTotal: body.budgetTotal,
+        costPerImpression: body.costPerImpression ?? 1,
+        rewardPercentToUser: body.rewardPercentToUser ?? 10,
+        targeting: body.targeting ?? {},
+        pricing: body.pricing,
+        idempotencyKey: body.idempotencyKey,
+      });
+      writeAuditLog({
+        action: 'ads_campaign_create',
+        userId: body.advertiserId,
+        role: 'advertiser',
+        ip: req.ip,
+        path: req.path,
+        method: req.method,
+        status: 201,
+        success: true,
+        details: { campaignId: result.campaign.id },
+      });
+      return res.status(201).json({ success: true, campaign: result.campaign });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || 'Errore creazione campagna' });
+    }
+  });
+
+  // GET /api/feed/ads — feed campagne attive per territorio
+  app.get('/api/feed/ads', async (req, res) => {
+    try {
+      const { countryCode, category, limit } = req.query as {
+        countryCode?: string;
+        category?: string;
+        limit?: string;
+      };
+      const result = adGetAdFeed({
+        countryCode,
+        category,
+        limit: limit ? parseInt(limit, 10) : 20,
+      });
+      return res.json({ success: true, campaigns: result.campaigns, count: result.count });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || 'Errore feed ads' });
+    }
+  });
+
+  // POST /api/impressions/certify — certifica un'impressione pubblicitaria
+  app.post('/api/impressions/certify', async (req, res) => {
+    try {
+      const body = req.body as CertifyImpressionInput;
+      if (!body || !body.campaignId || !body.userId || !body.sessionToken || !body.nonce || !body.idempotencyKey) {
+        return res.status(400).json({
+          success: false,
+          error: 'Campi obbligatori: campaignId, userId, sessionToken, nonce, idempotencyKey',
+          code: 'VALIDATION_ERROR',
+        });
+      }
+      const result = adCertifyImpression({
+        campaignId: body.campaignId,
+        userId: body.userId,
+        sessionToken: body.sessionToken,
+        nonce: body.nonce,
+        idempotencyKey: body.idempotencyKey,
+        amount: body.amount,
+      });
+      if (result.error) {
+        return res.status(400).json({ success: false, error: result.error, duplicate: result.duplicate, rateLimited: result.rateLimited });
+      }
+      return res.status(result.duplicate ? 200 : 201).json({
+        success: true,
+        duplicate: result.duplicate,
+        impression: result.impression,
+        reward: result.reward,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || 'Errore certificazione impressione' });
+    }
+  });
+
+  // POST /api/uploads/presign — presign upload file creativo
+  app.post('/api/uploads/presign', async (req, res) => {
+    try {
+      const body = req.body as { fileName: string; contentType: string };
+      if (!body || !body.fileName || !body.contentType) {
+        return res.status(400).json({
+          success: false,
+          error: 'Campi obbligatori: fileName, contentType',
+          code: 'VALIDATION_ERROR',
+        });
+      }
+      const result = adGetPresignUpload({ fileName: body.fileName, contentType: body.contentType });
+      return res.json({ success: true, ...result });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || 'Errore presign upload' });
+    }
+  });
+
+  // POST /execute — execute azioni pubblicitarie (stats, reconciliation, refund, reverse, history)
+  app.post('/execute', async (req, res) => {
+    try {
+      const { action, payload } = req.body as { action?: string; payload?: Record<string, unknown> };
+      if (!action) {
+        return res.status(400).json({ success: false, error: 'Campo obbligatorio: action', code: 'VALIDATION_ERROR' });
+      }
+      switch (action) {
+        case 'campaign_stats': {
+          const stats = adGetCampaignStats(String(payload?.campaignId || ''));
+          return res.json({ success: true, action, stats });
+        }
+        case 'global_reconciliation': {
+          const report = adGetGlobalReconciliation();
+          return res.json({ success: true, action, report });
+        }
+        case 'refund_campaign': {
+          const result = adRefundCampaign(
+            String(payload?.campaignId || ''),
+            Number(payload?.amount || 0),
+            String(payload?.idempotencyKey || '')
+          );
+          return res.json({ success: result.success, action, entry: result.entry, error: result.error });
+        }
+        case 'reverse_reward': {
+          const result = adReverseRewardAction(
+            String(payload?.rewardId || ''),
+            String(payload?.idempotencyKey || '')
+          );
+          return res.json({ success: result.success, action, entry: result.entry, error: result.error });
+        }
+        case 'user_history': {
+          const history = adGetUserAdHistory(String(payload?.userId || ''));
+          return res.json({ success: true, action, ...history });
+        }
+        default:
+          return res.status(400).json({ success: false, error: `Azione non supportata: ${action}` });
+      }
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || 'Errore execute' });
+    }
+  });
+
+  // === Rotte ordini creativi (Punto 9) ===
+  app.post(
+    '/api/ads/orders',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const auth = (req as any).adAuth;
+        const body = req.body as CreateCreativeOrderInput;
+        if (!body || !body.title || !body.type) {
+          return res.status(400).json({
+            success: false,
+            error: 'Campi obbligatori: title, type (banner o video)',
+            code: 'VALIDATION_ERROR',
+          });
+        }
+        if (!['banner', 'video'].includes(body.type)) {
+          return res.status(400).json({ success: false, error: 'type deve essere "banner" o "video"', code: 'VALIDATION_ERROR' });
+        }
+        const advertiserId = body.advertiserId || auth.userId;
+        const order = adCreateOrder({ ...body, advertiserId, advertiserUsername: body.advertiserUsername });
+        writeAuditLog({
+          action: 'ads_order_create',
+          userId: auth.userId,
+          role: auth.role,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 201,
+          success: true,
+          details: { orderId: order.id, type: order.type },
+        });
+        return res.status(201).json({ success: true, order });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore creazione ordine' });
+      }
+    }
+  );
+
+  app.get(
+    '/api/ads/orders',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform', 'user']),
+    async (req, res) => {
+      try {
+        const auth = (req as any).adAuth;
+        const { advertiserId, creatorId, status } = req.query as { advertiserId?: string; creatorId?: string; status?: string };
+        let orders = adListAllOrders();
+        if (advertiserId) orders = orders.filter((o) => o.advertiserId === advertiserId);
+        if (creatorId) orders = orders.filter((o) => o.creatorId === creatorId);
+        if (status) orders = orders.filter((o) => o.status === status);
+        if (auth.role === 'user' && !advertiserId) orders = orders.filter((o) => o.advertiserId === auth.userId);
+        return res.json({ success: true, orders, count: orders.length });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore lista ordini' });
+      }
+    }
+  );
+
+  app.get(
+    '/api/ads/orders/:id',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform', 'user']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const order = adGetOrder(id);
+        if (!order) return res.status(404).json({ success: false, error: 'Ordine non trovato' });
+        const auth = (req as any).adAuth;
+        if (auth.role === 'user' && order.advertiserId !== auth.userId) {
+          return res.status(403).json({ success: false, error: 'Accesso negato a questo ordine' });
+        }
+        return res.json({ success: true, order });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore dettaglio ordine' });
+      }
+    }
+  );
+
+  app.post(
+    '/api/ads/orders/:id/draft',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const auth = (req as any).adAuth;
+        const body = req.body as SubmitDraftInput;
+        if (!body || !body.fileKey || !body.fileUrl || !body.fileName || !body.mimeType) {
+          return res.status(400).json({ success: false, error: 'Campi obbligatori: fileKey, fileUrl, fileName, mimeType', code: 'VALIDATION_ERROR' });
+        }
+        const fileValidation = validateFileUpload({ fileName: body.fileName, mimeType: body.mimeType, sizeBytes: body.sizeBytes });
+        if (!fileValidation.valid) return res.status(400).json({ success: false, error: fileValidation.error, code: 'VALIDATION_ERROR' });
+        const urlCheck = validateUrlNoSsrf(body.fileUrl);
+        if (!urlCheck.safe) return res.status(400).json({ success: false, error: urlCheck.error, code: 'SSRF_BLOCKED' });
+        const result = adSubmitDraft(id, { ...body, uploadedBy: auth.userId });
+        if (!result.order) return res.status(404).json({ success: false, error: result.error || 'Ordine non trovato' });
+        writeAuditLog({
+          action: 'ads_order_draft',
+          userId: auth.userId,
+          role: auth.role,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 200,
+          success: true,
+          details: { orderId: id, fileId: result.file?.id },
+        });
+        return res.json({ success: true, order: result.order, file: result.file });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore invio bozza' });
+      }
+    }
+  );
+
+  app.post(
+    '/api/ads/orders/:id/review',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const auth = (req as any).adAuth;
+        const body = req.body as ReviewOrderInput;
+        if (!body || !body.action) return res.status(400).json({ success: false, error: 'Campo obbligatorio: action', code: 'VALIDATION_ERROR' });
+        if (!['approve', 'request_revision', 'reject'].includes(body.action)) {
+          return res.status(400).json({ success: false, error: 'action deve essere approve, request_revision o reject', code: 'VALIDATION_ERROR' });
+        }
+        const result = adReviewOrder(id, { ...body, reviewerId: auth.userId, reviewerRole: auth.role });
+        if (!result.order) return res.status(404).json({ success: false, error: result.error || 'Ordine non trovato' });
+        writeAuditLog({
+          action: `ads_order_review_${body.action}`,
+          userId: auth.userId,
+          role: auth.role,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 200,
+          success: true,
+          details: { orderId: id, notes: body.notes },
+        });
+        return res.json({ success: true, order: result.order });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore revisione ordine' });
+      }
+    }
+  );
+
+  app.post(
+    '/api/ads/orders/:id/status',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const auth = (req as any).adAuth;
+        const body = req.body as ChangeOrderStatusInput;
+        if (!body || !body.status) return res.status(400).json({ success: false, error: 'Campo obbligatorio: status', code: 'VALIDATION_ERROR' });
+        const validStatuses = ['requested', 'in_production', 'draft_submitted', 'revision_requested', 'approved', 'rejected', 'completed', 'cancelled'];
+        if (!validStatuses.includes(body.status)) {
+          return res.status(400).json({ success: false, error: `status non valido. Valori ammessi: ${validStatuses.join(', ')}`, code: 'VALIDATION_ERROR' });
+        }
+        const order = adUpdateOrderStatus(id, body.status, auth.userId, body.reason);
+        if (!order) return res.status(404).json({ success: false, error: 'Ordine non trovato' });
+        writeAuditLog({
+          action: 'ads_order_status_change',
+          userId: auth.userId,
+          role: auth.role,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 200,
+          success: true,
+          details: { orderId: id, newStatus: body.status, reason: body.reason },
+        });
+        return res.json({ success: true, order });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore cambio stato ordine' });
+      }
+    }
+  );
+
+  app.get(
+    '/api/ads/orders/:id/messages',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform', 'user']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const order = adGetOrder(id);
+        if (!order) return res.status(404).json({ success: false, error: 'Ordine non trovato' });
+        const auth = (req as any).adAuth;
+        if (auth.role === 'user' && order.advertiserId !== auth.userId) return res.status(403).json({ success: false, error: 'Accesso negato' });
+        const messages = adListOrderMessages(id);
+        return res.json({ success: true, messages, count: messages.length });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore storico messaggi' });
+      }
+    }
+  );
+
+  app.post(
+    '/api/ads/orders/:id/messages',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const auth = (req as any).adAuth;
+        const { content, fileId } = req.body as { content?: string; fileId?: string };
+        if (!content || typeof content !== 'string') return res.status(400).json({ success: false, error: 'Campo obbligatorio: content', code: 'VALIDATION_ERROR' });
+        const message = adAddOrderMessage(id, auth.userId, auth.role, content, fileId);
+        if (!message) return res.status(404).json({ success: false, error: 'Ordine non trovato' });
+        writeAuditLog({
+          action: 'ads_order_message',
+          userId: auth.userId,
+          role: auth.role,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 201,
+          success: true,
+          details: { orderId: id, messageId: message.id },
+        });
+        return res.status(201).json({ success: true, message });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore invio messaggio' });
+      }
+    }
+  );
+
+  app.post(
+    '/api/ads/orders/:id/link-creative',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { creativeId } = req.body as { creativeId?: string };
+        if (!creativeId) return res.status(400).json({ success: false, error: 'Campo obbligatorio: creativeId', code: 'VALIDATION_ERROR' });
+        const result = adLinkOrderToCreative(id, creativeId);
+        if (!result.order) return res.status(400).json({ success: false, error: result.error || 'Ordine non trovato' });
+        writeAuditLog({
+          action: 'ads_order_link_creative',
+          userId: (req as any).adAuth?.userId,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 200,
+          success: true,
+          details: { orderId: id, creativeId },
+        });
+        return res.json({ success: true, order: result.order, creative: result.creative });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore collegamento creatività' });
+      }
+    }
+  );
+
+  app.delete(
+    '/api/ads/orders/:id',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const auth = (req as any).adAuth;
+        const order = adGetOrder(id);
+        if (!order) return res.status(404).json({ success: false, error: 'Ordine non trovato' });
+        if (auth.role !== 'platform' && order.advertiserId !== auth.userId) return res.status(403).json({ success: false, error: 'Accesso negato' });
+        const deleted = adDeleteOrder(id);
+        if (!deleted) return res.status(404).json({ success: false, error: 'Ordine non trovato' });
+        writeAuditLog({
+          action: 'ads_order_delete',
+          userId: auth.userId,
+          role: auth.role,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 200,
+          success: true,
+          details: { orderId: id },
+        });
+        return res.json({ success: true });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore eliminazione ordine' });
+      }
+    }
+  );
+
+  // === Rotte audit log (Punto 10/12) ===
+  app.get(
+    '/api/ads/audit',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['platform']),
+    async (_req, res) => {
+      try {
+        const limit = parseInt((_req.query.limit as string) || '100', 10);
+        const entries = getAuditLog(limit);
+        return res.json({ success: true, audit: entries, count: entries.length });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore lettura audit log' });
+      }
+    }
+  );
+
+  // === Rotte Provider Registry (Punti 3, 11, 14) ===
+  app.get(
+    '/api/ads/providers',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform', 'user']),
+    async (_req, res) => {
+      try {
+        const providers = adProviderRegistry.getAdapters().map((a) => ({
+          name: a.name,
+          priority: a.priority,
+          available: a.isAvailable(),
+        }));
+        return res.json({ success: true, providers, count: providers.length });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore lista provider' });
+      }
+    }
+  );
+
+  app.get(
+    '/api/ads/provider/health',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform', 'user']),
+    async (_req, res) => {
+      try {
+        const health = await adProviderRegistry.healthCheckAll();
+        return res.json({ success: true, health, count: health.length });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore health-check provider' });
+      }
+    }
+  );
+
+  app.post(
+    '/api/ads/provider/moderate',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const auth = (req as any).adAuth;
+        const body = req.body as ModerationInput & { idempotencyKey?: string };
+        if (!body || typeof body.text !== 'string') {
+          return res.status(400).json({ success: false, error: 'Campo obbligatorio: text', code: 'VALIDATION_ERROR' });
+        }
+        const result = await adProviderRegistry.moderateWithFailover({ text: body.text, creativeId: body.creativeId });
+        writeAuditLog({
+          action: 'ads_provider_moderate',
+          userId: auth.userId,
+          role: auth.role,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 200,
+          success: true,
+          details: { provider: result.provider, allowed: result.allowed, score: result.score },
+        });
+        return res.json({ success: true, moderation: result });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore moderazione provider' });
+      }
+    }
+  );
+
+  app.post(
+    '/api/ads/provider/analyze',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const auth = (req as any).adAuth;
+        const body = req.body as AnalyzeInput & { idempotencyKey?: string };
+        if (!body || (!body.text && !body.imageDataUrl)) {
+          return res.status(400).json({ success: false, error: 'Campo obbligatorio: text o imageDataUrl', code: 'VALIDATION_ERROR' });
+        }
+        const result = await adProviderRegistry.analyzeWithFailover({ text: body.text, imageDataUrl: body.imageDataUrl, creativeId: body.creativeId });
+        writeAuditLog({
+          action: 'ads_provider_analyze',
+          userId: auth.userId,
+          role: auth.role,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 200,
+          success: true,
+          details: { provider: result.provider, brandSafety: result.brandSafety },
+        });
+        return res.json({ success: true, analysis: result });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore analisi provider' });
+      }
+    }
+  );
+
+  app.post(
+    '/api/ads/provider/generate-asset',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const auth = (req as any).adAuth;
+        const body = req.body as GenerateAssetInput & { idempotencyKey?: string };
+        if (!body || !body.title) return res.status(400).json({ success: false, error: 'Campo obbligatorio: title', code: 'VALIDATION_ERROR' });
+        if (!['banner', 'video'].includes(body.type)) return res.status(400).json({ success: false, error: 'type deve essere banner o video', code: 'VALIDATION_ERROR' });
+        if (body.logoUrl) {
+          const logoCheck = validateUrlNoSsrf(body.logoUrl);
+          if (!logoCheck.safe) return res.status(400).json({ success: false, error: logoCheck.error, code: 'SSRF_BLOCKED' });
+        }
+        if (body.fileUrl) {
+          const fileCheck = validateUrlNoSsrf(body.fileUrl);
+          if (!fileCheck.safe) return res.status(400).json({ success: false, error: fileCheck.error, code: 'SSRF_BLOCKED' });
+        }
+        const result = await adProviderRegistry.generateAssetWithFailover({
+          type: body.type,
+          title: body.title,
+          cta: body.cta,
+          width: body.width,
+          height: body.height,
+          logoUrl: body.logoUrl,
+          fileUrl: body.fileUrl,
+        });
+        writeAuditLog({
+          action: 'ads_provider_generate_asset',
+          userId: auth.userId,
+          role: auth.role,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 200,
+          success: true,
+          details: { provider: result.provider, type: result.mimeType },
+        });
+        return res.json({ success: true, asset: result });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore generazione asset provider' });
+      }
+    }
+  );
+
+  // === Rotte Creative Studio / Progetti e Media (Punto 1) ===
+  app.get(
+    '/api/ads/creative/projects',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform', 'user']),
+    async (req, res) => {
+      try {
+        const auth = (req as any).adAuth;
+        const advertiserId = (req.query.advertiserId as string) || auth.userId;
+        const projects = adListProjectsByAdvertiser(advertiserId);
+        return res.json({ success: true, projects, count: projects.length });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore lista progetti' });
+      }
+    }
+  );
+
+  app.post(
+    '/api/ads/creative/projects',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const auth = (req as any).adAuth;
+        const body = req.body as { name: string; type: 'banner' | 'video'; canvasState: Record<string, unknown>; width: number; height: number; format?: string };
+        if (!body || !body.name || !body.type || !body.canvasState) {
+          return res.status(400).json({ success: false, error: 'Campi obbligatori: name, type, canvasState', code: 'VALIDATION_ERROR' });
+        }
+        if (!['banner', 'video'].includes(body.type)) return res.status(400).json({ success: false, error: 'type deve essere banner o video', code: 'VALIDATION_ERROR' });
+        if (!Number.isFinite(body.width) || !Number.isFinite(body.height) || body.width <= 0 || body.height <= 0) {
+          return res.status(400).json({ success: false, error: 'width e height devono essere numeri positivi', code: 'VALIDATION_ERROR' });
+        }
+        const project = adCreateProject({
+          advertiserId: auth.userId,
+          advertiserUsername: (auth as any).username,
+          name: body.name,
+          type: body.type,
+          canvasState: body.canvasState,
+          width: body.width,
+          height: body.height,
+          format: body.format,
+        });
+        writeAuditLog({
+          action: 'ads_creative_project_create',
+          userId: auth.userId,
+          role: auth.role,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 201,
+          success: true,
+          details: { projectId: project.id, type: project.type },
+        });
+        return res.status(201).json({ success: true, project });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore creazione progetto' });
+      }
+    }
+  );
+
+  app.get(
+    '/api/ads/creative/projects/:id',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform', 'user']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const project = adGetProject(id);
+        if (!project) return res.status(404).json({ success: false, error: 'Progetto non trovato' });
+        const auth = (req as any).adAuth;
+        if (auth.role !== 'platform' && project.advertiserId !== auth.userId) return res.status(403).json({ success: false, error: 'Accesso negato a questo progetto' });
+        return res.json({ success: true, project });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore dettaglio progetto' });
+      }
+    }
+  );
+
+  app.put(
+    '/api/ads/creative/projects/:id',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const auth = (req as any).adAuth;
+        const project = adGetProject(id);
+        if (!project) return res.status(404).json({ success: false, error: 'Progetto non trovato' });
+        if (auth.role !== 'platform' && project.advertiserId !== auth.userId) return res.status(403).json({ success: false, error: 'Accesso negato a questo progetto' });
+        const body = req.body as Partial<{ name: string; canvasState: Record<string, unknown>; width: number; height: number; format: string; status: 'draft' | 'exported' | 'submitted'; exportedUrl: string; mimeType: string; campaignId: string; orderId: string }>;
+        const updated = adUpdateProject(id, body);
+        if (!updated) return res.status(404).json({ success: false, error: 'Progetto non trovato' });
+        writeAuditLog({
+          action: 'ads_creative_project_update',
+          userId: auth.userId,
+          role: auth.role,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 200,
+          success: true,
+          details: { projectId: id },
+        });
+        return res.json({ success: true, project: updated });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore aggiornamento progetto' });
+      }
+    }
+  );
+
+  app.delete(
+    '/api/ads/creative/projects/:id',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const auth = (req as any).adAuth;
+        const project = adGetProject(id);
+        if (!project) return res.status(404).json({ success: false, error: 'Progetto non trovato' });
+        if (auth.role !== 'platform' && project.advertiserId !== auth.userId) return res.status(403).json({ success: false, error: 'Accesso negato a questo progetto' });
+        const deleted = adDeleteProject(id);
+        if (!deleted) return res.status(404).json({ success: false, error: 'Progetto non trovato' });
+        writeAuditLog({
+          action: 'ads_creative_project_delete',
+          userId: auth.userId,
+          role: auth.role,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 200,
+          success: true,
+          details: { projectId: id },
+        });
+        return res.json({ success: true });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore eliminazione progetto' });
+      }
+    }
+  );
+
+  app.post(
+    '/api/ads/creative/projects/:id/export',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const auth = (req as any).adAuth;
+        const { exportedUrl, mimeType } = req.body as { exportedUrl?: string; mimeType?: string };
+        if (!exportedUrl || !mimeType) return res.status(400).json({ success: false, error: 'Campi obbligatori: exportedUrl, mimeType', code: 'VALIDATION_ERROR' });
+        const project = adGetProject(id);
+        if (!project) return res.status(404).json({ success: false, error: 'Progetto non trovato' });
+        if (auth.role !== 'platform' && project.advertiserId !== auth.userId) return res.status(403).json({ success: false, error: 'Accesso negato a questo progetto' });
+        const updated = adExportProject(id, exportedUrl, mimeType);
+        if (!updated) return res.status(404).json({ success: false, error: 'Progetto non trovato' });
+        return res.json({ success: true, project: updated });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore esportazione progetto' });
+      }
+    }
+  );
+
+  app.get(
+    '/api/ads/creative/media',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform', 'user']),
+    async (req, res) => {
+      try {
+        const auth = (req as any).adAuth;
+        const advertiserId = (req.query.advertiserId as string) || auth.userId;
+        const media = adListMediaByAdvertiser(advertiserId);
+        return res.json({ success: true, media, count: media.length });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore lista media' });
+      }
+    }
+  );
+
+  app.post(
+    '/api/ads/creative/media',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const auth = (req as any).adAuth;
+        const body = req.body as { fileKey: string; fileUrl: string; fileName: string; mimeType: string; sizeBytes: number; tags?: string[] };
+        if (!body || !body.fileKey || !body.fileUrl || !body.fileName || !body.mimeType) {
+          return res.status(400).json({ success: false, error: 'Campi obbligatori: fileKey, fileUrl, fileName, mimeType', code: 'VALIDATION_ERROR' });
+        }
+        const fileValidation = validateFileUpload({ fileName: body.fileName, mimeType: body.mimeType, sizeBytes: body.sizeBytes });
+        if (!fileValidation.valid) return res.status(400).json({ success: false, error: fileValidation.error, code: 'VALIDATION_ERROR' });
+        const urlCheck = validateUrlNoSsrf(body.fileUrl);
+        if (!urlCheck.safe) return res.status(400).json({ success: false, error: urlCheck.error, code: 'SSRF_BLOCKED' });
+        const media = adAddMedia({
+          advertiserId: auth.userId,
+          fileKey: body.fileKey,
+          fileUrl: body.fileUrl,
+          fileName: body.fileName,
+          mimeType: body.mimeType,
+          sizeBytes: body.sizeBytes,
+          tags: body.tags,
+        });
+        writeAuditLog({
+          action: 'ads_creative_media_add',
+          userId: auth.userId,
+          role: auth.role,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 201,
+          success: true,
+          details: { mediaId: media.id, mimeType: media.mimeType },
+        });
+        return res.status(201).json({ success: true, media });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore aggiunta media' });
+      }
+    }
+  );
+
+  app.delete(
+    '/api/ads/creative/media/:id',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const auth = (req as any).adAuth;
+        const media = adGetMedia(id);
+        if (!media) return res.status(404).json({ success: false, error: 'Media non trovato' });
+        if (auth.role !== 'platform' && media.advertiserId !== auth.userId) return res.status(403).json({ success: false, error: 'Accesso negato a questo media' });
+        const deleted = adDeleteMedia(id);
+        if (!deleted) return res.status(404).json({ success: false, error: 'Media non trovato' });
+        writeAuditLog({
+          action: 'ads_creative_media_delete',
+          userId: auth.userId,
+          role: auth.role,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 200,
+          success: true,
+          details: { mediaId: id },
+        });
+        return res.json({ success: true });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore eliminazione media' });
+      }
+    }
+  );
 
   // 4. Integrazione Vite (dev) o Dist (produzione)
   const isRunningCompiledServer = Boolean(process.argv[1] && process.argv[1].endsWith('server.cjs'));
