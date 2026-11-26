@@ -288,3 +288,56 @@ export async function getRealtimeWeather(lat, lng) {
     return null;
   }
 }
+
+/**
+ * Recupera i dati meteo marini in tempo reale (stato del mare, onde, periodo, direzione)
+ * per una coordinata costiera. Fonte: Open-Meteo Marine API (EWAM).
+ */
+export async function getRealtimeMarineWeather(lat, lng) {
+  if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) {
+    return null;
+  }
+
+  const roundedLat = Math.round(lat * 100) / 100;
+  const roundedLng = Math.round(lng * 100) / 100;
+
+  try {
+    const url = `https://marine-api.open-meteo.com/v1/marine?latitude=${roundedLat}&longitude=${roundedLng}&current=wave_height,wave_period,wave_direction,swell_wave_height,sea_surface_temperature&timezone=auto`;
+
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error(`Open-Meteo Marine HTTP ${res.status}`);
+    }
+
+    const json = await res.json();
+    const current = json.current || {};
+    const waveHeight = current.wave_height ?? 0;
+    const wavePeriod = current.wave_period ?? null;
+    const waveDirection = current.wave_direction ?? null;
+    const swellWaveHeight = current.swell_wave_height ?? null;
+
+    let seaStateLabel = 'Calma';
+    let seaStateBadge = 'Calmo';
+    if (waveHeight > 4) { seaStateLabel = 'Molto Agitato'; seaStateBadge = 'Molto Agitato'; }
+    else if (waveHeight > 2.5) { seaStateLabel = 'Agitato'; seaStateBadge = 'Agitato'; }
+    else if (waveHeight > 1.25) { seaStateLabel = 'Mosso'; seaStateBadge = 'Mosso'; }
+    else if (waveHeight > 0.5) { seaStateLabel = 'Poco Mosso'; seaStateBadge = 'Poco Mosso'; }
+
+    const isCoastal = waveHeight !== undefined;
+
+    return {
+      seaState: { label: seaStateLabel, badge: seaStateBadge },
+      isCoastal,
+      waveHeight,
+      wavePeriod,
+      waveDirection: waveDirection !== null ? `${Math.round(waveDirection)}°` : 'N/D',
+      swellWaveHeight,
+      note: `Stato del mare per ${roundedLat},${roundedLng}`,
+      dataSource: 'Open-Meteo Marine (EWAM)',
+      lastUpdated: new Date().toISOString(),
+    };
+  } catch (err) {
+    console.warn('[WeatherService] Impossibile recuperare dati marini online:', err);
+    return null;
+  }
+}

@@ -27,8 +27,6 @@ import {
 // --- Dipendenze AI Step 3 (frontend) ---
 // Rimozione sfondo AI client-side (ONNX, browser-native)
 import { removeBackground } from '@imgly/background-removal';
-// Upscaling / super-risoluzione client-side
-import { Upscaler } from 'upscalerjs';
 // OCR client-side
 import { createWorker, Worker } from 'tesseract.js';
 
@@ -94,7 +92,7 @@ export const CreativeStudio: React.FC<CreativeStudioProps> = ({
   const [cloudUploadUrl, setCloudUploadUrl] = useState<string | null>(null);
   const [cloudFileKey, setCloudFileKey] = useState<string | null>(null);
 
-  const upscalerRef = useRef<Upscaler | null>(null);
+  const upscalerRef = useRef<any | null>(null);
   const ocrWorkerRef = useRef<Worker | null>(null);
   const cloudUploadAbortRef = useRef<AbortController | null>(null);
   const [mediaOpen, setMediaOpen] = useState(false);
@@ -233,6 +231,8 @@ export const CreativeStudio: React.FC<CreativeStudioProps> = ({
     setIsUpscaling(true);
     try {
       if (!upscalerRef.current) {
+        const UpscalerModule = await import('upscalerjs');
+        const Upscaler = UpscalerModule.default ?? UpscalerModule;
         upscalerRef.current = new Upscaler();
         await upscalerRef.current.loadModel('x4'); // modello 4x
       }

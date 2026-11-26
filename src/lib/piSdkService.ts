@@ -183,6 +183,60 @@ async function notifyServerCompletion(paymentId: string, txid: string): Promise<
   }
 }
 
+export function getCurrentPiAccessToken(): string | null {
+  if (typeof window !== 'undefined' && window.location) {
+    const stored = localStorage.getItem('have2want_pi_access_token');
+    if (stored) return stored;
+    try {
+      const url = new URL(window.location.href || '');
+      const token = url.searchParams.get('pi_access_token') || url.searchParams.get('access_token');
+      if (token) return token;
+    } catch {}
+  }
+  return null;
+}
+
+export function clearPiSession(): void {
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.removeItem('have2want_pi_access_token');
+      localStorage.removeItem('have2want_pioneer_user');
+    } catch {}
+    if (typeof window.location !== 'undefined') {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('pi_access_token');
+        url.searchParams.delete('access_token');
+        window.history.replaceState({}, '', url.toString());
+      } catch {}
+    }
+  }
+}
+
+export async function exchangePiTokenForFirebaseSession(piToken: string): Promise<{
+  success: boolean;
+  firebaseToken?: string;
+  error?: string;
+}> {
+  if (typeof fetch !== 'function') {
+    return { success: false, error: 'Fetch API non disponibile' };
+  }
+  try {
+    const response = await fetch('/api/pi/exchange', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ piToken }),
+    });
+    if (!response.ok) {
+      return { success: false, error: `Server rispose ${response.status}` };
+    }
+    const data = await response.json();
+    return { success: true, firebaseToken: data?.firebaseToken || data?.token };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Errore nello scambio token Pi→Firebase' };
+  }
+}
+
 // Esegue un pagamento tramite funzione Pi SDK con approvazione/completamento su backend Express
 export async function executePiSdkPayment(options: {
   amount: number;

@@ -676,6 +676,37 @@ export function buildEngineeredSpacecraft(
       rightBeaconPos.set(9.8, 0, 0);
       break;
     }
+
+    // -------------------------------------------------------------------------
+    // DEFAULT: modello satellitare generico per canali senza case dedicato
+    // Bus metallico oro/argento, pannelli solari fotovoltaici, antenna parabolica
+    // -------------------------------------------------------------------------
+    default: {
+      const bus = new THREE.Mesh(new THREE.BoxGeometry(2.8, 2.8, 3.8), goldFoilMat);
+      const silverDeck = new THREE.Mesh(new THREE.BoxGeometry(2.9, 2.9, 0.3), silverFoilMat);
+      silverDeck.position.set(0, 0, 1.9);
+      group.add(bus, silverDeck);
+      clickables.push(bus, silverDeck);
+
+      const antennaMast = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 3.2, 8), titaniumMat);
+      antennaMast.position.set(0, 0, 2.1);
+      const dish = new THREE.Mesh(new THREE.SphereGeometry(0.9, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2), dishMeshMat);
+      dish.rotation.x = Math.PI;
+      dish.position.set(0, 0, 3.9);
+      group.add(antennaMast, dish);
+      clickables.push(antennaMast, dish);
+
+      const wingL = new THREE.Mesh(new THREE.BoxGeometry(6.0, 2.6, 0.18), solarCellMat);
+      wingL.position.set(-5.8, 0, 0);
+      const wingR = new THREE.Mesh(new THREE.BoxGeometry(6.0, 2.6, 0.18), solarCellMat);
+      wingR.position.set(5.8, 0, 0);
+      group.add(wingL, wingR);
+      clickables.push(wingL, wingR);
+
+      leftBeaconPos.set(-9.0, 0, 0);
+      rightBeaconPos.set(9.0, 0, 0);
+      break;
+    }
   }
 
   // Targhetta billboard ad alta leggibilità sopra il satellite (+Y radiale lontano dalla Terra)
