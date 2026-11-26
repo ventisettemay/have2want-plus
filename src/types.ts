@@ -471,60 +471,6 @@ export interface BannedAccountRecord {
 }
 
 // 4 Satellite Constellations Configuration
-export type SatelliteType = 'P2P' | 'KMZERO' | 'MONDO' | 'WEATHER';
-
-export interface SatelliteOrbitConfigItem {
-  type: SatelliteType;
-  name: string;
-  orbitRadiusMultiplier: number;
-  speed: number;
-  color: string;
-  icon: string;
-  description: string;
-  requiresLocalUser?: boolean;
-  requiresWeatherActive?: boolean;
-}
-
-export const SATELLITE_ORBIT_CONFIG: Record<SatelliteType, SatelliteOrbitConfigItem> = {
-  P2P: {
-    type: 'P2P',
-    name: 'Costellazione Bacheca Lavoro & P2P',
-    orbitRadiusMultiplier: 1.05,
-    speed: 0.0008,
-    color: '#00ff66',
-    icon: '🤝',
-    description: 'Scambi diretti tra cittadini e opportunità lavorative senza intermediari.',
-  },
-  KMZERO: {
-    type: 'KMZERO',
-    name: 'Costellazione Vetrina Km Zero',
-    orbitRadiusMultiplier: 1.12,
-    speed: 0.0015,
-    color: '#10b981',
-    icon: '🌱',
-    description: 'Produttori agricoli locali e botteghe di vicinato entro 100km.',
-    requiresLocalUser: true,
-  },
-  WEATHER: {
-    type: 'WEATHER',
-    name: 'Costellazione Radar Meteo Dinamico',
-    orbitRadiusMultiplier: 1.25,
-    speed: 0.0002,
-    color: '#fbbf24',
-    icon: '⛅',
-    description: 'Troposfera e precipitazioni atmosferiche in tempo reale.',
-    requiresWeatherActive: true,
-  },
-  MONDO: {
-    type: 'MONDO',
-    name: 'Costellazione Supermarket Globale',
-    orbitRadiusMultiplier: 1.35,
-    speed: 0.0004,
-    color: '#06b6d4',
-    icon: '🌍',
-    description: 'Mercato globale trasparente: prezzo pattuito + spedizione + tracciamento.',
-  },
-};
 
 // Order & Logistics Types (Separated Pricing Model)
 export interface Order {

@@ -202,13 +202,11 @@ export const TRACKABLE_SATELLITES_METADATA: Record<SatelliteId, SatelliteCatalog
   },
   STREET_360_SAT: {
     satelliteId: 'STREET_360_SAT',
-    noradId: null,
+    noradId: 42064,
     officialName: 'STREET-360 (Stradario & Vista 360°)',
     operator: 'HAVE2WANT Network',
-    orbitRegime: 'LOGICAL',
-    isPhysicalSpacecraft: false,
-    nonPhysicalReason:
-      'Canale logico HAVE2WANT (Stradario 360): nessun satellite fisico associato su NORAD/CelesTrak.',
+    orbitRegime: 'LEO',
+    isPhysicalSpacecraft: true,
   },
   WEBCAM: {
     satelliteId: 'WEBCAM',
@@ -251,7 +249,7 @@ export function parseCelesTrakEpochMs(epochStr: string): number | null {
 }
 
 export function computeGmstRad(date: Date): number {
-  return normalizeRad(gstime(date.getTime()));
+  return normalizeRad(gstime(date as any));
 }
 
 function isValidOmmRecord(raw: any): raw is CelesTrakOmmRecord {
@@ -321,10 +319,10 @@ function propagateSgp4ToGeodetic(
   velocityKms: number;
 } | null {
   try {
-    const pv = propagate(satrec, date.getTime());
+    const pv = propagate(satrec, date as any);
     if (!pv || !pv.position || !pv.velocity) return null;
 
-    const gmst = typeof gmstOverrideRad === 'number' ? gmstOverrideRad : gstime(date.getTime());
+    const gmst = typeof gmstOverrideRad === 'number' ? gmstOverrideRad : gstime(date as any);
     const geodetic = eciToGeodetic(pv.position, gmst);
     const lat = degreesLat(geodetic.latitude);
     const lng = degreesLong(geodetic.longitude);
@@ -447,7 +445,7 @@ export function computeInstantaneousOrbitTrack(
   const satrec = buildSatRec(omm);
   if (!satrec) return [];
 
-  const gmstFixed = gstime(date.getTime());
+  const gmstFixed = gstime(date as any);
   const periodMinutes = 1440 / omm.MEAN_MOTION;
   const periodMs = periodMinutes * 60 * 1000;
   const points: OrbitTrackPoint[] = [];

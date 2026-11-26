@@ -141,7 +141,7 @@ export const SalvavatuttoArchive: React.FC<SalvavatuttoArchiveProps> = ({
             </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">Riparazioni, Fai-da-Te e Consigli Utili</h2>
             <p className="text-sm sm:text-base text-slate-300 mt-2 max-w-2xl leading-relaxed">
-              Consigli pratici su come riparare oggetti invece di buttarli, risparmiare risorse e condividere le tue abilità con la comunità locale.
+              Consigli pratici su come riparare oggetti invece di buttarli, risparmiare risorse e condividere le tue abilità con la comunità locale. Spazio DEFIANCE PULSE per creatori e promozione interna.
             </p>
           </div>
 

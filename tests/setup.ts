@@ -1,4 +1,19 @@
 // Setup globale per ambiente di test
+import { vi } from 'vitest';
+
+// Mock Cesium per evitare accesso a window.location.href a livello di module in ambiente Node
+vi.mock('cesium', () => ({
+  Viewer: vi.fn(),
+  Cartesian3: vi.fn(),
+  Cesium3DTileset: vi.fn(),
+  createWorldTerrainAsync: vi.fn(),
+  createOsmBuildingsAsync: vi.fn(),
+  OpenStreetMapImageryProvider: vi.fn(),
+  ImageryLayer: vi.fn(),
+  IonResource: vi.fn(),
+  default: {},
+}));
+
 class LocalStorageMock {
   private store: Record<string, string> = {};
 

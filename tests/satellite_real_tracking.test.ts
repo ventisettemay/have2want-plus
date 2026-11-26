@@ -94,10 +94,25 @@ const GALILEO_23_OMM: CelesTrakOmmRecord = {
   MEAN_MOTION_DOT: -4.9e-7,
 };
 
+const STREET_360_OMM: CelesTrakOmmRecord = {
+  OBJECT_NAME: 'STREET-360',
+  OBJECT_ID: '2026-001A',
+  EPOCH: '2026-11-21T15:00:00.000000',
+  MEAN_MOTION: 14.5,
+  ECCENTRICITY: 0.001,
+  INCLINATION: 51.6,
+  RA_OF_ASC_NODE: 100.0,
+  ARG_OF_PERICENTER: 0.0,
+  MEAN_ANOMALY: 0.0,
+  NORAD_CAT_ID: 42064,
+  MEAN_MOTION_DOT: 0.0,
+};
+
 const OMM_BY_NORAD: Record<number, CelesTrakOmmRecord> = {
   54743: METEOSAT_12_OMM,
   40697: SENTINEL_2A_OMM,
   42063: SENTINEL_2B_OMM,
+  42064: STREET_360_OMM,
   49143: STARLINK_3109_OMM,
   43562: TELSTAR_19V_OMM,
   43566: GALILEO_23_OMM,
@@ -125,8 +140,8 @@ describe('Satellite Real CelesTrak Orbital Tracking – HAVE2WANT PLUS', () => {
       expect([
         'EXTERNAL_MARKET_SAT',
         'BUSINESS_ADS_SAT',
-        'ACTIONFLOW_SAT',
-        'DEFIANCE_PULSE_SAT',
+        'WEBCAM',
+        'METEO_ROUTE',
       ]).toContain(s.id);
     });
   });
@@ -227,7 +242,7 @@ describe('Satellite Real CelesTrak Orbital Tracking – HAVE2WANT PLUS', () => {
 
     const snap = await satelliteTelemetryStore.refreshAll(true, mockCelesTrakFetch);
 
-    (['METEO_SAT', 'KM0_SAT', 'MAP_SAT', 'PI_CHAT_SAT', 'GLOBAL_MARKET_SAT', 'COMMUNITY_RESCUE_SAT'] as const).forEach(
+    (['METEO_SAT', 'KM0_SAT', 'STREET_360_SAT', 'PI_CHAT_SAT', 'GLOBAL_MARKET_SAT', 'COMMUNITY_RESCUE_SAT'] as const).forEach(
       (id) => {
         expect(snap[id].status).toBe('live');
         expect(typeof snap[id].lat).toBe('number');
@@ -237,7 +252,7 @@ describe('Satellite Real CelesTrak Orbital Tracking – HAVE2WANT PLUS', () => {
       }
     );
 
-    (['EXTERNAL_MARKET_SAT', 'BUSINESS_ADS_SAT', 'ACTIONFLOW_SAT', 'DEFIANCE_PULSE_SAT'] as const).forEach(
+    (['EXTERNAL_MARKET_SAT', 'BUSINESS_ADS_SAT', 'WEBCAM', 'METEO_ROUTE'] as const).forEach(
       (id) => {
         expect(snap[id].status).toBe('logical_channel');
         expect(snap[id].lat).toBeNull();

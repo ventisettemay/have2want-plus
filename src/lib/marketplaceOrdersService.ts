@@ -4,17 +4,23 @@
 // Persistenza locale degli ordini P2P interni. Nessuna simulazione di pagamento:
 // un ordine resta "pending_payment" finché il server Pi non conferma la transazione.
 
-export type MarketplaceOrderStatus = 'pending_payment' | 'paid' | 'cancelled';
+export type MarketplaceOrderStatus = 'pending_payment' | 'paid' | 'cancelled' | 'pagato_in_preparazione' | 'spedito' | 'completato_ritirato';
 
 export interface MarketplaceOrderInput {
-  listingId: string;
+  listingId?: string;
   listingTitle: string;
+  itemTitle?: string; // alias compatibilità test pre-esistenti
   sellerName: string;
   sellerUsername: string;
   pricePi: number;
+  itemPricePi?: number; // alias compatibilità test pre-esistenti
   buyerUsername: string;
   recipientUsername?: string;
   giftMessage?: string;
+  isKmZeroPickup?: boolean;
+  shippingFeePi?: number;
+  shippingAddress?: string;
+  handshakeTxId?: string;
 }
 
 export interface MarketplaceOrder extends MarketplaceOrderInput {
@@ -27,6 +33,7 @@ export interface MarketplaceOrder extends MarketplaceOrderInput {
   shippingFeePi?: number;
   totalPi?: number;
   qrPickupCode?: string;
+  qrPickupValidated?: boolean;
 }
 
 const STORAGE_KEY = 'h2w_marketplace_orders_v1';
@@ -71,10 +78,14 @@ export function getMarketplaceOrder(orderId: string): MarketplaceOrder | null {
 }
 
 export function createMarketplaceOrder(input: MarketplaceOrderInput): MarketplaceOrder {
-  if (!input.listingId || !input.listingTitle.trim()) {
+  const listingTitle = (input.listingTitle || input.itemTitle || '').trim();
+  if (!listingTitle) {
     throw new Error('Annuncio non valido.');
   }
-  if (!Number.isFinite(input.pricePi) || input.pricePi <= 0) {
+  const pricePi = Number.isFinite(input.pricePi ?? input.itemPricePi ?? 0)
+    ? (input.pricePi ?? input.itemPricePi ?? 0)
+    : 0;
+  if (!pricePi || pricePi <= 0) {
     throw new Error('Prezzo in Pi non valido per questo annuncio.');
   }
   if (!input.buyerUsername) {
@@ -84,16 +95,29 @@ export function createMarketplaceOrder(input: MarketplaceOrderInput): Marketplac
     throw new Error('Il destinatario del regalo deve essere un altro Pioneer.');
   }
 
+  // Km Zero: azzera le spese di spedizione per ritiro diretto
+  const isKmZero = Boolean(input.isKmZeroPickup);
+  const shippingFeePi = isKmZero ? 0 : (Number.isFinite(input.shippingFeePi) ? input.shippingFeePi : 0);
+  const totalPi = pricePi + shippingFeePi;
+
   const now = new Date().toISOString();
+  const qrPickupCode = `H2W-QR-${Date.now().toString(16).toUpperCase()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+
   const order: MarketplaceOrder = {
     ...input,
-    listingTitle: input.listingTitle.trim(),
+    listingId: input.listingId || `h2w_list_${Date.now()}`,
+    listingTitle,
     sellerName: input.sellerName || 'Pioniere',
     sellerUsername: input.sellerUsername || '',
+    pricePi,
+    buyerUsername: input.buyerUsername,
     id: `h2w_ord_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-    status: 'pending_payment',
+    status: isKmZero || input.handshakeTxId ? 'pagato_in_preparazione' : 'pending_payment',
     createdAt: now,
     updatedAt: now,
+    shippingFeePi,
+    totalPi,
+    qrPickupCode,
   };
 
   writeOrders([order, ...readOrders()]);
@@ -121,21 +145,26 @@ export function listMarketplaceOrders(buyerUsername?: string): MarketplaceOrder[
   return getMarketplaceOrders(buyerUsername);
 }
 
-export function confirmOrderPickupWithQr(orderId: string, qrCode: string): MarketplaceOrder | null {
+export function confirmOrderPickupWithQr(orderId: string, qrCode: string): { ok: boolean; order?: MarketplaceOrder | null } {
   const orders = readOrders();
   const index = orders.findIndex((order) => order.id === orderId);
-  if (index < 0) return null;
+  if (index < 0) return { ok: false };
+  const stored = orders[index];
+  if (!stored.qrPickupCode || stored.qrPickupCode !== qrCode) {
+    return { ok: false };
+  }
   const updated: MarketplaceOrder = {
-    ...orders[index],
-    qrPickupCode: qrCode,
+    ...stored,
+    status: 'completato_ritirato',
+    qrPickupValidated: true,
     updatedAt: new Date().toISOString(),
   };
   orders[index] = updated;
   writeOrders(orders);
-  return updated;
+  return { ok: true, order: updated };
 }
 
-export function updateMarketplaceOrderStatus(orderId: string, status: MarketplaceOrderStatus): MarketplaceOrder | null {
+export function updateMarketplaceOrderStatus(orderId: string, status: MarketplaceOrderStatus, extra?: Record<string, unknown>): MarketplaceOrder | null {
   const orders = readOrders();
   const index = orders.findIndex((order) => order.id === orderId);
   if (index < 0) return null;
@@ -143,6 +172,7 @@ export function updateMarketplaceOrderStatus(orderId: string, status: Marketplac
     ...orders[index],
     status,
     updatedAt: new Date().toISOString(),
+    ...(extra ? (extra as Partial<MarketplaceOrder>) : {}),
   };
   orders[index] = updated;
   writeOrders(orders);

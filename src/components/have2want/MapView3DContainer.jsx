@@ -10,7 +10,6 @@ import VideoCreator from './VideoCreator';
 import { resolveApiUrl } from '@/lib/apiConfig';
 import WorldEmergencyModal from './WorldEmergencyModal';
 import GlobalCarpoolModal from './GlobalCarpoolModal';
-import CraftMemoryModal from './CraftMemoryModal';
 import ExternalPlaceDetailModal from './ExternalPlaceDetailModal';
 import VetrinaKmZero from './VetrinaKmZero';
 import { GlobalMarketplaceView } from './GlobalMarketplaceView';
@@ -69,13 +68,52 @@ const isInternalMarketplaceListing = (item) => Boolean(
 );
 
 // Helper di risoluzione geografica ad altissima precisione (Atlante Mondiale + Regioni)
-function resolveCountryData(countryData) {
+export function resolveCountryData(countryData) {
   if (!countryData) return null;
+
+  // Accetta sia oggetto che stringa
+  if (typeof countryData === 'string') {
+    countryData = { name: countryData };
+  }
 
   const rawId = (countryData.id || countryData.code || '').toString().toLowerCase().trim();
   const rawName = (countryData.name || '').toString().toLowerCase().trim();
   const rawCountry = (countryData.countryName || countryData.country || '').toString().toLowerCase().trim();
   const rawCapital = (countryData.capital || '').toString().toLowerCase().trim();
+
+  // Alias per disambiguazione stretta (es. 'congo' -> Repubblica del Congo CG, non RDC CD)
+  const ALIASES = {
+    congo: 'CG',
+    'rd congo': 'CD',
+    'congo rdc': 'CD',
+    'repubblica democratica del congo': 'CD',
+    'niger': 'NE',
+    'nigeria': 'NG',
+    'emirati arabi uniti': 'AE',
+    'emirati': 'AE',
+    'united arab emirates': 'AE',
+  };
+  const aliasCode = ALIASES[rawName];
+  if (aliasCode) {
+    const byCode = WORLD_COUNTRIES.find((c) => c.code === aliasCode);
+    if (byCode) {
+      return {
+        id: byCode.code.toLowerCase(),
+        code: byCode.code,
+        name: byCode.name,
+        countryName: byCode.name,
+        capital: byCode.capital,
+        flag: byCode.flag,
+        lat: byCode.lat,
+        lng: byCode.lng,
+        lang: byCode.language?.name || 'Lingua Locale',
+        currency: `${byCode.currency?.code || 'EUR'} (${byCode.currency?.symbol || '€'})`,
+        language: byCode.language,
+        currencyData: byCode.currency,
+        timezone: byCode.timezone,
+      };
+    }
+  }
 
   // 1. Cerca in WORLD_COUNTRIES (195+ nazioni del pianeta: Giappone, Marocco, Francia, USA, ecc.)
   const worldMatch = WORLD_COUNTRIES.find((c) => {
@@ -89,7 +127,7 @@ function resolveCountryData(countryData) {
       cCode === rawId ||
       cCode3 === rawId ||
       cName === rawName ||
-      cName === rawCountry ||
+      (!rawName && cName === rawCountry) ||
       cNative === rawName ||
       (rawCapital && cCapital === rawCapital) ||
       (rawName.length >= 3 && cName.includes(rawName)) ||
@@ -192,23 +230,8 @@ function resolveCountryData(countryData) {
     };
   }
 
-  // 5. Fallback sicuro mantenendo intatti i dati reali ricevuti
-  return {
-    id: countryData.id || 'custom',
-    code: countryData.code || 'GLOBO',
-    name: countryData.name || 'Territorio',
-    countryName: countryData.countryName || countryData.name || 'Territorio',
-    capital: countryData.capital || '',
-    flag: countryData.flag || '🌍',
-    lat: countryData.lat ?? 0,
-    lng: countryData.lng ?? 0,
-    lang: countryData.lang || 'Lingua Locale',
-    currency: countryData.currency || 'Valuta Locale',
-    language: countryData.language || { name: countryData.lang || 'Lingua Locale' },
-    currencyData: countryData.currencyData || { code: 'VAL', symbol: 'π' },
-    timezone: countryData.timezone || 'UTC',
-    regions: countryData.regions,
-  };
+  // 5. Nessun match trovato - restituisce null per territori sconosciuti
+  return null;
 }
 
 export default function MapView3DContainer({
@@ -316,7 +339,6 @@ export default function MapView3DContainer({
   // Modali Servizi Diretti & Utilità Globali (Zero spese, zero database interno)
   const [isEmergencyModalOpen, setIsEmergencyModalOpen] = useState(false);
   const [isCarpoolModalOpen, setIsCarpoolModalOpen] = useState(false);
-  const [isCraftMemoryOpen, setIsCraftMemoryOpen] = useState(false);
   const [selectedExternalPlace, setSelectedExternalPlace] = useState(null);
   const [activeSatellite, setActiveSatellite] = useState(null);
   const [scientificSatellite, setScientificSatellite] = useState(null);
@@ -1189,11 +1211,6 @@ export default function MapView3DContainer({
       <GlobalCarpoolModal
         isOpen={isCarpoolModalOpen}
         onClose={() => setIsCarpoolModalOpen(false)}
-      />
-
-      <CraftMemoryModal
-        isOpen={isCraftMemoryOpen}
-        onClose={() => setIsCraftMemoryOpen(false)}
       />
 
       <ExternalPlaceDetailModal

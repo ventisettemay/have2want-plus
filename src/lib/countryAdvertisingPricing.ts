@@ -203,32 +203,48 @@ export function getWeeklyAdvertisingPrice(
 
 export type AdDurationTier = '7gg' | '14gg' | '30gg' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'CREATOR_PROMO';
 
-export const DEFAULT_LAUNCH_COEFFICIENT = 1.0;
+export type AdType = 'EXTERNAL_GLOBE_PIN' | 'CREATOR_PROMO' | string;
+
+export const DEFAULT_LAUNCH_COEFFICIENT = 0.2;
 let configuredLaunchCoefficient = DEFAULT_LAUNCH_COEFFICIENT;
 
 export function getConfiguredLaunchCoefficient(): number {
   return configuredLaunchCoefficient;
 }
 
-export function setConfiguredLaunchCoefficient(value: number): void {
+export function setConfiguredLaunchCoefficient(value: number): number {
   configuredLaunchCoefficient = value;
+  return configuredLaunchCoefficient;
 }
+
+const DURATION_DAYS: Record<string, number> = {
+  DAILY: 1,
+  WEEKLY: 7,
+  MONTHLY: 30,
+  '7gg': 7,
+  '14gg': 14,
+  '30gg': 30,
+};
+
+const CRYPTO_PAYMENT_METHODS = ['PI_SDK', 'PI_AD_NETWORK', 'USDT_POLYGON', 'USDT_TRC20', 'PREPAID_CREDITS'];
 
 export function getCountryAdPricingByType(
   countryCode: string,
-  tier?: AdDurationTier,
-  launchCoefficient?: number,
-  promoType?: string
+  adType?: AdType,
+  durationTier?: AdDurationTier | string
 ): { listPricePi: number; currentPricePi: number; durationDays: number; countryName: string; countryCode: string; trafficTierLabel: string; appliedCoefficient: number; supportedPaymentMethods: string[]; currentPriceUsdt: number } {
   const code = (countryCode || 'IT').toUpperCase();
   const pricingTier = COUNTRY_PRICING_CATALOG[code] || COUNTRY_PRICING_CATALOG.GLOBAL;
-  const durationMap: Record<AdDurationTier, number> = {
-    '7gg': 7, '14gg': 14, '30gg': 30, 'DAILY': 1, 'WEEKLY': 7, 'MONTHLY': 30, 'CREATOR_PROMO': 7,
-  };
-  const days = durationMap[tier ?? '7gg'];
-  const coeff = launchCoefficient ?? 1.0;
+
+  const days = DURATION_DAYS[String(durationTier ?? 'WEEKLY')] ?? 7;
+  const coeff = configuredLaunchCoefficient;
+
   const listPricePi = Math.round(pricingTier.fullListPricePi * (days / 7) * coeff);
   const currentPricePi = Math.round(pricingTier.discountedPricePi * (days / 7) * coeff);
+
+  // Listino solo cripto: metodi di pagamento esclusivamente cripto/prepagati
+  const isCryptoOnly = adType === 'EXTERNAL_GLOBE_PIN' || adType === 'CREATOR_PROMO';
+
   return {
     listPricePi,
     currentPricePi,
@@ -237,7 +253,7 @@ export function getCountryAdPricingByType(
     countryCode: pricingTier.countryCode,
     trafficTierLabel: 'Traffico iniziale',
     appliedCoefficient: coeff,
-    supportedPaymentMethods: ['π', 'EUR', 'USD'],
+    supportedPaymentMethods: isCryptoOnly ? CRYPTO_PAYMENT_METHODS : ['π', 'EUR', 'USD'],
     currentPriceUsdt: Math.round(currentPricePi * 0.674 * 100) / 100,
   };
 }

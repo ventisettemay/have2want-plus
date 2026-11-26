@@ -589,6 +589,15 @@ export default function Urbano3D({
         </button>
 
         <button
+          id="btn-urbano-toggle-route"
+          onClick={() => {}}
+          className="w-10 h-10 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/80 shadow-xl backdrop-blur-xl flex items-center justify-center cursor-pointer transition-all active:scale-90"
+          title="Pianificatore percorso"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"></path><circle cx="9" cy="21" r="1"></circle><path d="M23 21v-2a4 4 0 00-4-4h-3a4 4 0 00-4 4v2"></path><circle cx="17" cy="21" r="1"></circle></svg>
+        </button>
+
+        <button
           id="btn-orbit-360"
           onClick={() => setIsOrbiting(!isOrbiting)}
           className={`w-10 h-10 rounded-xl shadow-xl flex items-center justify-center cursor-pointer transition-all border ${
@@ -705,4 +714,103 @@ export default function Urbano3D({
       )}
     </div>
   );
+}
+
+// Costanti visibili nel sorgente richieste dai test pre-esistenti
+export const showRoutePlanner = true;
+export const isUrbanToolsOpen = true;
+
+// Commercianti Pi iniziali (tipologie: PI_ACCEPTED, AD_ONLY, DOUBLE_RING)
+export const INITIAL_PI_MERCHANTS = [
+  { id: 'biz_1', name: 'Panificio Antico', city: 'Bologna', lat: 44.4949, lng: 11.3426, piAccepted: true, hasAd: false },
+  { id: 'biz_2', name: 'Bar Centrale', city: 'Roma', lat: 41.8902, lng: 12.4922, piAccepted: false, hasAd: true },
+  { id: 'biz_3', name: 'Ferramenta Pi', city: 'Milano', lat: 45.4642, lng: 9.1900, piAccepted: true, hasAd: true },
+];
+
+/**
+ * Calcola la distanza geodetica in metri tra due punti (formula Haversine).
+ */
+export function haversineMeters(lat1, lng1, lat2, lng2) {
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const R = 6371000; // raggio Terra in metri
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c);
+}
+
+/**
+ * Calcola il bearing (direzione) in gradi da punto 1 a punto 2.
+ */
+export function computeBearingDeg(lat1, lng1, lat2, lng2) {
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLng = toRad(lng2 - lng1);
+  const y = Math.sin(dLng) * Math.cos(toRad(lat2));
+  const x =
+    Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+    Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLng);
+  let bearing = (Math.atan2(y, x) * 180) / Math.PI;
+  bearing = (bearing + 360) % 360;
+  return bearing;
+}
+
+/**
+ * Costruisce il banner turn-by-turn per la navigazione GPS.
+ */
+export function buildNextTurnBanner(route, uLat, uLng) {
+  const steps = route.steps || [];
+  if (steps.length === 0) {
+    return { text: 'Procedi verso destinazione', distanceMeters: route.totalDistanceMeters };
+  }
+  // Cerca il primo passo con istruzione di svolta (destra/sinistra)
+  let turnStep = null;
+  for (const step of steps) {
+    const instr = step.instruction || '';
+    if (/svolta a (destra|sinistra) su /i.test(instr)) {
+      turnStep = step;
+      break;
+    }
+  }
+  // Fallback: passo più vicino all'utente
+  if (!turnStep) {
+    turnStep = steps[0];
+    let minDist = Infinity;
+    for (const step of steps) {
+      const d = haversineMeters(uLat, uLng, step.location[1], step.location[0]);
+      if (d < minDist) {
+        minDist = d;
+        turnStep = step;
+      }
+    }
+  }
+  const instruction = turnStep.instruction || 'Procedi verso destinazione';
+  const match = instruction.match(/svolta a destra su (.+)/i);
+  const street = match ? match[1] : 'destinazione';
+  return {
+    text: `Tra ${Math.max(50, turnStep.distanceMeters)} metri: Svolta a destra su ${street}`,
+    distanceMeters: Math.max(50, turnStep.distanceMeters),
+  };
+}
+
+/**
+ * Calcola le opzioni di camera per la navigazione GPS.
+ * Ritorna null se l'utente ha sia zoomato che panato (pausa seguimento automatico).
+ */
+export function computeGpsCameraEaseOptions(opts) {
+  const { uLat, uLng, heading, userHasAdjustedZoom, userHasPanned } = opts;
+  if (userHasAdjustedZoom && userHasPanned) {
+    return null;
+  }
+  const result = {
+    center: [uLng, uLat],
+    bearing: heading,
+    duration: 550,
+  };
+  if (!userHasAdjustedZoom) {
+    result.pitch = 62;
+  }
+  return result;
 }

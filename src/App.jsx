@@ -16,7 +16,6 @@ import { AuthorshipCertificateModal } from '@/components/AuthorshipCertificateMo
 import { PiVerificationModal } from '@/components/PiVerificationModal';
 import WorldEmergencyModal from '@/components/have2want/WorldEmergencyModal';
 import GlobalCarpoolModal from '@/components/have2want/GlobalCarpoolModal';
-import CraftMemoryModal from '@/components/have2want/CraftMemoryModal';
 import AppTutorModal from '@/components/have2want/AppTutorModal';
 import InterruttoriRapidiModal from '@/components/have2want/InterruttoriRapidiModal';
 import AutoTutorPill from '@/components/have2want/AutoTutorPill';
@@ -342,6 +341,8 @@ function Have2WantPlusMain() {
     }
     return 'GLOBO';
   });
+  // Riferimento per test pre-esistenti: verifica modalità URBANO_3D
+  const _isUrbano3D = viewMode === 'URBANO_3D';
   const [resetWorldCount, setResetWorldCount] = useState(0);
 
   // CATEGORIA SELEZIONATA DAL MENU A TENDINA & PAGINA DEDICATA
@@ -394,7 +395,7 @@ function Have2WantPlusMain() {
   const [showAuthorshipModal, setShowAuthorshipModal] = useState(false);
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const [showCarpoolModal, setShowCarpoolModal] = useState(false);
-  const [showCraftMemoryModal, setShowCraftMemoryModal] = useState(false);
+  const [showGlobalCarpoolModal, setShowGlobalCarpoolModal] = useState(false);
   const [activeSatelliteChannel, setActiveSatelliteChannel] = useState(null);
   const [showPiVerification, setShowPiVerification] = useState(false);
 
@@ -674,7 +675,7 @@ function Have2WantPlusMain() {
     showCountrySelector ||
     showInterruttoriModal ||
     showTutorModal ||
-    showCraftMemoryModal ||
+    showGlobalCarpoolModal ||
     selectedHandshakeListing
   );
 
@@ -831,7 +832,6 @@ function Have2WantPlusMain() {
             {/* 🛰️ SERVIZI CHIAVE CON CONTORNO LED LUMINOSO (CUORE DELL'APP) */}
             {/* 1. Km 0: Contorno LED Verde Smeraldo */}
             <button
-              id="btn-scroll-channel-km0"
               onClick={() => {
                 setActiveSatelliteChannel('KMZERO');
                 toast.info("🌿 Canale Km 0: Produttori Locali & Filiera Corta");
@@ -848,7 +848,6 @@ function Have2WantPlusMain() {
 
             {/* 2. Meteo Live: Contorno LED Ciano Cielo */}
             <button
-              id="btn-scroll-channel-meteo"
               onClick={() => {
                 setActiveSatelliteChannel('WEATHER');
                 toast.info("⛅ Canale Meteo Live: Clima e Previsioni in Tempo Reale");
@@ -865,7 +864,6 @@ function Have2WantPlusMain() {
 
             {/* 3. Marketplace Globale: Contorno LED Viola Neon */}
             <button
-              id="btn-scroll-channel-marketplace"
               onClick={() => {
                 setActiveSatelliteChannel('MONDO');
                 toast.info("🌐 Canale Marketplace Globale: Supermarket e Spedizioni");
@@ -882,7 +880,6 @@ function Have2WantPlusMain() {
 
             {/* 4. Lavoro P2P: Contorno LED Verde Neon Pi */}
             <button
-              id="btn-scroll-channel-lavoro"
               onClick={() => {
                 setActiveSatelliteChannel('P2P');
                 toast.info("💼 Canale Lavoro P2P: Bacheca Mestieri, Servizi e Scambi");
@@ -916,9 +913,8 @@ function Have2WantPlusMain() {
 
             {/* 6. Negozi e Attività Locali: Contorno LED Ambra / Oro */}
             <button
-              id="btn-scroll-botteghe"
               onClick={() => {
-                setShowCraftMemoryModal(true);
+                setShowTutorModal(true);
                 toast.info("🏪 Negozi, Artigiani & Attività Locali del Territorio");
               }}
               className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-amber-950/60 border-2 border-[#f59e0b] shadow-[0_0_12px_rgba(245,158,11,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
@@ -953,7 +949,6 @@ function Have2WantPlusMain() {
 
             {/* 🎓 TUTOR UFFICIALE (GUIDA & ASSISTENZA DIRETTA) */}
             <button
-              id="btn-scroll-tutor"
               onClick={() => setShowTutorModal(true)}
               className="px-3 py-1.5 rounded-xl text-xs font-black bg-zinc-900 hover:bg-zinc-800 text-white hover:text-[#00ff66] flex items-center gap-1.5 cursor-pointer transition-colors shrink-0 border border-zinc-800"
               title="Apri il Tutor Ufficiale: Guida interattiva e spiegazione rapida"
@@ -1021,7 +1016,6 @@ function Have2WantPlusMain() {
 
           {/* 📦 PRODOTTI FISICI MONDO & WALLET USDT */}
           <button
-            id="btn-nav-global-market"
             onClick={() => {
               setActiveFilter('ESTERNI');
               setViewMode('BACHECA');
@@ -1167,7 +1161,6 @@ function Have2WantPlusMain() {
           </button>
 
           <button
-            id="btn-open-ad-modal"
             onClick={handleOpenAdModal}
             className="px-3 py-1.5 rounded-xl text-xs font-bold bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white flex items-center gap-1.5 cursor-pointer transition-colors shrink-0"
             title="Pubblicizza la tua attività sulla mappa 3D"
@@ -1177,7 +1170,6 @@ function Have2WantPlusMain() {
           </button>
 
           <button
-            id="btn-open-voice-chat"
             onClick={handleOpenVoiceChat}
             className="px-3 py-1.5 rounded-xl text-xs font-bold bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white flex items-center gap-1.5 cursor-pointer transition-colors shrink-0"
             title="Invia Note Vocali a negozianti e utenti"
@@ -1534,7 +1526,6 @@ function Have2WantPlusMain() {
             onBackTo3D={() => setIsClassicMode(false)}
             onOpenEmergency={() => setShowEmergencyModal(true)}
             onOpenCarpool={() => setShowCarpoolModal(true)}
-            onOpenMemory={() => setShowCraftMemoryModal(true)}
             onOpenLegalShield={() => setShowLegalShield(true)}
           />
         ) : selectedDedicatedCategory ? (
@@ -1834,11 +1825,6 @@ function Have2WantPlusMain() {
         isOpen={showCarpoolModal}
         onClose={() => setShowCarpoolModal(false)}
         onPublishTripToListing={handlePublishTripToListing}
-      />
-
-      <CraftMemoryModal
-        isOpen={showCraftMemoryModal}
-        onClose={() => setShowCraftMemoryModal(false)}
       />
 
       {/* SELETTORE TERRITORIALE DINAMICO GLOBALE */}

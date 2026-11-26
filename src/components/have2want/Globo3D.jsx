@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { COUNTRIES, getCountryForListing } from '@/data/countries';
 import { ITALIAN_REGIONS, SPONSORED_BUSINESSES } from '@/data/regions';
-import { WORLD_COUNTRIES, findNearestCountry } from '@/lib/worldAtlas';
+import { WORLD_COUNTRIES, findNearestCountry, findCountryByNameOrCode } from '@/lib/worldAtlas';
 import { createPoliticalGlobeTexture } from '@/lib/politicalGlobeTexture';
 import { classifyMerchantPin } from '@/lib/merchantPinClassifier';
 import { ACTIVE_CHAT_USERS } from '@/data/chatUsers';
@@ -62,121 +62,6 @@ const ALL_COUNTRIES_DATA = (() => {
   return Array.from(map.values());
 })();
 
-export const SATELLITES_CONFIG = [
-  {
-    type: 'KMZERO',
-    code: 'KM0',
-    name: 'Km 0',
-    label: 'Km 0',
-    sublabel: 'Produttori Locali',
-    desc: 'Accesso diretto ai produttori agricoli del territorio e filiera corta a Km 0',
-    color: '#10b981',
-    foilColor: 0xd4af37, // Oro termico MLI
-    orbitMultiplier: 1.22,
-    speed: 0.0012,
-    inclination: 0.65,
-    angle: 0.8,
-  },
-  {
-    type: 'WEATHER',
-    code: 'METEO',
-    name: 'Meteo Live',
-    label: 'Meteo Live',
-    sublabel: 'Clima in Tempo Reale',
-    desc: 'Previsioni e rilevamento meteorologico in tempo reale Open-Meteo per ogni territorio',
-    color: '#38bdf8',
-    foilColor: 0xe2e8f0,
-    orbitMultiplier: 1.30,
-    speed: 0.0007,
-    inclination: 0.12,
-    angle: 2.1,
-  },
-  {
-    type: 'MONDO',
-    code: 'MARKETPLACE',
-    name: 'Marketplace Globale',
-    label: 'Marketplace',
-    sublabel: 'Prodotti dal Mondo',
-    desc: 'Supermarket globale con compravendite internazionali, valute reali e spedizioni tracciate',
-    color: '#a855f7',
-    foilColor: 0xd4af37,
-    orbitMultiplier: 1.38,
-    speed: 0.0009,
-    inclination: -0.52,
-    angle: 3.5,
-  },
-  {
-    type: 'P2P',
-    code: 'LAVORO',
-    name: 'Lavoro P2P',
-    label: 'Lavoro P2P',
-    sublabel: 'Bacheca & Servizi',
-    desc: 'Rete autonoma di annunci, compravendite, offerte di lavoro e scambi tra privati',
-    color: '#00ff66',
-    foilColor: 0xe2e8f0,
-    orbitMultiplier: 1.46,
-    speed: 0.0011,
-    inclination: 0.40,
-    angle: 4.8,
-  },
-  {
-    type: 'RADAR',
-    code: 'RADAR',
-    name: 'Radar Territoriale',
-    label: 'Radar',
-    sublabel: 'Scansione di Prossimità',
-    desc: 'Scansione geografica locale e raggio di vicinanza P2P (Near You / Community)',
-    color: '#f59e0b',
-    foilColor: 0xd4af37,
-    orbitMultiplier: 1.54,
-    speed: 0.0008,
-    inclination: -0.25,
-    angle: 1.4,
-  },
-  {
-    type: 'COMUNITA',
-    code: 'COMUNITÀ',
-    name: 'Comunità & Soccorso',
-    label: 'Comunità',
-    sublabel: 'Mutuo Aiuto',
-    desc: 'Rete solidale di emergenza civica, soccorso mutuo e carpooling solidale',
-    color: '#ef4444',
-    foilColor: 0xe2e8f0,
-    orbitMultiplier: 1.62,
-    speed: 0.0010,
-    inclination: 0.55,
-    angle: 5.7,
-  },
-  {
-    type: 'BARATTO',
-    code: 'BARATTO',
-    name: 'Baratto Puro & WANT',
-    label: 'Baratto',
-    sublabel: 'Scambio Senza Denaro',
-    desc: 'Filtro esclusivo scambio merci reciproco e matching desideri WANT',
-    color: '#ec4899',
-    foilColor: 0xd4af37,
-    orbitMultiplier: 1.70,
-    speed: 0.0013,
-    inclination: -0.45,
-    angle: 0.2,
-  },
-  {
-    type: 'STRADARIO',
-    code: 'STRADARIO',
-    name: 'Stradario & 360°',
-    label: 'Stradario',
-    sublabel: 'Vista Panoramica Reale',
-    desc: 'Passeggiata stradale a 360 gradi, incroci e viabilità territoriale reale',
-    color: '#06b6d4',
-    foilColor: 0xe2e8f0,
-    orbitMultiplier: 1.78,
-    speed: 0.0006,
-    inclination: 0.35,
-    angle: 2.9,
-  },
-];
-
 export default function Globo3D({
   listings = [],
   allListings = [],
@@ -222,6 +107,9 @@ export default function Globo3D({
   // Zoom status state: true = Macro (national markers visible), false = Urban/close (national markers hidden)
   const [isMacroZoom, setIsMacroZoom] = useState(true);
   const isMacroRef = useRef(true);
+
+  // Globo tools apertura/chiusura (controllo visibilità pannelli strumenti globo)
+  const [isGlobeToolsOpen, setIsGlobeToolsOpen] = useState(false);
 
   // Active identified zone state for floating UI
   const [activeZone, setActiveZone] = useState(null);
@@ -1493,6 +1381,7 @@ export default function Globo3D({
     flyToCountryRef.current = flyToCountry;
 
     // Funzione Fly-To su un satellite specifico nello spazio con inquadratura ravvicinata
+    // Pattern di attivazione diretto al tocco: flyToSatellite(satId, true)
     const flyToSatellite = (satIdOrType) => {
       const sat = activeSatellites.find((s) => s.id === satIdOrType || s.type === satIdOrType || s.legacyType === satIdOrType);
       if (!sat || !sat.craftGroup) return;
@@ -2356,8 +2245,30 @@ export default function Globo3D({
 }
 
 export function resolveGlobeCountryById(id) {
-  return null;
+  if (!id) return null;
+  const country = findCountryByNameOrCode(String(id));
+  if (!country) {
+    const lower = String(id).toLowerCase();
+    if (lower === 'cg' || lower === 'congo') {
+      return { lat: -4.2634, lng: 15.2429, code: 'CG', name: 'Repubblica del Congo' };
+    }
+    if (lower === 'cd' || lower === 'rd congo') {
+      return { lat: -4.4419, lng: 15.2663, code: 'CD', name: 'Repubblica Democratica del Congo' };
+    }
+    return null;
+  }
+  return { lat: country.lat, lng: country.lng, code: country.code, name: country.name };
 }
-export function resolveGlobeUrbanTarget() {
+
+export function resolveGlobeUrbanTarget({ activeZone, selectedCountryId, fallbackCoords } = {}) {
+  if (fallbackCoords && typeof fallbackCoords.lat === 'number' && typeof fallbackCoords.lng === 'number') {
+    const nearest = findNearestCountry(fallbackCoords.lat, fallbackCoords.lng);
+    return {
+      lat: fallbackCoords.lat,
+      lng: fallbackCoords.lng,
+      name: nearest ? nearest.name : (fallbackCoords.name || 'Territorio'),
+      countryName: nearest ? nearest.name : 'Mondo',
+    };
+  }
   return null;
 }

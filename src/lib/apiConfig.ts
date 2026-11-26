@@ -6,15 +6,17 @@ export const API_BASE_URL = (typeof import.meta !== 'undefined' && (import.meta 
   ? (import.meta as any).env.VITE_API_URL
   : '';
 
-export function resolveApiUrl(path: string): string {
-  if (!API_BASE_URL) return path;
-  return `${API_BASE_URL.replace(/\/$/, '')}${path.startsWith('/') ? '' : '/'}${path}`;
+export function resolveApiUrl(path: string, baseUrl?: string): string {
+  const base = baseUrl || API_BASE_URL;
+  if (!base) return path;
+  return `${base.replace(/\/$/, '')}${path.startsWith('/') ? '' : '/'}${path}`;
 }
 
-export function getApiBaseUrl(): string {
+export function getApiBaseUrl(url?: string): string {
+  if (url !== undefined && url !== null) return url.replace(/\/$/, '');
   return API_BASE_URL;
 }
 
-export function buildApiUrl(path: string): string {
-  return resolveApiUrl(path);
+export function buildApiUrl(path: string, baseUrl?: string): string {
+  return resolveApiUrl(path, baseUrl);
 }

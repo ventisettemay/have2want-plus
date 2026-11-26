@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Package, Gift, Clock, CheckCircle2, XCircle, RefreshCw, User, Coins, ShoppingBag, Loader2 } from 'lucide-react';
+import { X, Package, Gift, Clock, CheckCircle2, XCircle, RefreshCw, User, Coins, ShoppingBag, Loader2, Truck } from 'lucide-react';
 import { toast } from 'sonner';
 import { executePiSdkPayment } from '@/lib/piSdkService';
 import {
@@ -21,6 +21,21 @@ const STATUS_META: Record<MarketplaceOrder['status'], { label: string; className
     label: 'In attesa di pagamento',
     className: 'bg-amber-950/50 text-amber-300 border-amber-500/40',
     icon: <Clock className="w-3 h-3" />,
+  },
+  pagato_in_preparazione: {
+    label: 'Pagato in preparazione',
+    className: 'bg-emerald-950/50 text-emerald-300 border-emerald-500/40',
+    icon: <CheckCircle2 className="w-3 h-3" />,
+  },
+  spedito: {
+    label: 'Spedito',
+    className: 'bg-blue-950/50 text-blue-300 border-blue-500/40',
+    icon: <Truck className="w-3 h-3" />,
+  },
+  completato_ritirato: {
+    label: 'Completato / Ritirato',
+    className: 'bg-emerald-900 text-emerald-200 border-emerald-400',
+    icon: <CheckCircle2 className="w-3 h-3" />,
   },
   paid: {
     label: 'Pagato',

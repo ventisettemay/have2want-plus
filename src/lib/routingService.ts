@@ -183,7 +183,41 @@ export async function calculateRealRoutes(
     );
   } catch (err) {
     console.warn('[RoutingService] Percorso OSRM reale non disponibile:', err);
-    return [];
+    // Fallback geodesico diretto quando OSRM non risponde
+    const straightDistMeters = Math.hypot(endLat - startLat, endLng - startLng) * 111000;
+    const straightDurSeconds = Math.max(1, Math.round(straightDistMeters / (50 * 1000 / 3600)));
+    return [
+      {
+        profile,
+        totalDistanceMeters: Math.round(straightDistMeters),
+        totalDistanceKm: Math.round((straightDistMeters / 1000) * 10) / 10,
+        totalDurationSeconds: straightDurSeconds,
+        totalDurationMinutes: Math.max(1, Math.round(straightDurSeconds / 60)),
+        coordinates: [[startLng, startLat], [endLng, endLat]],
+        steps: [
+          {
+            name: 'Percorso diretto (fallback)',
+            instruction: 'Procedi verso destinazione',
+            distanceMeters: Math.round(straightDistMeters * 0.8),
+            durationSeconds: Math.max(1, Math.round(straightDurSeconds * 0.8)),
+            maneuverType: 'depart',
+            location: [endLng, endLat],
+          },
+          {
+            name: 'Arrivo a destinazione',
+            instruction: 'Sei arrivato a destinazione',
+            distanceMeters: Math.round(straightDistMeters * 0.2),
+            durationSeconds: Math.max(1, Math.round(straightDurSeconds * 0.2)),
+            maneuverType: 'arrive',
+            location: [endLng, endLat],
+          },
+        ],
+        source: 'Geodetic fallback (OSRM unavailable)',
+        calculatedAt: new Date().toISOString(),
+        routeIndex: 0,
+        summaryLabel: `Diretto (fallback) • ${Math.round(straightDistMeters / 1000)} km`,
+      },
+    ];
   }
 }
 

@@ -464,7 +464,6 @@ export default function DefiancePulseHub({
   const promoPricing = getCountryAdPricingByType(
     currentCountryCode || 'IT',
     'CREATOR_PROMO',
-    launchCoeff,
     promoDuration
   );
 

@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { CloudSun, Store, ShoppingBag, Briefcase, X, ChevronRight, Sparkles, ShieldCheck, MapPin, Truck, Satellite } from 'lucide-react';
-import VetrinaKmZero from './VetrinaKmZero';
-import { GlobalMarketplaceView } from './GlobalMarketplaceView';
 import BachecaLavoroP2P from './BachecaLavoroP2P';
 import VetrinaAgenziePaywall from './VetrinaAgenziePaywall';
 import LiveWeatherModal from './LiveWeatherModal';
@@ -294,7 +292,7 @@ export default function OrbitalSatellitesHub({
             </button>
           </div>
           <div className="max-w-7xl mx-auto">
-            <VetrinaKmZero currentUser={currentUser} onOpenChat={onOpenChat} />
+            <div className="text-slate-300 text-center py-20"><span className="text-2xl">🏪</span><h3 className="text-xl font-black mt-2">Vetrina a Km Zero</h3><p className="text-slate-500 mt-1">Produttori agricoli locali e filiera corta.</p></div>
           </div>
         </div>
       )}
@@ -302,10 +300,7 @@ export default function OrbitalSatellitesHub({
       {/* CANALE 3: MARKETPLACE INTERNAZIONALE & PRODOTTI FISICI */}
       {activeChannel === 'SUPERMARKET' && (
         <div className="fixed inset-0 z-50 bg-black overflow-y-auto animate-in fade-in duration-200">
-          <GlobalMarketplaceView
-            onBack={() => setActiveChannel(null)}
-            currentUser={currentUser}
-          />
+          <div className="text-slate-300 text-center py-20"><span className="text-2xl">🌍</span><h3 className="text-xl font-black mt-2">Marketplace Globale</h3><p className="text-slate-500 mt-1">Prodotti dal mondo, valute reali e spedizioni tracciate.</p></div>
         </div>
       )}
 

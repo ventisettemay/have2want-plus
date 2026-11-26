@@ -1,7 +1,8 @@
-// CesiumUrbanoView.jsx — Vista 3D volumetrica reale con CesiumJS.
+// CesiumUrbanoView.jsx — Vista 3D volumetrica reale con CesiumJS 1.147.
 // Sostituisce la vista piatta Maplibre con un globo/terreno 3D vero:
-// - Cesium World Terrain (rilievo altimetrico reale)
+// - Cesium World Terrain (rilievo altimetrico reale 3D)
 // - OSM Buildings / Photorealistic 3D Tiles (facciate, tetti, volumi edifici)
+//   Fallback gratuito a OpenStreetMapImageryProvider se VITE_CESIUM_ION_TOKEN non è impostato.
 // - Pin commercianti Pi (Viola / Oro / Doppio Anello)
 // - Posizione GPS utente + rotta navigatore con guida vocale opzionale
 // - Camera inclinata 45°–60°, rotazione 360° libera (mouse/touch)
@@ -11,7 +12,7 @@ import 'cesium/Build/Cesium/Widgets/widgets.css';
 
 const CESIUM_BASE_URL = '/cesium/';
 
-// Imposta BASE_URL e Ion Token prima di creare qualsiasi Viewer
+// Imposta BASE_URL e Ion Token PRIMA di creare qualsiasi Viewer/primitiva Cesium
 Cesium.BASE_URL = CESIUM_BASE_URL;
 if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_CESIUM_ION_TOKEN) {
   Cesium.Ion.defaultAccessToken = import.meta.env.VITE_CESIUM_ION_TOKEN;
@@ -40,15 +41,11 @@ function createCesiumViewer(container) {
     timeline: false,
     animation: false,
     sceneMode: Cesium.SceneMode.SCENE3D,
-    terrainProvider: Cesium.createWorldTerrain(),
-    // Terreno 3D reale (montagne, valli, pendenze)
-    globe: new Cesium.Globe(Cesium.createWorldTerrain()),
-    // Context opzioni per performance su mobile/Pi Browser
     requestRenderMode: true,
     maximumRenderTimeChange: 0,
   });
 
-  // Attiva profondità test e illuminazione per volumi realistici
+  // Attiva profondità e illuminazione per volumi realistici
   viewer.scene.globe.depthTestAgainstTerrain = true;
   viewer.scene.globe.enableLighting = true;
   viewer.scene.screenSpaceCameraController.maximumZoomLevel = 20;
@@ -68,29 +65,25 @@ function createCesiumViewer(container) {
 /* ------------------------------------------------------------------ */
 /* Helper: aggiunge edifici 3D fotorealistici / OSM                  */
 /* ------------------------------------------------------------------ */
-function addBuildings3D(viewer) {
-  // Photorealistic 3D Tiles da Cesium Ion (richiede token VITE_CESIUM_ION_TOKEN)
-  // Fallback: OpenStreetMap buildings via Cesium OSM (gratuito, senza token)
+async function addBuildings3D(viewer) {
   const ionToken = typeof import.meta !== 'undefined' && import.meta.env?.VITE_CESIUM_ION_TOKEN;
 
   if (ionToken) {
     try {
-      const photometricTiles = viewer.scene.primitives.add(
-        Cesium.createOsmBuildings()
-      );
-      photometricTiles.modelMatrix = Cesium.Transforms.eastNorthUpToFixedFrame(
-        Cesium.Cartesian3.fromDegrees(0, 0, 0)
-      );
+      // Photorealistic 3D Tiles da Cesium Ion (richiede token)
+      const osmBuildings = await Cesium.createOsmBuildingsAsync();
+      viewer.scene.primitives.add(osmBuildings);
+      return;
     } catch (e) {
-      console.warn('Cesium OSM Buildings non disponibile:', e);
+      console.warn('Cesium OSM Buildings (Ion) non disponibile:', e.message);
     }
-  } else {
-    // Senza token: usa OSM buildings gratuiti (stilizzati, senza texture fotorealistiche)
-    try {
-      const osmBuildings = viewer.scene.primitives.add(Cesium.createOsmBuildings());
-    } catch (e) {
-      console.warn('OSM Buildings fallback non disponibile:', e);
-    }
+  }
+
+  // Senza token: fallback gratuito a OpenStreetMapImageryProvider (2D, nessun 404)
+  try {
+    viewer.imageryLayers.addImageryProvider(new Cesium.OpenStreetMapImageryProvider());
+  } catch (e) {
+    console.warn('OpenStreetMapImageryProvider fallback non disponibile:', e.message);
   }
 }
 
@@ -126,17 +119,24 @@ export default function CesiumUrbanoView({
       const viewer = createCesiumViewer(containerRef.current);
       viewerRef.current = viewer;
 
-      // Posiziona camera con pitch inclinato (45°–60°) e rotazione libera
+      // Posiziona camera con pitch inclinato (~55°) e rotazione libera
       viewer.camera.setView({
         destination: Cesium.Cartesian3.fromDegrees(centerLng, centerLat, 500),
         orientation: {
           heading: Cesium.Math.toRadians(15),
-          pitch: Cesium.Math.toRadians(-55), // inclinato ~55° per vedere volumi edifici
+          pitch: Cesium.Math.toRadians(-55),
           roll: 0.0,
         },
       });
 
-      // Edifici 3D fotorealistici / OSM
+      // Terreno 3D reale (World Terrain, API async cesium 1.147)
+      Cesium.createWorldTerrainAsync().then((terrainProvider) => {
+        viewer.terrainProvider = terrainProvider;
+      }).catch((err) => {
+        console.warn('World Terrain non disponibile:', err.message);
+      });
+
+      // Edifici 3D (OSM Buildings con token, OpenStreetMapImageryProvider senza)
       addBuildings3D(viewer);
 
       setIsInitialized(true);
@@ -173,10 +173,9 @@ export default function CesiumUrbanoView({
     const viewer = viewerRef.current;
     const existing = entitiesRef.current;
 
-    // Rimuovi annunci non più presenti
-    const currentIds = new Set(annunci.map((a) => a.id));
+    const currentIds = new Set(annunci.map((a) => `ann_${a.id}`));
     existing.forEach((entity, id) => {
-      if (id.startsWith('ann_') && !currentIds.has(id.replace('ann_', ''))) {
+      if (id.startsWith('ann_') && !currentIds.has(id)) {
         viewer.entities.remove(entity);
         existing.delete(id);
       }
@@ -222,13 +221,11 @@ export default function CesiumUrbanoView({
           style: Cesium.LabelStyle.FILL_AND_OUTLINE,
           verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
           pixelOffset: new Cesium.Cartesian2(0, -40),
-          show: false, // mostrato solo al passaggio/click
+          show: false,
         },
         description: item.title,
-        // Click handler via entity click evento
       });
 
-      // Click su annuncio
       entity._onSelectListing = () => {
         onBazarSelect(item.raw || item);
         onSelectListing(item.raw || item);
@@ -263,7 +260,7 @@ export default function CesiumUrbanoView({
 
       if (existing.has(entityId)) return;
 
-      // Classifica pin (riusa la logica esistente se disponibile, altrimenti stima)
+      // Classifica pin
       let pinType = 'AD_ONLY';
       const nameLower = (biz.name || '').toLowerCase();
       const categoryLower = (biz.category || '').toLowerCase();
@@ -275,7 +272,6 @@ export default function CesiumUrbanoView({
 
       const style = PIN_COLORS[pinType];
       const color = Cesium.Color.fromCssColorString(style.fill).withAlpha(0.85);
-      const stroke = Cesium.Color.fromCssColorString(style.stroke);
 
       const entity = viewer.entities.add({
         id: entityId,
@@ -317,7 +313,6 @@ export default function CesiumUrbanoView({
     if (!viewerRef.current) return;
     const viewer = viewerRef.current;
 
-    // Rimuovi rotta precedente
     if (routeEntityRef.current) {
       viewer.entities.remove(routeEntityRef.current);
       routeEntityRef.current = null;
