@@ -58,5 +58,20 @@
     "details": {
       "test": true
     }
+  },
+  {
+    "id": "mwwt3sur-678140f3",
+    "timestamp": 1795652448723,
+    "action": "test_action",
+    "userId": "user_audit",
+    "role": "advertiser",
+    "ip": "1.2.3.4",
+    "path": "/api/ads/test",
+    "method": "POST",
+    "status": 200,
+    "success": true,
+    "details": {
+      "test": true
+    }
   }
 ]

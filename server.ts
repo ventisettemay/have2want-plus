@@ -89,6 +89,27 @@ import {
   validateUrlNoSsrf,
   type AdRole,
 } from './server/adSecurity';
+import {
+  adProviderRegistry,
+  type AdProviderAdapter,
+  type ModerationInput,
+  type AnalyzeInput,
+  type GenerateAssetInput,
+  type ProviderHealth,
+} from './server/adProviderRegistry';
+import {
+  getProject as adGetProject,
+  listProjectsByAdvertiser as adListProjectsByAdvertiser,
+  createProject as adCreateProject,
+  updateProject as adUpdateProject,
+  deleteProject as adDeleteProject,
+  exportProject as adExportProject,
+  resetCreativeStoreForTests as adCreativeStoreResetForTests,
+  getMedia as adGetMedia,
+  listMediaByAdvertiser as adListMediaByAdvertiser,
+  addMedia as adAddMedia,
+  deleteMedia as adDeleteMedia,
+} from './server/adCreativeStore';
 import type {
   CreateCampaignInput,
   CertifyImpressionInput,
@@ -2441,6 +2462,517 @@ async function startServer() {
         return res.json({ success: true, audit: entries, count: entries.length });
       } catch (err: any) {
         return res.status(500).json({ success: false, error: err?.message || 'Errore lettura audit log' });
+      }
+    }
+  );
+
+  // === Rotte Provider Registry (Punti 3, 11, 14) ===
+  // AdCreative 1.0 retrocompatibile: layer parallelo, non tocca le rotte esistenti.
+
+  // GET /api/ads/providers — lista provider registrati e disponibili
+  app.get(
+    '/api/ads/providers',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform', 'user']),
+    async (_req, res) => {
+      try {
+        const providers = adProviderRegistry.getAdapters().map((a) => ({
+          name: a.name,
+          priority: a.priority,
+          available: a.isAvailable(),
+        }));
+        return res.json({ success: true, providers, count: providers.length });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore lista provider' });
+      }
+    }
+  );
+
+  // GET /api/ads/provider/health — health-check di tutti i provider
+  app.get(
+    '/api/ads/provider/health',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform', 'user']),
+    async (_req, res) => {
+      try {
+        const health = await adProviderRegistry.healthCheckAll();
+        return res.json({ success: true, health, count: health.length });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore health-check provider' });
+      }
+    }
+  );
+
+  // POST /api/ads/provider/moderate — moderazione creatività con failover
+  app.post(
+    '/api/ads/provider/moderate',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const auth = (req as any).adAuth;
+        const body = req.body as ModerationInput & { idempotencyKey?: string };
+        if (!body || typeof body.text !== 'string') {
+          return res.status(400).json({ success: false, error: 'Campo obbligatorio: text', code: 'VALIDATION_ERROR' });
+        }
+        const result = await adProviderRegistry.moderateWithFailover({ text: body.text, creativeId: body.creativeId });
+        writeAuditLog({
+          action: 'ads_provider_moderate',
+          userId: auth.userId,
+          role: auth.role,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 200,
+          success: true,
+          details: { provider: result.provider, allowed: result.allowed, score: result.score },
+        });
+        return res.json({ success: true, moderation: result });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore moderazione provider' });
+      }
+    }
+  );
+
+  // POST /api/ads/provider/analyze — analisi metadati/OCR testuale con failover
+  app.post(
+    '/api/ads/provider/analyze',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const auth = (req as any).adAuth;
+        const body = req.body as AnalyzeInput & { idempotencyKey?: string };
+        if (!body || (!body.text && !body.imageDataUrl)) {
+          return res.status(400).json({
+            success: false,
+            error: 'Campo obbligatorio: text o imageDataUrl',
+            code: 'VALIDATION_ERROR',
+          });
+        }
+        const result = await adProviderRegistry.analyzeWithFailover({
+          text: body.text,
+          imageDataUrl: body.imageDataUrl,
+          creativeId: body.creativeId,
+        });
+        writeAuditLog({
+          action: 'ads_provider_analyze',
+          userId: auth.userId,
+          role: auth.role,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 200,
+          success: true,
+          details: { provider: result.provider, brandSafety: result.brandSafety },
+        });
+        return res.json({ success: true, analysis: result });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore analisi provider' });
+      }
+    }
+  );
+
+  // POST /api/ads/provider/generate-asset — generazione asset con failover
+  app.post(
+    '/api/ads/provider/generate-asset',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const auth = (req as any).adAuth;
+        const body = req.body as GenerateAssetInput & { idempotencyKey?: string };
+        if (!body || !body.title) {
+          return res.status(400).json({ success: false, error: 'Campo obbligatorio: title', code: 'VALIDATION_ERROR' });
+        }
+        if (!['banner', 'video'].includes(body.type)) {
+          return res.status(400).json({ success: false, error: 'type deve essere banner o video', code: 'VALIDATION_ERROR' });
+        }
+        // Protezione SSRF su logoUrl/fileUrl se presenti
+        if (body.logoUrl) {
+          const logoCheck = validateUrlNoSsrf(body.logoUrl);
+          if (!logoCheck.safe) {
+            return res.status(400).json({ success: false, error: logoCheck.error, code: 'SSRF_BLOCKED' });
+          }
+        }
+        if (body.fileUrl) {
+          const fileCheck = validateUrlNoSsrf(body.fileUrl);
+          if (!fileCheck.safe) {
+            return res.status(400).json({ success: false, error: fileCheck.error, code: 'SSRF_BLOCKED' });
+          }
+        }
+        const result = await adProviderRegistry.generateAssetWithFailover({
+          type: body.type,
+          title: body.title,
+          cta: body.cta,
+          width: body.width,
+          height: body.height,
+          logoUrl: body.logoUrl,
+          fileUrl: body.fileUrl,
+        });
+        writeAuditLog({
+          action: 'ads_provider_generate_asset',
+          userId: auth.userId,
+          role: auth.role,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 200,
+          success: true,
+          details: { provider: result.provider, type: result.mimeType },
+        });
+        return res.json({ success: true, asset: result });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore generazione asset provider' });
+      }
+    }
+  );
+
+  // === Rotte Creative Studio / Progetti e Media (Punto 1) ===
+
+  // GET /api/ads/creative/projects — lista progetti dell'advertiser autenticato
+  app.get(
+    '/api/ads/creative/projects',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform', 'user']),
+    async (req, res) => {
+      try {
+        const auth = (req as any).adAuth;
+        const advertiserId = (req.query.advertiserId as string) || auth.userId;
+        const projects = adListProjectsByAdvertiser(advertiserId);
+        return res.json({ success: true, projects, count: projects.length });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore lista progetti' });
+      }
+    }
+  );
+
+  // POST /api/ads/creative/projects — crea progetto creativo
+  app.post(
+    '/api/ads/creative/projects',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const auth = (req as any).adAuth;
+        const body = req.body as {
+          name: string;
+          type: 'banner' | 'video';
+          canvasState: Record<string, unknown>;
+          width: number;
+          height: number;
+          format?: string;
+        };
+        if (!body || !body.name || !body.type || !body.canvasState) {
+          return res.status(400).json({
+            success: false,
+            error: 'Campi obbligatori: name, type, canvasState',
+            code: 'VALIDATION_ERROR',
+          });
+        }
+        if (!['banner', 'video'].includes(body.type)) {
+          return res.status(400).json({ success: false, error: 'type deve essere banner o video', code: 'VALIDATION_ERROR' });
+        }
+        if (!Number.isFinite(body.width) || !Number.isFinite(body.height) || body.width <= 0 || body.height <= 0) {
+          return res.status(400).json({ success: false, error: 'width e height devono essere numeri positivi', code: 'VALIDATION_ERROR' });
+        }
+        const project = adCreateProject({
+          advertiserId: auth.userId,
+          advertiserUsername: (auth as any).username,
+          name: body.name,
+          type: body.type,
+          canvasState: body.canvasState,
+          width: body.width,
+          height: body.height,
+          format: body.format,
+        });
+        writeAuditLog({
+          action: 'ads_creative_project_create',
+          userId: auth.userId,
+          role: auth.role,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 201,
+          success: true,
+          details: { projectId: project.id, type: project.type },
+        });
+        return res.status(201).json({ success: true, project });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore creazione progetto' });
+      }
+    }
+  );
+
+  // GET /api/ads/creative/projects/:id — dettaglio progetto
+  app.get(
+    '/api/ads/creative/projects/:id',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform', 'user']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const project = adGetProject(id);
+        if (!project) {
+          return res.status(404).json({ success: false, error: 'Progetto non trovato' });
+        }
+        const auth = (req as any).adAuth;
+        if (auth.role !== 'platform' && project.advertiserId !== auth.userId) {
+          return res.status(403).json({ success: false, error: 'Accesso negato a questo progetto' });
+        }
+        return res.json({ success: true, project });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore dettaglio progetto' });
+      }
+    }
+  );
+
+  // PUT /api/ads/creative/projects/:id — aggiorna progetto
+  app.put(
+    '/api/ads/creative/projects/:id',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const auth = (req as any).adAuth;
+        const project = adGetProject(id);
+        if (!project) {
+          return res.status(404).json({ success: false, error: 'Progetto non trovato' });
+        }
+        if (auth.role !== 'platform' && project.advertiserId !== auth.userId) {
+          return res.status(403).json({ success: false, error: 'Accesso negato a questo progetto' });
+        }
+        const body = req.body as Partial<{
+          name: string;
+          canvasState: Record<string, unknown>;
+          width: number;
+          height: number;
+          format: string;
+          status: 'draft' | 'exported' | 'submitted';
+          exportedUrl: string;
+          mimeType: string;
+          campaignId: string;
+          orderId: string;
+        }>;
+        const updated = adUpdateProject(id, body);
+        if (!updated) {
+          return res.status(404).json({ success: false, error: 'Progetto non trovato' });
+        }
+        writeAuditLog({
+          action: 'ads_creative_project_update',
+          userId: auth.userId,
+          role: auth.role,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 200,
+          success: true,
+          details: { projectId: id },
+        });
+        return res.json({ success: true, project: updated });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore aggiornamento progetto' });
+      }
+    }
+  );
+
+  // DELETE /api/ads/creative/projects/:id — elimina progetto
+  app.delete(
+    '/api/ads/creative/projects/:id',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const auth = (req as any).adAuth;
+        const project = adGetProject(id);
+        if (!project) {
+          return res.status(404).json({ success: false, error: 'Progetto non trovato' });
+        }
+        if (auth.role !== 'platform' && project.advertiserId !== auth.userId) {
+          return res.status(403).json({ success: false, error: 'Accesso negato a questo progetto' });
+        }
+        const deleted = adDeleteProject(id);
+        if (!deleted) {
+          return res.status(404).json({ success: false, error: 'Progetto non trovato' });
+        }
+        writeAuditLog({
+          action: 'ads_creative_project_delete',
+          userId: auth.userId,
+          role: auth.role,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 200,
+          success: true,
+          details: { projectId: id },
+        });
+        return res.json({ success: true });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore eliminazione progetto' });
+      }
+    }
+  );
+
+  // POST /api/ads/creative/projects/:id/export — segna progetto come esportato
+  app.post(
+    '/api/ads/creative/projects/:id/export',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const auth = (req as any).adAuth;
+        const { exportedUrl, mimeType } = req.body as { exportedUrl?: string; mimeType?: string };
+        if (!exportedUrl || !mimeType) {
+          return res.status(400).json({ success: false, error: 'Campi obbligatori: exportedUrl, mimeType', code: 'VALIDATION_ERROR' });
+        }
+        const project = adGetProject(id);
+        if (!project) {
+          return res.status(404).json({ success: false, error: 'Progetto non trovato' });
+        }
+        if (auth.role !== 'platform' && project.advertiserId !== auth.userId) {
+          return res.status(403).json({ success: false, error: 'Accesso negato a questo progetto' });
+        }
+        const updated = adExportProject(id, exportedUrl, mimeType);
+        if (!updated) {
+          return res.status(404).json({ success: false, error: 'Progetto non trovato' });
+        }
+        return res.json({ success: true, project: updated });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore esportazione progetto' });
+      }
+    }
+  );
+
+  // GET /api/ads/creative/media — lista libreria media dell'advertiser
+  app.get(
+    '/api/ads/creative/media',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform', 'user']),
+    async (req, res) => {
+      try {
+        const auth = (req as any).adAuth;
+        const advertiserId = (req.query.advertiserId as string) || auth.userId;
+        const media = adListMediaByAdvertiser(advertiserId);
+        return res.json({ success: true, media, count: media.length });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore lista media' });
+      }
+    }
+  );
+
+  // POST /api/ads/creative/media — aggiunge un elemento alla libreria media
+  app.post(
+    '/api/ads/creative/media',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const auth = (req as any).adAuth;
+        const body = req.body as {
+          fileKey: string;
+          fileUrl: string;
+          fileName: string;
+          mimeType: string;
+          sizeBytes: number;
+          tags?: string[];
+        };
+        if (!body || !body.fileKey || !body.fileUrl || !body.fileName || !body.mimeType) {
+          return res.status(400).json({
+            success: false,
+            error: 'Campi obbligatori: fileKey, fileUrl, fileName, mimeType',
+            code: 'VALIDATION_ERROR',
+          });
+        }
+        const fileValidation = validateFileUpload({
+          fileName: body.fileName,
+          mimeType: body.mimeType,
+          sizeBytes: body.sizeBytes,
+        });
+        if (!fileValidation.valid) {
+          return res.status(400).json({ success: false, error: fileValidation.error, code: 'VALIDATION_ERROR' });
+        }
+        const urlCheck = validateUrlNoSsrf(body.fileUrl);
+        if (!urlCheck.safe) {
+          return res.status(400).json({ success: false, error: urlCheck.error, code: 'SSRF_BLOCKED' });
+        }
+        const media = adAddMedia({
+          advertiserId: auth.userId,
+          fileKey: body.fileKey,
+          fileUrl: body.fileUrl,
+          fileName: body.fileName,
+          mimeType: body.mimeType,
+          sizeBytes: body.sizeBytes,
+          tags: body.tags,
+        });
+        writeAuditLog({
+          action: 'ads_creative_media_add',
+          userId: auth.userId,
+          role: auth.role,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 201,
+          success: true,
+          details: { mediaId: media.id, mimeType: media.mimeType },
+        });
+        return res.status(201).json({ success: true, media });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore aggiunta media' });
+      }
+    }
+  );
+
+  // DELETE /api/ads/creative/media/:id — elimina elemento media
+  app.delete(
+    '/api/ads/creative/media/:id',
+    adsAuthMiddleware,
+    adsRateLimitMiddleware,
+    adsRoleMiddleware(['advertiser', 'creator', 'platform']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const auth = (req as any).adAuth;
+        const media = adGetMedia(id);
+        if (!media) {
+          return res.status(404).json({ success: false, error: 'Media non trovato' });
+        }
+        if (auth.role !== 'platform' && media.advertiserId !== auth.userId) {
+          return res.status(403).json({ success: false, error: 'Accesso negato a questo media' });
+        }
+        const deleted = adDeleteMedia(id);
+        if (!deleted) {
+          return res.status(404).json({ success: false, error: 'Media non trovato' });
+        }
+        writeAuditLog({
+          action: 'ads_creative_media_delete',
+          userId: auth.userId,
+          role: auth.role,
+          ip: req.ip,
+          path: req.path,
+          method: req.method,
+          status: 200,
+          success: true,
+          details: { mediaId: id },
+        });
+        return res.json({ success: true });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Errore eliminazione media' });
       }
     }
   );
