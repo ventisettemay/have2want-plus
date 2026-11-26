@@ -272,7 +272,7 @@ export const CreativeStudio: React.FC<CreativeStudioProps> = ({
         ocrWorkerRef.current = await createWorker('ita+eng');
       }
       const worker = ocrWorkerRef.current;
-      await worker.setParameters({ tessedit_pageseg_mode: '6' });
+      await worker.setParameters({ tessedit_pageseg_mode: 6 as any });
       const ret = await worker.recognize(source);
       setOcrText(ret.data.text);
       toast.success('OCR completato — testo estratto');

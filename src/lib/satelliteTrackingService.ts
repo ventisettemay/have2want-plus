@@ -173,6 +173,63 @@ export const TRACKABLE_SATELLITES_METADATA: Record<SatelliteId, SatelliteCatalog
     nonPhysicalReason:
       'Canale logico HAVE2WANT (Defiance Pulse): nessun satellite fisico associato su NORAD/CelesTrak.',
   },
+  SOCCORSO_SAT: {
+    satelliteId: 'SOCCORSO_SAT',
+    noradId: null,
+    officialName: 'SOCCORSO-SAT',
+    operator: 'HAVE2WANT Network',
+    orbitRegime: 'LOGICAL',
+    isPhysicalSpacecraft: false,
+    nonPhysicalReason: 'Canale logico.',
+  },
+  RADAR_SAT: {
+    satelliteId: 'RADAR_SAT',
+    noradId: null,
+    officialName: 'RADAR-SAT',
+    operator: 'HAVE2WANT Network',
+    orbitRegime: 'LOGICAL',
+    isPhysicalSpacecraft: false,
+    nonPhysicalReason: 'Canale logico.',
+  },
+  RADAR: {
+    satelliteId: 'RADAR',
+    noradId: null,
+    officialName: 'RADAR',
+    operator: 'HAVE2WANT Network',
+    orbitRegime: 'LOGICAL',
+    isPhysicalSpacecraft: false,
+    nonPhysicalReason: 'Canale logico.',
+  },
+  STREET_360_SAT: {
+    satelliteId: 'STREET_360_SAT',
+    noradId: null,
+    officialName: 'STREET-360 (Stradario & Vista 360°)',
+    operator: 'HAVE2WANT Network',
+    orbitRegime: 'LOGICAL',
+    isPhysicalSpacecraft: false,
+    nonPhysicalReason:
+      'Canale logico HAVE2WANT (Stradario 360): nessun satellite fisico associato su NORAD/CelesTrak.',
+  },
+  WEBCAM: {
+    satelliteId: 'WEBCAM',
+    noradId: null,
+    officialName: 'CAMSAT-OBS (Webcam Pubbliche Live)',
+    operator: 'HAVE2WANT Network',
+    orbitRegime: 'LOGICAL',
+    isPhysicalSpacecraft: false,
+    nonPhysicalReason:
+      'Canale logico HAVE2WANT (Webcam Pubbliche): nessun satellite fisico associato su NORAD/CelesTrak.',
+  },
+  METEO_ROUTE: {
+    satelliteId: 'METEO_ROUTE',
+    noradId: null,
+    officialName: 'WX-NAV-SAT (Meteo Navigazione)',
+    operator: 'HAVE2WANT Network',
+    orbitRegime: 'LOGICAL',
+    isPhysicalSpacecraft: false,
+    nonPhysicalReason:
+      'Canale logico HAVE2WANT (Meteo Navigazione): nessun satellite fisico associato su NORAD/CelesTrak.',
+  },
 };
 
 const DEG_TO_RAD = Math.PI / 180;
@@ -194,7 +251,7 @@ export function parseCelesTrakEpochMs(epochStr: string): number | null {
 }
 
 export function computeGmstRad(date: Date): number {
-  return normalizeRad(gstime(date));
+  return normalizeRad(gstime(date.getTime()));
 }
 
 function isValidOmmRecord(raw: any): raw is CelesTrakOmmRecord {
@@ -264,10 +321,10 @@ function propagateSgp4ToGeodetic(
   velocityKms: number;
 } | null {
   try {
-    const pv = propagate(satrec, date);
+    const pv = propagate(satrec, date.getTime());
     if (!pv || !pv.position || !pv.velocity) return null;
 
-    const gmst = typeof gmstOverrideRad === 'number' ? gmstOverrideRad : gstime(date);
+    const gmst = typeof gmstOverrideRad === 'number' ? gmstOverrideRad : gstime(date.getTime());
     const geodetic = eciToGeodetic(pv.position, gmst);
     const lat = degreesLat(geodetic.latitude);
     const lng = degreesLong(geodetic.longitude);
@@ -390,7 +447,7 @@ export function computeInstantaneousOrbitTrack(
   const satrec = buildSatRec(omm);
   if (!satrec) return [];
 
-  const gmstFixed = gstime(date);
+  const gmstFixed = gstime(date.getTime());
   const periodMinutes = 1440 / omm.MEAN_MOTION;
   const periodMs = periodMinutes * 60 * 1000;
   const points: OrbitTrackPoint[] = [];

@@ -200,3 +200,44 @@ export function getWeeklyAdvertisingPrice(
     isTestnet: true,
   };
 }
+
+export type AdDurationTier = '7gg' | '14gg' | '30gg' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'CREATOR_PROMO';
+
+export const DEFAULT_LAUNCH_COEFFICIENT = 1.0;
+let configuredLaunchCoefficient = DEFAULT_LAUNCH_COEFFICIENT;
+
+export function getConfiguredLaunchCoefficient(): number {
+  return configuredLaunchCoefficient;
+}
+
+export function setConfiguredLaunchCoefficient(value: number): void {
+  configuredLaunchCoefficient = value;
+}
+
+export function getCountryAdPricingByType(
+  countryCode: string,
+  tier?: AdDurationTier,
+  launchCoefficient?: number,
+  promoType?: string
+): { listPricePi: number; currentPricePi: number; durationDays: number; countryName: string; countryCode: string; trafficTierLabel: string; appliedCoefficient: number; supportedPaymentMethods: string[]; currentPriceUsdt: number } {
+  const code = (countryCode || 'IT').toUpperCase();
+  const pricingTier = COUNTRY_PRICING_CATALOG[code] || COUNTRY_PRICING_CATALOG.GLOBAL;
+  const durationMap: Record<AdDurationTier, number> = {
+    '7gg': 7, '14gg': 14, '30gg': 30, 'DAILY': 1, 'WEEKLY': 7, 'MONTHLY': 30, 'CREATOR_PROMO': 7,
+  };
+  const days = durationMap[tier ?? '7gg'];
+  const coeff = launchCoefficient ?? 1.0;
+  const listPricePi = Math.round(pricingTier.fullListPricePi * (days / 7) * coeff);
+  const currentPricePi = Math.round(pricingTier.discountedPricePi * (days / 7) * coeff);
+  return {
+    listPricePi,
+    currentPricePi,
+    durationDays: days,
+    countryName: pricingTier.countryName,
+    countryCode: pricingTier.countryCode,
+    trafficTierLabel: 'Traffico iniziale',
+    appliedCoefficient: coeff,
+    supportedPaymentMethods: ['π', 'EUR', 'USD'],
+    currentPriceUsdt: Math.round(currentPricePi * 0.674 * 100) / 100,
+  };
+}

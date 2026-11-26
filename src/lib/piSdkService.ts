@@ -98,7 +98,9 @@ export function checkIsPiBrowser(): boolean {
 // Esegue l'autenticazione tramite Portale Pi
 export async function authenticateWithPiPortal(sandboxOverride?: boolean): Promise<{
   success: boolean;
-  user?: { uid: string; username: string };
+  user?: { uid: string; username: string; firebaseUid?: string; accessToken?: string };
+  firebaseUid?: string;
+  accessToken?: string;
   isSimulated?: boolean;
   sandbox?: boolean;
   error?: string;

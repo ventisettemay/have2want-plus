@@ -13,7 +13,13 @@ export type SatelliteId =
   | 'COMMUNITY_RESCUE_SAT'
   | 'BUSINESS_ADS_SAT'
   | 'WEBCAM'
-  | 'METEO_ROUTE';
+  | 'METEO_ROUTE'
+  | 'MAP_SAT'
+  | 'ACTIONFLOW_SAT'
+  | 'DEFIANCE_PULSE_SAT'
+  | 'SOCCORSO_SAT'
+  | 'RADAR_SAT'
+  | 'RADAR';
 
 export type PresetType =
   | 'ACCENDI_TUTTI'
@@ -41,6 +47,9 @@ export interface SatelliteConfig {
   h2wRole: string;
   targetComponent: string;
   isActive: boolean;
+  noradId?: number;
+  officialDesignation?: string;
+  isPhysicalSpacecraft?: boolean;
 }
 
 // Configurazione Ingegneristica degli 8 Satelliti (Distribuzione orbitale a 360° LEO, MEO, GEO)
@@ -383,3 +392,50 @@ class SatelliteModularEngine {
 
 // Istanza Singleton del Motore Modulare
 export const satelliteEngine = new SatelliteModularEngine();
+
+// Mappatura satellite -> canale territoriale (per integrazione con moduli AI Studio)
+export const SATELLITE_TO_CHANNEL: Record<SatelliteId, string> = {
+  METEO_SAT: 'meteo',
+  KM0_SAT: 'km0',
+  STREET_360_SAT: 'street360',
+  PI_CHAT_SAT: 'pi-chat',
+  GLOBAL_MARKET_SAT: 'global-market',
+  EXTERNAL_MARKET_SAT: 'external-market',
+  COMMUNITY_RESCUE_SAT: 'community-rescue',
+  BUSINESS_ADS_SAT: 'business-ads',
+  WEBCAM: 'webcam',
+  METEO_ROUTE: 'meteo-route',
+  MAP_SAT: 'map',
+  ACTIONFLOW_SAT: 'actionflow',
+  DEFIANCE_PULSE_SAT: 'defiance-pulse',
+  SOCCORSO_SAT: 'SOCCORSO',
+  RADAR_SAT: 'RADAR',
+  RADAR: 'RADAR',
+};
+
+// Mappatura satellite -> componente React target
+export const SATELLITE_TO_COMPONENT: Record<SatelliteId, string> = {
+  METEO_SAT: 'LiveWeatherModal',
+  KM0_SAT: 'VetrinaKmZero',
+  STREET_360_SAT: 'StreetView360Modal',
+  PI_CHAT_SAT: 'VoiceNoteChat',
+  GLOBAL_MARKET_SAT: 'GlobalMarketplaceView',
+  EXTERNAL_MARKET_SAT: 'ExternalListings',
+  COMMUNITY_RESCUE_SAT: 'WorldEmergencyModal',
+  BUSINESS_ADS_SAT: 'BusinessSponsorModal',
+  WEBCAM: 'LiveWebcamModal',
+  METEO_ROUTE: 'MeteoNavigazioneModal',
+  MAP_SAT: 'MapView3DContainer',
+  ACTIONFLOW_SAT: 'ActionFlowModal',
+  DEFIANCE_PULSE_SAT: 'DefiancePulseHub',
+  SOCCORSO_SAT: 'SOCCORSO',
+  RADAR_SAT: 'RADAR',
+  RADAR: 'RADAR',
+};
+
+/**
+ * Risolve il canale territoriale associato a un satellite.
+ */
+export function resolveSatelliteChannel(id: SatelliteId): string {
+  return SATELLITE_TO_CHANNEL[id] ?? 'default';
+}

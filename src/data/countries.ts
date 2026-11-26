@@ -21,10 +21,10 @@ export type Country = CountryData;
 
 function mapAtlasContinent(
   continent: 'Europa' | 'Americhe' | 'Asia' | 'Africa' | 'Oceania',
-  subContinent?: 'Nord America' | 'Sud America'
+  subContinent?: string | 'Nord America' | 'Sud America'
 ): CountryData['continent'] {
   if (continent === 'Americhe') {
-    return subContinent || 'Nord America';
+    return (subContinent || 'Nord America') as any;
   }
   return continent;
 }

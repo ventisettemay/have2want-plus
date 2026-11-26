@@ -46,7 +46,7 @@ export const WatchToUnlockModal: React.FC<WatchToUnlockModalProps> = ({
   const [step, setStep] = useState<'idle' | 'loading' | 'watching' | 'certifying' | 'verified' | 'error'>('idle');
   const [secondsWatched, setSecondsWatched] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const timerRef = useRef<number | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const getAuthHeaders = useCallback((): Record<string, string> => {

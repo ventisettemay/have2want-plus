@@ -10,3 +10,11 @@ export function resolveApiUrl(path: string): string {
   if (!API_BASE_URL) return path;
   return `${API_BASE_URL.replace(/\/$/, '')}${path.startsWith('/') ? '' : '/'}${path}`;
 }
+
+export function getApiBaseUrl(): string {
+  return API_BASE_URL;
+}
+
+export function buildApiUrl(path: string): string {
+  return resolveApiUrl(path);
+}

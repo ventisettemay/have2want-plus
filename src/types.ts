@@ -34,6 +34,8 @@ export type RealSubcategoryKey =
   | "illuminazione_complementi"
   // libri_scuola_cultura
   | "scambio_libri_scolastici"
+  | "libri_scolastici"
+  | "libri_scolastici"
   | "saggistica_narrativa"
   // auto_moto_veicoli
   | "pneumatici_accessori"
@@ -176,6 +178,10 @@ export interface HaveWantListing {
   lng: number;
   locationArea: string; // Generic area/neighborhood (Privacy Masked)
   isFuzzyLocation?: boolean; // True if using centroid rather than private street address
+  city?: string;
+  images?: string[];
+  originType?: 'internal' | 'external' | 'REAL_P2P' | 'EXTERNAL' | 'SAMPLE' | 'REAL_P2P' | 'EXTERNAL' | 'SAMPLE';
+  sourceMarketplace?: string;
   createdAt: string;
   imageUrl?: string;
   tags: string[];
@@ -284,6 +290,9 @@ export interface PioneerUser {
   tradesCompleted: number;
   verifiedKYC: boolean;
   city: string;
+  province?: string;
+  lat?: number;
+  lng?: number;
   bio: string;
   rinnovoAutomatico?: boolean;
   creditBalance?: UserCreditBalance;

@@ -24,6 +24,7 @@ export interface WorldCountry {
   name: string;
   nativeName: string;
   continent: 'Europa' | 'Americhe' | 'Asia' | 'Africa' | 'Oceania';
+  subContinent?: string;
   capital: string;
   lat: number;
   lng: number;
@@ -1072,4 +1073,28 @@ export function getLocalTimeString(timezone: string): string {
   } catch (e) {
     return new Date().toLocaleTimeString('it-IT');
   }
+}
+
+/**
+ * Valida che una coppia di coordinate lat/lng sia numerica e nei range validi.
+ */
+export function isValidCoord(lat: number, lng: number): boolean {
+  return (
+    typeof lat === 'number' &&
+    typeof lng === 'number' &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    lat >= -90 &&
+    lat <= 90 &&
+    lng >= -180 &&
+    lng <= 180
+  );
+}
+
+export function handleCountrySelection() {
+  return null;
+}
+
+export function computeRealPiRate() {
+  return 0;
 }

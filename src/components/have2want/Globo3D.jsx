@@ -2354,3 +2354,10 @@ export default function Globo3D({
     </div>
   );
 }
+
+export function resolveGlobeCountryById(id) {
+  return null;
+}
+export function resolveGlobeUrbanTarget() {
+  return null;
+}

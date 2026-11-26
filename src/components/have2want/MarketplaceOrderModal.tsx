@@ -9,9 +9,18 @@ import {
   MarketplaceOrder,
 } from '@/lib/marketplaceOrdersService';
 
+export type MarketplaceOrderTarget = MarketplaceOrderListing & {
+  currentUsername?: string;
+  itemTitle?: string;
+  itemPricePi?: number;
+  defaultKmZeroPickup?: boolean;
+  defaultShippingFeePi?: number;
+  locationLabel?: string;
+};
+
 export interface MarketplaceOrderListing {
-  id: string;
-  title: string;
+  id?: string;
+  title?: string;
   price?: number;
   piPrice?: number;
   sellerName?: string;
@@ -21,7 +30,9 @@ export interface MarketplaceOrderListing {
 interface MarketplaceOrderModalProps {
   isOpen: boolean;
   onClose: () => void;
-  listing: MarketplaceOrderListing | null;
+  listing?: MarketplaceOrderListing | null;
+  targetItem?: MarketplaceOrderTarget;
+  currentUsername?: string;
   currentUser?: { name?: string; username?: string } | null;
   initialMode?: 'self' | 'gift';
   onOrderPlaced?: (order: MarketplaceOrder) => void;
@@ -32,6 +43,8 @@ export default function MarketplaceOrderModal({
   isOpen,
   onClose,
   listing,
+  targetItem,
+  currentUsername,
   currentUser,
   initialMode = 'self',
   onOrderPlaced,
