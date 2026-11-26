@@ -1,5 +1,8 @@
 import { CategoryDefinition, RealCategoryKey, RealSubcategoryKey } from "./types";
 
+export const CATEGORY_FALLBACK_IMAGE =
+  "https://images.unsplash.com/photo-1555529771-835f59fc5efe?w=600&auto=format&fit=crop&q=80";
+
 export const REAL_CATEGORIES_MATRIX: CategoryDefinition[] = [
   {
     key: "attrezzi_lavoro",
@@ -117,7 +120,7 @@ export const REAL_CATEGORIES_MATRIX: CategoryDefinition[] = [
     label: "Veicoli, Ricambi & Meccanica",
     iconName: "Car",
     description: "Pezzi di ricambio officina, pneumatici stagionali, cargo bike, veicoli da lavoro e mobilità territoriale.",
-    realImage: "https://images.unsplash.com/photo-1486006920555-c77dce18193b?w=600&auto=format&fit=crop&q=80",
+    realImage: CATEGORY_FALLBACK_IMAGE,
     bannerImage: "https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?w=1200&auto=format&fit=crop&q=80",
     badgeText: "MECCANICA & MOBILITÀ",
     subcategories: [

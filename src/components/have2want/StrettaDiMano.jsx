@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { updateListingInCloud } from '@/lib/firestoreService';
+import { submitHandshakeProposalToCloud, updateListingInCloud } from '@/lib/firestoreService';
 import { awardPoints } from '@/lib/communityRewardsService';
+import { auth } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
@@ -24,15 +25,18 @@ export default function StrettaDiMano({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
 
-  const expectedPin = listing?.handshake_pin || listing?.pin || '7429';
+  const expectedPin = listing?.handshake_pin ? String(listing.handshake_pin).trim() : '';
   const offererName = listing?.author?.name || listing?.author?.username || 'Chi consegna';
   const requesterName = currentProfile?.name || currentProfile?.username || 'Chi ritira';
+  const currentUid = auth.currentUser?.uid || '';
+  const isOwner = Boolean(currentUid && listing?.ownerUid && currentUid === listing.ownerUid);
+  const isMatchedBuyer = Boolean(currentUid && listing?.handshakeBuyerUid && currentUid === listing.handshakeBuyerUid);
 
   const handleConfirmExchange = async () => {
-    // Se l'utente ha inserito un pin, verificalo
-    if (showOptionalPin && pinInput.trim()) {
-      if (pinInput.trim() !== expectedPin && pinInput.trim() !== '1234' && pinInput.trim() !== '7429') {
-        toast.error('Il codice inserito non corrisponde. Ricontrolla con chi ti consegna l\'oggetto.');
+    if (expectedPin) {
+      if (pinInput.trim() !== expectedPin) {
+        toast.error('Codice PIN obbligatorio errato o mancante. Richiedi il codice esatto all\'altra parte.');
+        setShowOptionalPin(true);
         return;
       }
     }
@@ -40,11 +44,42 @@ export default function StrettaDiMano({
     setIsSubmitting(true);
     try {
       if (listing?.id) {
-        await updateListingInCloud(listing.id, {
-          handshake_confirmed: true,
-          status: 'completed',
-          handshake_timestamp: new Date().toISOString(),
-        }).catch(() => {});
+        if (isOwner || isMatchedBuyer) {
+          const updated = await updateListingInCloud(listing.id, {
+            handshake_confirmed: true,
+            status: 'completed',
+            handshake_timestamp: new Date().toISOString(),
+          });
+          if (!updated) {
+            toast.error('Impossibile completare la stretta di mano su Firestore. Verifica l\'autenticazione Pi/Firebase.');
+            return;
+          }
+        } else {
+          if (!currentUid) {
+            toast.error('Accedi prima con Pi Network per avviare la stretta di mano a due parti.');
+            return;
+          }
+          const propRes = await submitHandshakeProposalToCloud(listing.id, {
+            listingId: listing.id,
+            ownerUid: listing.ownerUid,
+            buyerUsername: requesterName,
+            note: 'Proposta stretta di mano inviata dal ritirante',
+            status: 'pending',
+          });
+          if (!propRes.ok) {
+            toast.error(propRes.error || 'Impossibile registrare la proposta di ritiro su cloud.');
+            return;
+          }
+          const pendingUpdated = await updateListingInCloud(listing.id, {
+            status: 'pending',
+            handshakeBuyerUid: currentUid,
+            handshake_timestamp: new Date().toISOString(),
+          });
+          if (!pendingUpdated) {
+            toast.error('Impossibile aggiornare lo stato annuncio su cloud.');
+            return;
+          }
+        }
       }
 
       const rewardRes = awardPoints(
@@ -54,10 +89,10 @@ export default function StrettaDiMano({
 
       setIsConfirmed(true);
 
-      toast.success('Ritiro confermato!', {
+      toast.success(isOwner || isMatchedBuyer || !listing?.id ? 'Ritiro confermato!' : 'Richiesta Stretta di Mano registrata!', {
         description: rewardRes.success
           ? `Grazie! +${rewardRes.pointsEarned} punti comunitari accreditati sul saldo unificato.`
-          : 'Grazie per aver partecipato alla comunità locale di Have2Want.',
+          : 'Operazione registrata su Have2Want.',
         duration: 4000,
       });
 
@@ -65,7 +100,7 @@ export default function StrettaDiMano({
         onVerificationSuccess();
       }
     } catch (err) {
-      toast.error('Impossibile completare la conferma. Riprova tra poco.');
+      toast.error(err?.message || 'Impossibile completare la conferma. Riprova tra poco.');
     } finally {
       setIsSubmitting(false);
     }
@@ -210,7 +245,7 @@ export default function StrettaDiMano({
                 <Input
                   type="text"
                   maxLength={6}
-                  placeholder={`Es: ${expectedPin}`}
+                  placeholder="Codice PIN a 4 cifre"
                   className="bg-zinc-900 border-zinc-700 text-center font-mono font-bold text-sm text-white focus-visible:ring-[#00ff66] h-9"
                   value={pinInput}
                   onChange={(e) => setPinInput(e.target.value)}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   PhoneCall,
   ShieldAlert,
@@ -6,7 +6,6 @@ import {
   Flame,
   UserCheck,
   ExternalLink,
-  MapPin,
   X,
   ChevronRight,
   Globe2,
@@ -14,7 +13,8 @@ import {
 } from 'lucide-react';
 import {
   WORLD_EMERGENCY_SERVICES,
-  CountryEmergencyNumbers
+  CountryEmergencyNumbers,
+  getEmergencyServicesForCountry
 } from '@/lib/externalGatewayServices';
 
 interface WorldEmergencyModalProps {
@@ -26,16 +26,29 @@ interface WorldEmergencyModalProps {
 export default function WorldEmergencyModal({
   isOpen,
   onClose,
-  defaultCountryCode = 'IT'
+  defaultCountryCode = 'GLOBAL'
 }: WorldEmergencyModalProps) {
-  const [selectedCountryCode, setSelectedCountryCode] = useState(
-    WORLD_EMERGENCY_SERVICES[defaultCountryCode.toUpperCase()] ? defaultCountryCode.toUpperCase() : 'IT'
-  );
+  const resolveCode = (raw?: string) => {
+    const upper = String(raw || '').trim().toUpperCase();
+    return WORLD_EMERGENCY_SERVICES[upper] ? upper : 'DEFAULT';
+  };
+
+  const [selectedCountryCode, setSelectedCountryCode] = useState(() => resolveCode(defaultCountryCode));
+
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedCountryCode(resolveCode(defaultCountryCode));
+    }
+  }, [isOpen, defaultCountryCode]);
 
   if (!isOpen) return null;
 
   const activeServices: CountryEmergencyNumbers =
-    WORLD_EMERGENCY_SERVICES[selectedCountryCode] || WORLD_EMERGENCY_SERVICES.IT;
+    selectedCountryCode === 'DEFAULT'
+      ? WORLD_EMERGENCY_SERVICES.DEFAULT
+      : getEmergencyServicesForCountry(selectedCountryCode);
+
+  const emergencyEntries = Object.entries(WORLD_EMERGENCY_SERVICES);
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in font-sans">
@@ -57,33 +70,28 @@ export default function WorldEmergencyModal({
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors"
+            className="w-8 h-8 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Selettore Nazione */}
-        <div className="px-5 py-3 bg-slate-950/60 border-b border-slate-800 flex items-center justify-between gap-3 overflow-x-auto">
+        {/* Selettore Nazione (36+ Paesi + Standard Internazionale 112) */}
+        <div className="px-5 py-3 bg-slate-950/60 border-b border-slate-800 flex items-center justify-between gap-3">
           <span className="text-xs text-slate-400 flex items-center gap-1.5 whitespace-nowrap font-medium">
             <Globe2 className="w-3.5 h-3.5 text-sky-400" /> Nazione:
           </span>
-          <div className="flex items-center gap-1.5">
-            {Object.values(WORLD_EMERGENCY_SERVICES).map((item) => (
-              <button
-                key={item.countryCode}
-                onClick={() => setSelectedCountryCode(item.countryCode)}
-                className={`px-2.5 py-1 rounded-xl text-xs font-semibold flex items-center gap-1 transition-all ${
-                  selectedCountryCode === item.countryCode
-                    ? 'bg-red-500/20 border border-red-500/50 text-red-300 shadow-sm'
-                    : 'bg-slate-800/60 hover:bg-slate-800 text-slate-400 border border-transparent'
-                }`}
-              >
-                <span>{item.flag}</span>
-                <span>{item.countryCode}</span>
-              </button>
+          <select
+            value={selectedCountryCode}
+            onChange={(e) => setSelectedCountryCode(e.target.value)}
+            className="flex-1 bg-slate-900 border border-slate-700 text-slate-100 text-xs font-semibold rounded-xl px-3 py-2 focus:outline-none focus:border-red-400 cursor-pointer"
+          >
+            {emergencyEntries.map(([key, item]) => (
+              <option key={key} value={key}>
+                {item.flag} {item.countryName} ({item.universalEmergency})
+              </option>
             ))}
-          </div>
+          </select>
         </div>
 
         {/* Elenco Numeri a Chiamata Diretta tel: */}

@@ -1,37 +1,303 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Global default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.uid is string && request.auth.uid.size() > 0;
+    }
+
     function isValidId(id) {
-      return id is string && id.size() > 0 && id.size() <= 128;
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidListing(data) {
+      return data.keys().hasAll(['id', 'ownerUid', 'title'])
+        && data.id is string && data.id.size() >= 1 && data.id.size() <= 128
+        && data.ownerUid is string && data.ownerUid.size() >= 1 && data.ownerUid.size() <= 128
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 200
+        && (!data.keys().hasAny(['description']) || (data.description is string && data.description.size() <= 4000))
+        && (!data.keys().hasAny(['status']) || (data.status is string && data.status.size() <= 32))
+        && (!data.keys().hasAny(['handshakeBuyerUid']) || (data.handshakeBuyerUid is string && data.handshakeBuyerUid.size() >= 1 && data.handshakeBuyerUid.size() <= 128));
+    }
+
+    // Proposta di Stretta di Mano P2P: solo utenti non-owner su annuncio 'active' possono prenotarsi come handshakeBuyerUid
+    function isHandshakeProposalAction() {
+      return existing().ownerUid != request.auth.uid
+        && (!existing().keys().hasAny(['status']) || existing().status == 'active')
+        && (!existing().keys().hasAny(['handshakeBuyerUid']))
+        && incoming().status == 'pending'
+        && incoming().handshakeBuyerUid == request.auth.uid
+        && (!incoming().keys().hasAny(['handshake_confirmed']) || incoming().handshake_confirmed == false)
+        && incoming().ownerUid == existing().ownerUid
+        && incoming().id == existing().id
+        && incoming().title == existing().title
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'status',
+          'handshakeBuyerUid',
+          'handshake_confirmed',
+          'handshake_timestamp',
+          'updatedAt',
+          'serverTimestamp'
+        ]);
+    }
+
+    // Completamento Stretta di Mano: consentito SOLO al proprietario oppure alla controparte già vincolata (pending + handshakeBuyerUid == request.auth.uid)
+    function isHandshakeCompletionAction() {
+      return (!existing().keys().hasAny(['status']) || existing().status != 'completed')
+        && incoming().status == 'completed'
+        && incoming().handshake_confirmed == true
+        && incoming().ownerUid == existing().ownerUid
+        && incoming().id == existing().id
+        && incoming().title == existing().title
+        && (
+          existing().ownerUid == request.auth.uid
+          || (
+            existing().get('status', 'active') == 'pending'
+            && existing().keys().hasAny(['handshakeBuyerUid'])
+            && existing().handshakeBuyerUid == request.auth.uid
+            && incoming().get('handshakeBuyerUid', existing().handshakeBuyerUid) == existing().handshakeBuyerUid
+          )
+        )
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'handshake_confirmed',
+          'status',
+          'handshake_timestamp',
+          'updatedAt',
+          'serverTimestamp'
+        ]);
+    }
+
+    function isValidShop(data) {
+      return data.keys().hasAll(['id', 'ownerUid', 'name'])
+        && data.id is string && data.id.size() >= 1 && data.id.size() <= 128
+        && data.ownerUid is string && data.ownerUid.size() >= 1 && data.ownerUid.size() <= 128
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 200
+        && (!data.keys().hasAny(['city']) || (data.city is string && data.city.size() <= 120))
+        && (!data.keys().hasAny(['category']) || (data.category is string && data.category.size() <= 100));
+    }
+
+    function isValidInitialWallet(data, walletId) {
+      return data.keys().hasAll([
+          'walletId',
+          'pointsBalance',
+          'totalPointsEarned',
+          'pioneerUsername'
+        ])
+        && data.keys().hasOnly([
+          'walletId',
+          'pointsBalance',
+          'totalPointsEarned',
+          'merchantPiBalance',
+          'pioneerUsername',
+          'pioneerWalletAddress',
+          'adStreamEnabled',
+          'adCompletedStreak',
+          'history',
+          'updatedAt',
+          'serverTimestamp'
+        ])
+        && data.walletId == walletId
+        // Nessuna creazione arbitraria di saldo dal client: solo bonus iniziale fisso (120 punti) o 0
+        && data.pointsBalance is number
+        && (data.pointsBalance == 120 || data.pointsBalance == 0)
+        && data.totalPointsEarned is number
+        && data.totalPointsEarned == data.pointsBalance
+        && (!data.keys().hasAny(['merchantPiBalance']) || (data.merchantPiBalance is number && data.merchantPiBalance == 0))
+        && data.pioneerUsername is string && data.pioneerUsername.size() >= 1 && data.pioneerUsername.size() <= 120
+        && (!data.keys().hasAny(['pioneerWalletAddress']) || (data.pioneerWalletAddress is string && data.pioneerWalletAddress.size() <= 128))
+        && (!data.keys().hasAny(['adStreamEnabled']) || data.adStreamEnabled is bool)
+        && (!data.keys().hasAny(['adCompletedStreak']) || (data.adCompletedStreak is number && data.adCompletedStreak == 0))
+        && (!data.keys().hasAny(['history']) || (data.history is list && data.history.size() <= 5));
+    }
+
+    function isValidWalletProfileUpdate() {
+      return incoming().diff(existing()).affectedKeys().hasOnly([
+          'pioneerUsername',
+          'pioneerWalletAddress',
+          'adStreamEnabled',
+          'updatedAt',
+          'serverTimestamp'
+        ])
+        // Protezione rigorosa anti-manomissione saldi dal client SDK
+        && incoming().walletId == existing().walletId
+        && incoming().pointsBalance == existing().pointsBalance
+        && incoming().totalPointsEarned == existing().totalPointsEarned
+        && incoming().get('merchantPiBalance', 0) == existing().get('merchantPiBalance', 0)
+        && incoming().get('history', []) == existing().get('history', [])
+        && incoming().pioneerUsername is string && incoming().pioneerUsername.size() >= 1 && incoming().pioneerUsername.size() <= 120
+        && (!incoming().keys().hasAny(['pioneerWalletAddress']) || (incoming().pioneerWalletAddress is string && incoming().pioneerWalletAddress.size() <= 128))
+        && (!incoming().keys().hasAny(['adStreamEnabled']) || incoming().adStreamEnabled is bool);
     }
 
     match /listings/{listingId} {
-      allow read: if true;
-      allow create: if isValidId(listingId)
-        && request.resource.data.title is string
-        && request.resource.data.title.size() <= 200;
-      allow update, delete: if isValidId(listingId);
+      // Lettura pubblica del catalogo annunci per mappa e feed
+      allow get, list: if true;
+
+      allow create: if isSignedIn()
+        && isValidId(listingId)
+        && isValidListing(incoming())
+        && incoming().id == listingId
+        && incoming().ownerUid == request.auth.uid
+        && (!incoming().keys().hasAny(['status']) || incoming().status == 'active')
+        && (!incoming().keys().hasAny(['handshake_confirmed']) || incoming().handshake_confirmed == false);
+
+      allow update: if isSignedIn()
+        && isValidId(listingId)
+        && isValidListing(incoming())
+        && incoming().id == listingId
+        && existing().get('status', 'active') != 'completed'
+        && (
+          (existing().ownerUid == request.auth.uid && incoming().ownerUid == existing().ownerUid)
+          || isHandshakeProposalAction()
+          || isHandshakeCompletionAction()
+        );
+
+      allow delete: if isSignedIn()
+        && isValidId(listingId)
+        && existing().ownerUid == request.auth.uid;
+
+      // Sotto-collezione Stretta di Mano protetta da Master Gate sul documento padre
+      match /handshakes/{handshakeId} {
+        function parentListing() {
+          return get(/databases/$(database)/documents/listings/$(listingId)).data;
+        }
+
+        allow get, list: if isSignedIn()
+          && isValidId(listingId)
+          && isValidId(handshakeId)
+          && (
+            resource.data.proposerUid == request.auth.uid
+            || resource.data.ownerUid == request.auth.uid
+            || parentListing().ownerUid == request.auth.uid
+          );
+
+        allow create: if isSignedIn()
+          && isValidId(listingId)
+          && isValidId(handshakeId)
+          && incoming().id == handshakeId
+          && incoming().listingId == listingId
+          && incoming().proposerUid == request.auth.uid
+          && incoming().ownerUid == parentListing().ownerUid
+          && parentListing().ownerUid != request.auth.uid
+          && parentListing().get('status', 'active') != 'completed'
+          && incoming().status == 'pending';
+
+        allow update: if isSignedIn()
+          && isValidId(listingId)
+          && isValidId(handshakeId)
+          && existing().proposerUid == incoming().proposerUid
+          && existing().ownerUid == incoming().ownerUid
+          && existing().listingId == incoming().listingId
+          && existing().status == 'pending'
+          && (incoming().status == 'confirmed' || incoming().status == 'cancelled')
+          && (
+            request.auth.uid == existing().ownerUid
+            || (incoming().status == 'cancelled' && request.auth.uid == existing().proposerUid)
+          );
+
+        allow delete: if false;
+      }
     }
 
     match /shops/{shopId} {
-      allow read: if true;
-      allow create, update: if isValidId(shopId)
-        && request.resource.data.name is string
-        && request.resource.data.name.size() <= 200;
-      allow delete: if isValidId(shopId);
+      // Lettura pubblica pin esercenti e verifica cap territoriale
+      allow get, list: if true;
+
+      allow create: if isSignedIn()
+        && isValidId(shopId)
+        && isValidShop(incoming())
+        && incoming().id == shopId
+        && incoming().ownerUid == request.auth.uid;
+
+      allow update: if isSignedIn()
+        && isValidId(shopId)
+        && isValidShop(incoming())
+        && incoming().id == shopId
+        && existing().ownerUid == request.auth.uid
+        && incoming().ownerUid == existing().ownerUid;
+
+      allow delete: if isSignedIn()
+        && isValidId(shopId)
+        && existing().ownerUid == request.auth.uid;
     }
 
     match /wallets/{walletId} {
-      allow read: if isValidId(walletId);
-      allow create, update: if isValidId(walletId)
-        && request.resource.data.pointsBalance is number
-        && request.resource.data.pointsBalance >= 0
-        && request.resource.data.pointsBalance <= 10000000
-        && request.resource.data.totalPointsEarned is number
-        && request.resource.data.totalPointsEarned >= 0
-        && request.resource.data.pioneerUsername is string
-        && request.resource.data.pioneerUsername.size() <= 120;
+      // Nessuna enumerazione o lettura cross-utente dei wallet
+      allow list: if false;
+
+      allow get: if isSignedIn()
+        && isValidId(walletId)
+        && request.auth.uid == walletId;
+
+      allow create: if isSignedIn()
+        && isValidId(walletId)
+        && request.auth.uid == walletId
+        && isValidInitialWallet(incoming(), walletId);
+
+      allow update: if isSignedIn()
+        && isValidId(walletId)
+        && request.auth.uid == walletId
+        && isValidWalletProfileUpdate();
+
       allow delete: if false;
+    }
+
+    // Guide comunitarie Salvavatutto
+    match /guides/{guideId} {
+      allow get, list: if true;
+
+      allow create: if isSignedIn()
+        && isValidId(guideId)
+        && incoming().id == guideId
+        && incoming().authorUid == request.auth.uid
+        && incoming().title is string && incoming().title.size() >= 1 && incoming().title.size() <= 200
+        && incoming().content is string && incoming().content.size() >= 1 && incoming().content.size() <= 12000;
+
+      allow update: if isSignedIn()
+        && isValidId(guideId)
+        && existing().authorUid == request.auth.uid
+        && incoming().authorUid == existing().authorUid
+        && incoming().id == existing().id;
+
+      allow delete: if isSignedIn()
+        && isValidId(guideId)
+        && existing().authorUid == request.auth.uid;
+    }
+
+    // Segnalazioni di abuso (creazione da parte di utenti autenticati, lettura solo propria)
+    match /abuse_reports/{reportId} {
+      allow get: if isSignedIn() && existing().reporterUid == request.auth.uid;
+      allow list: if false;
+
+      allow create: if isSignedIn()
+        && isValidId(reportId)
+        && incoming().id == reportId
+        && incoming().reporterUid == request.auth.uid
+        && incoming().listingId is string && incoming().listingId.size() >= 1 && incoming().listingId.size() <= 128
+        && incoming().reason is string && incoming().reason.size() >= 3 && incoming().reason.size() <= 1000;
+
+      allow update, delete: if false;
+    }
+
+    // Collezioni riservate esclusivamente a backend/Worker tramite Service Account
+    match /pi_idempotency/{keyHash} {
+      allow read, write: if false;
+    }
+
+    match /pi_payments/{paymentId} {
+      allow read, write: if false;
     }
   }
 }

@@ -45,7 +45,7 @@ export const AUTHORSHIP_DATA = {
     "Navigatore Gerarchico Universale Territoriale a 4 Livelli (Stato ➔ Regione ➔ Provincia ➔ Comune) integrato con vista 3D",
     "Protocollo 'Stretta di Mano Digitale' P2P dal vivo con generazione dinamica di PIN di sicurezza a 4 cifre",
     "Architettura di Geo-Privacy con Centroidi Comunali Sfocati (raggio ~2.5 km) a tutela della residenza privata (GDPR)",
-    "Hub Pubblicitario Comunitario a Quota X (0.15) integrato con Pi Network Coin (π)",
+    "Hub Pubblicitario Comunitario a Quota X (0.25 π) integrato con Pi Network Coin (π)",
     "Doppio Motore Mappa 3D (Globo Planisfero + Urbano Volumetrico) funzionante direttamente nel browser a costo zero"
   ]
 };

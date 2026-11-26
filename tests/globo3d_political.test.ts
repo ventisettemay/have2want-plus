@@ -147,4 +147,208 @@ describe('Globo 3D & Politico - Matematica, Tocco Raycast & Dissolvenza a Sfogli
     expect(texture).toBeDefined();
     expect(texture.image).toBeDefined();
   });
+
+  it('handleCountrySelection blinda le coordinate contro Null Island (0,0) e blocca fallback silenziosi su Roma', async () => {
+    const { handleCountrySelection } = await import('../src/lib/worldAtlas');
+    const { resolveCountryData } = await import('../src/components/have2want/MapView3DContainer');
+
+    const atlasMock = {
+      Nigeria: { lat: 9.082, lng: 8.6753, zoom: 5 },
+      Norvegia: { lat: 59.9139, lng: 10.7522 },
+      NullIsland: { lat: 0, lng: 0, zoom: 5 },
+    };
+
+    const nigeria = handleCountrySelection('  nIgErIa  ', atlasMock);
+    expect(nigeria.success).toBe(true);
+    expect(nigeria.target).toEqual({
+      lat: 9.082,
+      lng: 8.6753,
+      zoom: 5,
+      name: 'Nigeria',
+    });
+
+    const norway = handleCountrySelection('Norvegia', atlasMock);
+    expect(norway.target.zoom).toBe(5);
+    expect(norway.target.lat).toBe(59.9139);
+
+    // Default WORLD_ATLAS_LOOKUP include tutti i 54 Stati africani, Norvegia, USA
+    const kenya = handleCountrySelection('Kenya');
+    expect(kenya.success).toBe(true);
+    expect(kenya.target.lat).not.toBe(41.8902);
+    expect(kenya.target.lat).not.toBe(0);
+
+    // Null Island (0,0) e paese inesistente devono sollevare errore senza dirottare su Roma
+    expect(() => handleCountrySelection('NullIsland', atlasMock)).toThrow(
+      /Impossibile applicare fallback su Roma/
+    );
+    expect(() => handleCountrySelection('Atlantide_Inesistente', atlasMock)).toThrow(
+      /Impossibile applicare fallback su Roma/
+    );
+
+    // Verifica resolveCountryData su regione italiana, Congo e territorio sconosciuto
+    const lombardia = resolveCountryData({ name: 'Lombardia', countryName: 'Italia' });
+    expect(lombardia?.name).toBe('Lombardia');
+    expect(lombardia?.lat).not.toBe(41.8902);
+
+    const congoAlias = handleCountrySelection('Congo');
+    expect(congoAlias.success).toBe(true);
+    expect(congoAlias.target.lat).toBeCloseTo(-4.2634, 2);
+    expect(congoAlias.target.lng).toBeCloseTo(15.2429, 2);
+
+    const rdCongoAlias = handleCountrySelection('RD Congo');
+    expect(rdCongoAlias.success).toBe(true);
+    expect(rdCongoAlias.target.lat).toBeCloseTo(-4.4419, 2);
+    expect(rdCongoAlias.target.lng).toBeCloseTo(15.2663, 2);
+
+    const congoResolved = resolveCountryData('congo');
+    expect(congoResolved?.code).toBe('CG');
+    expect(congoResolved?.lat).not.toBe(41.8902);
+
+    const congoById = resolveCountryData({ id: 'cd', name: 'Repubblica Democratica del Congo' });
+    expect(congoById?.code).toBe('CD');
+    expect(congoById?.lat).not.toBe(41.8902);
+
+    const unknownTerritory = resolveCountryData({ id: 'atlantide_99', name: 'Atlantide_99' });
+    expect(unknownTerritory).toBeNull();
+  });
+
+  it('resolveGlobeCountryById e resolveGlobeUrbanTarget risolvono Congo (CG/CD) senza MAI ricadere su Roma', async () => {
+    const { resolveGlobeCountryById, resolveGlobeUrbanTarget } = await import(
+      '../src/components/have2want/Globo3D'
+    );
+
+    const cg = resolveGlobeCountryById('cg');
+    expect(cg).not.toBeNull();
+    expect(cg.lat).toBeCloseTo(-4.2634, 2);
+    expect(cg.lng).toBeCloseTo(15.2429, 2);
+    expect(cg.lat).not.toBe(41.8902);
+
+    const cd = resolveGlobeCountryById('cd');
+    expect(cd).not.toBeNull();
+    expect(cd.lat).toBeCloseTo(-4.4419, 2);
+    expect(cd.lng).toBeCloseTo(15.2663, 2);
+
+    const fromCenter = resolveGlobeUrbanTarget({
+      activeZone: null,
+      selectedCountryId: null,
+      fallbackCoords: { lat: -4.26, lng: 15.24 },
+    });
+    expect(fromCenter).not.toBeNull();
+    expect(fromCenter.lat).not.toBe(41.8902);
+    expect(fromCenter.name).not.toBe('Roma');
+
+    const emptyTarget = resolveGlobeUrbanTarget({
+      activeZone: null,
+      selectedCountryId: null,
+      fallbackCoords: null,
+    });
+    expect(emptyTarget).toBeNull();
+  });
+
+  it('Copertura globale integrale (~197 Stati + 54 Africa), pricing CoinMarketCap e anti-Null-Island', async () => {
+    const {
+      WORLD_COUNTRIES,
+      computeRealPiRate,
+      isValidCoord,
+      findCountryByNameOrCode,
+    } = await import('../src/lib/worldAtlas');
+    const { getCountryForListing } = await import('../src/data/countries');
+    const { getHierarchyForCountry } = await import('../src/lib/territoryHierarchy');
+    const {
+      getEmergencyServicesForCountry,
+      getExternalServicesForArea,
+      fetchRealExternalServicesForArea,
+      clearExternalGatewayCacheForTests,
+    } = await import('../src/lib/externalGatewayServices');
+    clearExternalGatewayCacheForTests();
+
+    // 1. Copertura globale e Africa 54/54 + territori chiave
+    expect(WORLD_COUNTRIES.length).toBeGreaterThanOrEqual(195);
+    const africanCountries = WORLD_COUNTRIES.filter((c) => c.continent === 'Africa');
+    expect(africanCountries.length).toBe(54);
+
+    const requiredCodes = ['AE', 'EG', 'SA', 'ZA', 'KE', 'BR', 'TH', 'VN', 'CO', 'AU', 'NZ', 'TW', 'XK'];
+    const allCodes = new Set(WORLD_COUNTRIES.map((c) => c.code));
+    requiredCodes.forEach((code) => {
+      expect(allCodes.has(code)).toBe(true);
+    });
+
+    // Tutte le nazioni devono avere coordinate valide (mai 0,0)
+    WORLD_COUNTRIES.forEach((c) => {
+      expect(isValidCoord(c.lat, c.lng)).toBe(true);
+    });
+
+    // 2. Pricing reale CoinMarketCap e blocco (0,0)
+    expect(computeRealPiRate(1.0)).toBe(0.0674);
+    expect(isValidCoord(0, 0)).toBe(false);
+    expect(isValidCoord(undefined, undefined)).toBe(false);
+    expect(isValidCoord(Number.NaN, 12.49)).toBe(false);
+
+    // 3. Alias / Disambiguazione stretta dei nomi paese
+    expect(findCountryByNameOrCode('Niger')?.code).toBe('NE');
+    expect(findCountryByNameOrCode('Nigeria')?.code).toBe('NG');
+    expect(findCountryByNameOrCode('Congo')?.code).toBe('CG');
+    expect(findCountryByNameOrCode('RD Congo')?.code).toBe('CD');
+    expect(findCountryByNameOrCode('United Arab Emirates')?.code).toBe('AE');
+
+    // 4. Listing senza metadati/coordinate non deve mai ricadere su Italia/Roma
+    expect(getCountryForListing({ title: 'Test' })).toBeNull();
+
+    // 5. Gerarchia territoriale globale e rifiuto stati inesistenti
+    expect(getHierarchyForCountry('Atlantide_Inesistente')).toBeNull();
+    const uaeHierarchy = getHierarchyForCountry('AE');
+    expect(uaeHierarchy).not.toBeNull();
+    expect(uaeHierarchy?.code).toBe('AE');
+    expect(uaeHierarchy?.regions.length).toBeGreaterThan(0);
+
+    // 6. Emergenze e Gateway Esterno localizzato senza perdite italiane
+    expect(getEmergencyServicesForCountry('XX').countryCode).toBe('GLOBAL');
+    expect(getExternalServicesForArea(0, 0, 'Null Island', 'XX')).toEqual([]);
+
+    // Nessun pin circolare inventato: senza cache Overpass reale, Lagos restituisce []
+    expect(getExternalServicesForArea(6.5244, 3.3792, 'Lagos', 'NG')).toEqual([]);
+
+    // Con risposta reale Overpass OSM, mappa POI locali senza perdite italiane
+    const mockOverpassFetch: typeof fetch = async () =>
+      new Response(
+        JSON.stringify({
+          elements: [
+            {
+              id: 7001,
+              type: 'node',
+              lat: 6.525,
+              lon: 3.381,
+              tags: { name: 'Victoria Island Supermart', shop: 'supermarket', 'addr:city': 'Lagos' },
+            },
+            {
+              id: 7002,
+              type: 'node',
+              lat: 6.523,
+              lon: 3.378,
+              tags: { name: 'Lagos Mainland Clinic', amenity: 'pharmacy', 'addr:city': 'Lagos' },
+            },
+          ],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+
+    const lagosResult = await fetchRealExternalServicesForArea(
+      6.5244,
+      3.3792,
+      'Lagos',
+      'NG',
+      mockOverpassFetch
+    );
+    expect(lagosResult.source).toBe('overpass');
+    expect(lagosResult.places.length).toBe(2);
+    lagosResult.places.forEach((svc) => {
+      const serialized = JSON.stringify(svc).toLowerCase();
+      expect(serialized).not.toContain('roma');
+      expect(serialized).not.toContain('milano');
+      expect(serialized).not.toContain('iperconad');
+      expect(svc.countryCode).toBe('NG');
+      expect(svc.externalLink).toContain('openstreetmap.org');
+    });
+  });
 });
+

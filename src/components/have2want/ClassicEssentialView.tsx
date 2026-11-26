@@ -15,9 +15,7 @@ import {
   AlertTriangle,
   ExternalLink
 } from 'lucide-react';
-import { WORLD_EMERGENCY_SERVICES } from '@/lib/externalGatewayServices';
 import { SAMPLE_GLOBAL_CARPOOLS } from '@/data/carpoolTrips';
-import { PRACTICAL_MEMORY_GUIDES } from '@/data/craftMemoryGuides';
 import { toast } from 'sonner';
 import { getListingOriginBadge } from '@/lib/listingOrigin';
 
@@ -68,28 +66,25 @@ export function ClassicEssentialView({
     <div className="w-full h-full overflow-y-auto bg-slate-950 text-slate-100 p-4 pt-28 sm:pt-32 pb-24 font-sans">
       <div className="max-w-5xl mx-auto flex flex-col gap-6">
 
-        {/* HEADER MODALITÀ CLASSICA: ALTA LEGGIBILITÀ E ACCESSIBILITÀ */}
-        <div className="p-5 sm:p-6 rounded-3xl bg-slate-900 border-2 border-slate-700 shadow-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="px-3 py-1 rounded-full text-xs font-black bg-amber-400 text-slate-950 uppercase tracking-wider">
+        {/* HEADER MODALITÀ CLASSICA: PULITO ED EDGE-TO-EDGE */}
+        <div className="pb-4 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="px-2.5 py-0.5 rounded-lg text-xs font-black bg-amber-400 text-slate-950 uppercase tracking-wider">
                 👓 VISTA CLASSICA
               </span>
-              <span className="text-sm font-bold text-slate-400">
-                Alta Leggibilità • Navigazione Semplificata
+              <span className="text-xs font-bold text-slate-400">
+                Alta Leggibilità · 2D Essenziale
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-white mt-1.5 tracking-tight">
-              Annunci & Servizi Territoriali
+            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+              Annunci &amp; Servizi Territoriali
             </h1>
-            <p className="text-base text-slate-300 mt-1">
-              Visualizzazione piatta 2D con caratteri grandi, contrasto elevato e accessibilità diretta ai servizi.
-            </p>
           </div>
 
           <button
             onClick={onBackTo3D}
-            className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black text-base flex items-center justify-center gap-2 cursor-pointer shadow-lg active:scale-95 transition-all"
+            className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black text-base flex items-center justify-center gap-2 cursor-pointer shadow-lg active:scale-95 transition-all shrink-0"
           >
             <span>🌐 Torna alla Vista 3D</span>
           </button>
@@ -100,42 +95,42 @@ export function ClassicEssentialView({
           {/* Emergenze */}
           <button
             onClick={onOpenEmergency}
-            className="p-4 rounded-2xl bg-red-950/70 hover:bg-red-900/80 border-2 border-red-500/50 text-left flex items-center gap-3.5 cursor-pointer transition-all active:scale-98"
+            className="p-3.5 rounded-2xl bg-red-950/60 hover:bg-red-900/75 border border-red-500/50 text-left flex items-center gap-3 cursor-pointer transition-all"
           >
-            <div className="w-12 h-12 rounded-xl bg-red-500 text-white flex items-center justify-center text-2xl font-black shrink-0">
+            <div className="w-11 h-11 rounded-xl bg-red-500 text-white flex items-center justify-center text-xl font-black shrink-0">
               🚨
             </div>
             <div>
-              <h3 className="text-base font-black text-red-200">112 / Emergenze</h3>
-              <p className="text-xs text-red-300/90 font-medium">Chiamata diretta carabinieri, polizia, 118</p>
+              <h3 className="text-sm font-black text-red-100">112 / Emergenze</h3>
+              <p className="text-xs text-red-300 font-medium">Chiamata diretta</p>
             </div>
           </button>
 
           {/* Trasferte Carpool */}
           <button
             onClick={onOpenCarpool}
-            className="p-4 rounded-2xl bg-teal-950/70 hover:bg-teal-900/80 border-2 border-teal-500/50 text-left flex items-center gap-3.5 cursor-pointer transition-all active:scale-98"
+            className="p-3.5 rounded-2xl bg-teal-950/60 hover:bg-teal-900/75 border border-teal-500/50 text-left flex items-center gap-3 cursor-pointer transition-all"
           >
-            <div className="w-12 h-12 rounded-xl bg-teal-500 text-slate-950 flex items-center justify-center text-2xl font-black shrink-0">
+            <div className="w-11 h-11 rounded-xl bg-teal-500 text-slate-950 flex items-center justify-center text-xl font-black shrink-0">
               🚗
             </div>
             <div>
-              <h3 className="text-base font-black text-teal-200">Trasferte Condivise</h3>
-              <p className="text-xs text-teal-300/90 font-medium">Viaggi gratuiti o rimborso spese tra privati</p>
+              <h3 className="text-sm font-black text-teal-100">Trasferte Condivise</h3>
+              <p className="text-xs text-teal-300 font-medium">Passaggi P2P</p>
             </div>
           </button>
 
           {/* Memoria Storica */}
           <button
             onClick={onOpenMemory}
-            className="p-4 rounded-2xl bg-amber-950/70 hover:bg-amber-900/80 border-2 border-amber-500/50 text-left flex items-center gap-3.5 cursor-pointer transition-all active:scale-98"
+            className="p-3.5 rounded-2xl bg-amber-950/60 hover:bg-amber-900/75 border border-amber-500/50 text-left flex items-center gap-3 cursor-pointer transition-all"
           >
-            <div className="w-12 h-12 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center text-2xl font-black shrink-0">
+            <div className="w-11 h-11 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center text-xl font-black shrink-0">
               📖
             </div>
             <div>
-              <h3 className="text-base font-black text-amber-200">Memoria & Mestieri</h3>
-              <p className="text-xs text-amber-300/90 font-medium">Saper fare pratico, detti e manutenzioni</p>
+              <h3 className="text-sm font-black text-amber-100">Memoria &amp; Mestieri</h3>
+              <p className="text-xs text-amber-300 font-medium">Guide &amp; Creator</p>
             </div>
           </button>
 
@@ -143,14 +138,14 @@ export function ClassicEssentialView({
           {onOpenLegalShield && (
             <button
               onClick={onOpenLegalShield}
-              className="p-4 rounded-2xl bg-emerald-950/70 hover:bg-emerald-900/80 border-2 border-emerald-500/50 text-left flex items-center gap-3.5 cursor-pointer transition-all active:scale-98"
+              className="p-3.5 rounded-2xl bg-emerald-950/60 hover:bg-emerald-900/75 border border-emerald-500/50 text-left flex items-center gap-3 cursor-pointer transition-all"
             >
-              <div className="w-12 h-12 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center text-2xl font-black shrink-0">
+              <div className="w-11 h-11 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center text-xl font-black shrink-0">
                 📜
               </div>
               <div>
-                <h3 className="text-base font-black text-emerald-200">Guida, Pi & Leggi</h3>
-                <p className="text-xs text-emerald-300/90 font-medium">No Fiat, privacy ~2.5km e norme per nazione</p>
+                <h3 className="text-sm font-black text-emerald-100">Guida, Pi &amp; Leggi</h3>
+                <p className="text-xs text-emerald-300 font-medium">Zero Fiat &amp; Privacy</p>
               </div>
             </button>
           )}
@@ -277,7 +272,7 @@ export function ClassicEssentialView({
 
                     <span className="text-xs font-bold text-slate-400 flex items-center gap-1">
                       <MapPin className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>{listing.city || 'Italia'}</span>
+                      <span>{listing.city || listing.locationArea || 'Territorio Locale'}</span>
                     </span>
 
                     {listing.privacy_mode_active && (
@@ -288,11 +283,11 @@ export function ClassicEssentialView({
                     )}
                   </div>
 
-                  <h3 className="text-xl font-black text-white">
+                  <h3 className="text-xl font-black text-white break-words">
                     {listing.title}
                   </h3>
 
-                  <p className="text-sm text-slate-300 mt-1 line-clamp-2 leading-relaxed">
+                  <p className="text-sm text-slate-300 mt-1 leading-relaxed break-words">
                     {listing.description || listing.have_description}
                   </p>
 

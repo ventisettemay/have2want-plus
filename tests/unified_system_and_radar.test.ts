@@ -16,9 +16,9 @@ import {
 import { classifyMerchantPin } from '../src/lib/merchantPinClassifier';
 
 describe('Sistema Unificato Saldi, Sandbox Pi, Radar RainViewer & Pin Esercenti', () => {
-  it('Sincronizza in modo sincrono addebiti esercente (fix deductMerchantSubscription) e punti comunitari', async () => {
+  it('Sincronizza in modo sincrono addebiti esercente (fix deductMerchantSubscription) e Quota X 0.25 π (250 punti)', async () => {
     const state = getPioneerRewardsState();
-    state.pointsBalance = 300;
+    state.pointsBalance = 400;
     state.merchantPiBalance = 0;
     savePioneerRewardsState(state);
 
@@ -36,10 +36,15 @@ describe('Sistema Unificato Saldi, Sandbox Pi, Radar RainViewer & Pin Esercenti'
     expect(fail.success).toBe(false);
     expect(fail.newMerchantBalance).toBe(30);
 
-    // Billing chat unificato (150 punti = 0.15 π)
+    // Billing chat unificato Quota X ufficiale (250 punti = 0.25 π)
     const chatRes = await processChatInteractionBilling('user_pioneer_001');
     expect(chatRes.success).toBe(true);
     expect(chatRes.pointsRemaining).toBe(150);
+
+    // Secondo tentativo con soli 150 punti (< 250) deve essere respinto
+    const chatFail = await processChatInteractionBilling('user_pioneer_001');
+    expect(chatFail.success).toBe(false);
+    expect(chatFail.pointsRemaining).toBe(150);
 
     // Ripristina punti tramite adjustCommunityPoints
     const adj = adjustCommunityPoints(50, 'Bonus test');

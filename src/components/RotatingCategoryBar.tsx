@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Play, Pause, Sparkles, Check } from 'lucide-react';
-import { REAL_CATEGORIES_MATRIX } from '../categories';
+import { REAL_CATEGORIES_MATRIX, CATEGORY_FALLBACK_IMAGE } from '../categories';
 
 export interface RotatingBarItem {
   id: string;
@@ -19,6 +19,7 @@ interface RotatingCategoryBarProps {
   onSelect: (item: RotatingBarItem) => void;
   listingsCounts?: Record<string, number>;
   onOpenWeather?: () => void;
+  onOpenCraftKnowledge?: () => void;
   className?: string;
 }
 
@@ -58,7 +59,7 @@ export const ROTATING_BAR_ITEMS: RotatingBarItem[] = [
     key: 'auto_moto_veicoli',
     title: 'Veicoli, Ricambi & Meccanica',
     subtitle: 'Pneumatici, freni, batterie, cargo bike e trasferte carpool',
-    realImage: 'https://images.unsplash.com/photo-1486006920555-c77dce18193b?w=600&auto=format&fit=crop&q=80',
+    realImage: CATEGORY_FALLBACK_IMAGE,
     badge: 'MECCANICA REALE',
     badgeColor: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
     type: 'category',
@@ -113,6 +114,16 @@ export const ROTATING_BAR_ITEMS: RotatingBarItem[] = [
     badgeColor: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40',
     type: 'channel',
   },
+  {
+    id: 'conoscenze_mestieri',
+    key: 'CONOSCENZE_MESTIERI',
+    title: 'Conoscenze & Mestieri',
+    subtitle: 'Archivio Salvavatutto, saperi artigiani e guide pratiche di riparazione',
+    realImage: CATEGORY_FALLBACK_IMAGE,
+    badge: 'MEMORIA & GUIDE',
+    badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+    type: 'channel',
+  },
 ];
 
 export const RotatingCategoryBar: React.FC<RotatingCategoryBarProps> = ({
@@ -120,6 +131,7 @@ export const RotatingCategoryBar: React.FC<RotatingCategoryBarProps> = ({
   onSelect,
   listingsCounts = {},
   onOpenWeather,
+  onOpenCraftKnowledge,
   className = '',
 }) => {
   const [rotationIndex, setRotationIndex] = useState(0);
@@ -257,6 +269,8 @@ export const RotatingCategoryBar: React.FC<RotatingCategoryBarProps> = ({
                     setRotationIndex(index);
                     if (item.id === 'meteo_live' && onOpenWeather) {
                       onOpenWeather();
+                    } else if (item.key === 'CONOSCENZE_MESTIERI' && onOpenCraftKnowledge) {
+                      onOpenCraftKnowledge();
                     } else {
                       onSelect(item);
                     }
@@ -323,6 +337,7 @@ export const RotatingCategoryBar: React.FC<RotatingCategoryBarProps> = ({
                 setRotationIndex(idx);
                 const item = ROTATING_BAR_ITEMS[idx];
                 if (item.id === 'meteo_live' && onOpenWeather) onOpenWeather();
+                else if (item.key === 'CONOSCENZE_MESTIERI' && onOpenCraftKnowledge) onOpenCraftKnowledge();
                 else onSelect(item);
               }}
               className={`h-1.5 rounded-full transition-all cursor-pointer ${

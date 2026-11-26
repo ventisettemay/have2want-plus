@@ -6,11 +6,16 @@ import {
   setAdStreamEnabledPreference,
   pointsToPi,
 } from './communityRewardsService';
+import {
+  clearPiSession,
+  exchangePiTokenForFirebaseSession,
+  getCurrentPiAccessToken,
+} from './piSdkService';
 
 const DEFAULT_USER_BASE = {
   id: 'user_pioneer_001',
   name: 'Pioniere Solidale',
-  email: 'brandoriginalword@gmail.com',
+  email: 'pioneer@have2want.local',
   username: '@pioniere_001',
   category: 'CITADINO_PRIVATO',
   trust_rating: 4.9,
@@ -33,11 +38,12 @@ function buildSyncedUser(baseUser, rewardsState) {
   };
 }
 
+/** @type {React.Context<{ user: any; login: (userData?: Record<string, any>) => void; logout: () => void; updateUser: (updates?: Record<string, any>) => void }>} */
 const AuthContext = createContext({
   user: buildSyncedUser(DEFAULT_USER_BASE, getPioneerRewardsState()),
-  login: () => {},
+  login: (_userData) => {},
   logout: () => {},
-  updateUser: () => {},
+  updateUser: (_updates) => {},
 });
 
 export function AuthProvider({ children }) {
@@ -61,11 +67,23 @@ export function AuthProvider({ children }) {
     const merged = buildSyncedUser({ ...DEFAULT_USER_BASE, ...userData }, rewards);
     setUser(merged);
     if (merged) {
-      setActiveWalletUser(merged.uid || merged.id, merged.username).catch(() => {});
+      const piToken = userData?.accessToken || getCurrentPiAccessToken();
+      if (piToken) {
+        exchangePiTokenForFirebaseSession(piToken)
+          .catch(() => {})
+          .finally(() => {
+            setActiveWalletUser(merged.uid || merged.id, merged.username).catch(() => {});
+          });
+      } else {
+        setActiveWalletUser(merged.uid || merged.id, merged.username).catch(() => {});
+      }
     }
   };
 
-  const logout = () => setUser(null);
+  const logout = () => {
+    setUser(null);
+    clearPiSession().catch(() => {});
+  };
 
   const updateUser = (updates) => {
     if (typeof updates?.ad_stream_enabled === 'boolean') {
@@ -84,14 +102,15 @@ export function AuthProvider({ children }) {
   );
 }
 
+/** @returns {{ user: any; login: (userData?: Record<string, any>) => void; logout: () => void; updateUser: (updates?: Record<string, any>) => void }} */
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
     return {
       user: buildSyncedUser(DEFAULT_USER_BASE, getPioneerRewardsState()),
-      login: () => {},
+      login: (_userData) => {},
       logout: () => {},
-      updateUser: () => {},
+      updateUser: (_updates) => {},
     };
   }
   return context;

@@ -24,71 +24,62 @@ export const TerritorialAdBanner: React.FC<TerritorialAdBannerProps> = ({
 
   if (variant === 'top_strip') {
     return (
-      <div className="w-full bg-gradient-to-r from-amber-950/40 via-zinc-950 to-amber-950/40 border-b border-amber-500/30 px-3 py-1.5 flex items-center justify-between text-xs text-amber-200">
-        <div className="flex items-center gap-2 truncate">
-          <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono text-[9px] font-bold uppercase">
+      <div className="w-full bg-gradient-to-r from-amber-950/40 via-zinc-950 to-amber-950/40 border-b border-amber-500/30 px-3 py-1.5 flex flex-wrap items-center justify-between gap-2 text-xs text-amber-200">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono text-[9px] font-bold uppercase shrink-0">
             Sponsor
           </span>
-          <span className="truncate text-[11px]">
-            Sostieni la rete HAVE2WANT: accumula punti con annunci reali e convertili in <strong>π</strong> (Min. 0.50 π)!
+          <span className="text-[11px] break-words">
+            Accumula punti reali e convertili in <strong>π</strong> (soglia 0.50 π).
           </span>
         </div>
         <button
           onClick={onOpenRewardsHub}
-          className="ml-2 px-2.5 py-0.5 rounded-lg bg-amber-400/20 hover:bg-amber-400/30 border border-amber-400/40 text-amber-300 font-bold text-[10px] shrink-0 cursor-pointer transition-all flex items-center gap-1"
+          className="px-2.5 py-1 rounded-lg bg-amber-400/20 hover:bg-amber-400/30 border border-amber-400/40 text-amber-300 font-bold text-[10px] shrink-0 cursor-pointer transition-all flex items-center gap-1"
         >
-          <span>Apri Hub Pi</span>
+          <span>Hub Pi</span>
           <Sparkles className="w-3 h-3 text-amber-400" />
         </button>
       </div>
     );
   }
 
-  // Variant default: feed_inline (card pulita nel feed)
+  // Variant default: feed_inline (slot ordinato edge-to-edge senza muro di testo)
   return (
-    <div className="p-4 rounded-2xl bg-gradient-to-r from-zinc-900/90 via-amber-950/20 to-zinc-900/90 border border-amber-500/30 space-y-2.5 my-2 shadow-lg">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-mono text-[10px] font-black uppercase tracking-wider border border-amber-500/30">
-            Spazio Sponsor Territoriale & Pi Network
-          </span>
+    <div className="p-4 rounded-2xl bg-gradient-to-r from-zinc-900 via-amber-950/20 to-zinc-900 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 my-2 shadow-lg">
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
+          <Megaphone className="w-5 h-5 text-amber-400" />
         </div>
-        <button
-          onClick={onOpenRewardsHub}
-          className="text-[11px] font-bold text-amber-400 hover:text-amber-300 underline cursor-pointer flex items-center gap-1"
-        >
-          <span>Regole Prelievo (0.50 π)</span>
-        </button>
-      </div>
-
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="space-y-0.5">
-          <h4 className="text-xs font-black text-white flex items-center gap-1.5">
-            <Megaphone className="w-3.5 h-3.5 text-amber-400" />
-            <span>Supporta l'Ecosistema P2P e Guadagna Pi</span>
-          </h4>
-          <p className="text-[11px] text-zinc-400 leading-relaxed">
-            I punti generati dalle tue azioni e dagli annunci reali sul territorio sono convertibili sul tuo <strong>Pi Wallet esterno</strong>. Fee blockchain: -0.01 π.
+        <div className="space-y-0.5 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-black text-white">Spazio Sponsor Territoriale</span>
+            <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono text-[10px] font-black uppercase">
+              0.50 π min · Fee -0.01 π
+            </span>
+          </div>
+          <p className="text-xs text-zinc-300 break-words">
+            Converti i punti della comunità sul tuo Pi Wallet esterno.
           </p>
         </div>
+      </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={handleClaimBannerReward}
-            className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
-            title="Sostieni lo spazio sponsor"
-          >
-            <PlayCircle className="w-3.5 h-3.5 text-amber-400" />
-            <span>Interagisci (+{REWARDS_CONFIG.EARN_RATES.BANNER_CLICK} Pts)</span>
-          </button>
+      <div className="flex items-center gap-2 shrink-0 flex-wrap">
+        <button
+          onClick={handleClaimBannerReward}
+          className="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+          title="Sostieni lo spazio sponsor"
+        >
+          <PlayCircle className="w-3.5 h-3.5 text-amber-400" />
+          <span>+{REWARDS_CONFIG.EARN_RATES.BANNER_CLICK} Pts</span>
+        </button>
 
-          <button
-            onClick={onOpenRewardsHub}
-            className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-zinc-950 font-black text-xs transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-amber-500/20"
-          >
-            <span>Preleva π</span>
-          </button>
-        </div>
+        <button
+          onClick={onOpenRewardsHub}
+          className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-zinc-950 font-black text-xs transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-amber-500/20"
+        >
+          <span>Preleva π</span>
+        </button>
       </div>
     </div>
   );

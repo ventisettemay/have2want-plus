@@ -1,6 +1,7 @@
 import { spendPoints, pointsToPi } from '@/lib/communityRewardsService';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, query, where } from 'firebase/firestore';
+import { isValidCoord } from '@/lib/worldAtlas';
 
 /**
  * Centroidi noti dei principali comuni e capoluoghi per la privacy geografica
@@ -45,7 +46,7 @@ export function getDefaultTerritoryCoordinates() {
   } catch (e) {
     // fallback sicuro
   }
-  return { lat: 41.8902, lng: 12.4922, label: 'Territorio di Riferimento' };
+  return { lat: 0, lng: 0, label: 'Globale (nessun territorio preselezionato)' };
 }
 
 export function setDefaultTerritoryCoordinates(lat, lng, label = 'Territorio Selezionato') {
@@ -105,13 +106,14 @@ export function calculateMunicipalityCentroid(cityName = '', rawLat = null, rawL
  */
 export function applyGeoPrivacy(listing, isGlobalDiscreetMode = false) {
   if (!listing) {
+    const defaultCoords = getDefaultTerritoryCoordinates();
     return {
-      lat: 41.8902,
-      lng: 12.4922,
+      lat: defaultCoords.lat,
+      lng: defaultCoords.lng,
       isMasked: false,
       mode: 'STANDARD',
       radiusKm: 0,
-      label: 'Posizione predefinita'
+      label: defaultCoords.label || 'Posizione globale'
     };
   }
 
@@ -234,10 +236,17 @@ export function isWithinProximityPreference(listing, userLocation = null, proxim
     return true;
   }
 
-  const effectiveLocation = userLocation || getDefaultTerritoryCoordinates();
+  const effectiveLocation =
+    userLocation && isValidCoord(userLocation.lat, userLocation.lng)
+      ? userLocation
+      : getDefaultTerritoryCoordinates();
+  if (!effectiveLocation || !isValidCoord(effectiveLocation.lat, effectiveLocation.lng)) {
+    return true;
+  }
+
   const rawLat = listing.lat ?? listing.exact_lat ?? listing.municipality_centroid_lat;
   const rawLng = listing.lng ?? listing.exact_lng ?? listing.municipality_centroid_lng;
-  if (rawLat === undefined || rawLng === undefined) return true;
+  if (!isValidCoord(rawLat, rawLng)) return true;
 
   const distance = haversineDistanceKm(effectiveLocation.lat, effectiveLocation.lng, rawLat, rawLng);
 
@@ -252,18 +261,21 @@ export function isWithinProximityPreference(listing, userLocation = null, proxim
 
 /**
  * Visibility Manager completo che applica tutti i filtri:
- * Categoria + Moderazione + Vicinanza + Privacy Geografica
+ * Categoria + Moderazione + Vicinanza + Ricerca Testuale + Privacy Geografica
  */
 export function filterVisibleListings({
   listings = [],
   activeFilter = null,
+  searchQuery = '',
   userLocation = null,
   proximityPreference = 'EVERYWHERE',
   isDiscreetMode = false
 }) {
-  const effectiveLocation = userLocation || getDefaultTerritoryCoordinates();
-  // Se nessun filtro specifico è selezionato, mostriamo tutti gli annunci attivi e conformi (l'app non appare mai vuota)
-  const hasSpecificFilter = Boolean(activeFilter);
+  const effectiveLocation =
+    userLocation && isValidCoord(userLocation.lat, userLocation.lng)
+      ? userLocation
+      : null;
+  const normalizedQuery = (searchQuery || '').trim().toLowerCase();
 
   return listings.filter((item) => {
     // 1. Filtro di moderazione
@@ -272,15 +284,34 @@ export function filterVisibleListings({
     // 2. Filtro preferenze di vicinanza
     if (!isWithinProximityPreference(item, effectiveLocation, proximityPreference)) return false;
 
-    // 3. Filtro per Categoria (VENDO, BARATTO, CERCO, LIBRI)
-    if (activeFilter === 'VENDO') {
-      return item.action_type === 'vendo' || item.intent === 'VENDO';
+    // 3. Filtro testuale per ricerca libera / esigenze dell'utente
+    if (normalizedQuery) {
+      const matchText = `${item.title || ''} ${item.description || ''} ${item.locationArea || ''} ${item.author?.city || item.city || ''} ${(item.tags || []).join(' ')}`.toLowerCase();
+      if (!matchText.includes(normalizedQuery)) return false;
     }
-    if (activeFilter === 'BARATTO_SCAMBIO' || activeFilter === 'BARATTO') {
+
+    if (!activeFilter) return true;
+
+    // 4. Filtro per Categoria (VENDO, BARATTO/SCAMBIO, CERCO, TRASFERTE, SERVIZI, LIBRI)
+    if (activeFilter === 'VENDO') {
+      const isCarpool = item.subcategory === 'trasferte_passaggi_carpool';
+      return (item.action_type === 'vendo' || item.intent === 'VENDO') && !isCarpool;
+    }
+    if (activeFilter === 'BARATTO_SCAMBIO' || activeFilter === 'BARATTO' || activeFilter === 'SCAMBIO') {
       return item.action_type === 'baratto_scambio' || item.intent === 'BARATTO_SCAMBIO' || item.action_type === 'baratto';
     }
     if (activeFilter === 'CERCO' || activeFilter === 'ACQUISTO_CERCO') {
       return item.action_type === 'acquisto_cerco' || item.intent === 'ACQUISTO_CERCO' || item.intent === 'CERCO';
+    }
+    if (activeFilter === 'TRASFERTE') {
+      const isCarpoolSubcat = item.subcategory === 'trasferte_passaggi_carpool';
+      const text = `${item.title || ''} ${item.description || ''} ${(item.tags || []).join(' ')}`.toLowerCase();
+      return isCarpoolSubcat || text.includes('trasfert') || text.includes('passagg') || text.includes('carpool') || text.includes('viaggio');
+    }
+    if (activeFilter === 'SERVIZI') {
+      const isServiceCat = item.category === 'servizi_lavoro_buoni' || item.category === 'rete_specialisti_supporto' || item.subcategory === 'manodopera_mestieri_riparazioni';
+      const text = `${item.title || ''} ${item.description || ''} ${(item.tags || []).join(' ')}`.toLowerCase();
+      return isServiceCat || text.includes('serviz') || text.includes('riparazion') || text.includes('lezion') || text.includes('manodopera');
     }
     if (activeFilter === 'LIBRI_SCOLASTICI' || activeFilter === 'LIBRI') {
       const isBookCat = item.category === 'libri_scuola_cultura' || item.subcategory === 'scambio_libri_scolastici';
@@ -332,20 +363,20 @@ export async function verifySpecialistCap(cityName, currentAbitanti) {
 }
 
 /**
- * Gestore della Tokenomics: Controlla ed addebita la Quota X (0.15 π = 150 punti) dal saldo comunitario unificato
+ * Gestore della Tokenomics: Controlla ed addebita la Quota X ufficiale (0.25 π = 250 punti) dal saldo comunitario unificato
  */
 export async function processChatInteractionBilling(profileId) {
   try {
-    const QUOTA_POINTS = 150; // 0.15 π equivalenti (1000 punti = 1.0 π)
+    const QUOTA_POINTS = 250; // Quota X ufficiale: 0.25 π equivalenti (1000 punti = 1.0 π)
     const spend = spendPoints(
       QUOTA_POINTS,
-      `Sblocco interazione chat discreta (${profileId || 'pioneer'})`
+      `Sblocco interazione chat discreta - Quota X 0.25 π (${profileId || 'pioneer'})`
     );
 
     if (!spend.success) {
       return {
         success: false,
-        reason: `Saldo insufficiente: servono ${QUOTA_POINTS} punti (0.15 π) per avviare la chat discreta.`,
+        reason: `Saldo insufficiente: servono ${QUOTA_POINTS} punti (0.25 π) per avviare la chat discreta.`,
         pointsRemaining: spend.newBalance,
       };
     }

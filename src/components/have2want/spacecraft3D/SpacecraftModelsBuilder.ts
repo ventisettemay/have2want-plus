@@ -1,12 +1,19 @@
-// BUILDER 3D DEI 14 VEICOLI SPAZIALI INGEGNERISTICI – HAVE2WANT PLUS
-// Ciascun modello è ispirato a vere missioni spaziali (Meteosat, Sentinel, Starlink,
-// WorldView, Iridium, Telstar, NOAA, Inmarsat, Terra/Aqua, SES, OneWeb, Cospas-Sarsat, Intelsat)
+// BUILDER 3D DEI 10 VEICOLI SPAZIALI INGEGNERISTICI – HAVE2WANT PLUS
+// Ciascun modello rappresenta i 10 canali canonici (6 fisici NORAD + 4 relay logici H2W)
 // con geometrie metalliche PBR ad alta fedeltà, pannelli solari fotovoltaici, parabole,
-// sensori ottici, radar C-SAR e propulsori al plasma.
+// sensori ottici, alone orbitale luminoso e targhetta billboard nitida.
 // Geometrie e materiali condivisi per 60 FPS fluidi su Pi Browser, Mobile e Desktop.
 
 import * as THREE from 'three';
 import { SatelliteConfig, SatelliteId } from '@/lib/satelliteModularEngine';
+
+export type SatelliteLightMode = 'BLINKING' | 'NORMAL' | 'BRIGHT';
+
+export function getSatelliteLightMode(id: SatelliteId): SatelliteLightMode {
+  if (id === 'METEO_SAT' || id === 'MAP_SAT') return 'BLINKING';
+  if (id === 'EXTERNAL_MARKET_SAT') return 'NORMAL';
+  return 'BRIGHT';
+}
 
 export interface SpacecraftRenderInstance {
   config: SatelliteConfig;
@@ -17,6 +24,8 @@ export interface SpacecraftRenderInstance {
   rightBeacon?: THREE.Mesh;
   strobeBeacons?: THREE.Mesh[];
   radarPulse?: THREE.Mesh;
+  badgeSprite?: THREE.Sprite;
+  lightMode: SatelliteLightMode;
   angle: number;
   orbitRadius: number;
 }
@@ -29,6 +38,8 @@ export interface SpacecraftBuildResult {
   rightBeacon?: THREE.Mesh;
   strobeBeacons?: THREE.Mesh[];
   radarPulse?: THREE.Mesh;
+  badgeSprite?: THREE.Sprite;
+  lightMode: SatelliteLightMode;
 }
 
 // Generatore procedurale di texture fotovoltaica ad alta definizione con celle e busbars
@@ -201,46 +212,94 @@ export function createSharedAerospaceMaterials() {
   };
 }
 
-// Crea la targhetta scientifica aerospaziale con identificativo e funzione
-export function createCraftBadge(codeName: string, h2wName: string, colorHex: string): THREE.Mesh {
+// Crea la targhetta billboard sempre orientata verso la camera con identificativo e canale
+export function createCraftBadge(
+  codeName: string,
+  h2wName: string,
+  colorHex: string,
+  icon = '🛰️'
+): THREE.Sprite {
   const canvas = document.createElement('canvas');
-  canvas.width = 1024;
-  canvas.height = 240;
+  canvas.width = 768;
+  canvas.height = 208;
   const ctx = canvas.getContext('2d');
   if (ctx) {
-    ctx.fillStyle = '#050811';
-    ctx.fillRect(0, 0, 1024, 240);
-    ctx.strokeStyle = colorHex;
-    ctx.lineWidth = 10;
-    ctx.strokeRect(6, 6, 1012, 228);
+    if (typeof ctx.clearRect === 'function') {
+      ctx.clearRect(0, 0, 768, 208);
+    }
 
-    // Titolo Missione Spaziale
-    ctx.fillStyle = colorHex;
-    ctx.font = '900 62px "Inter", -apple-system, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(`🛰️ ${codeName.toUpperCase()}`, 512, 85);
+    // Sfondo scuro ad alto contrasto con cornice luminosa del satellite
+    const radius = 28;
+    const x = 10;
+    const y = 10;
+    const w = 748;
+    const h = 188;
+    if (typeof ctx.beginPath === 'function' && typeof ctx.quadraticCurveTo === 'function') {
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.lineTo(x + w - radius, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+      ctx.lineTo(x + w, y + h - radius);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+      ctx.lineTo(x + radius, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+      ctx.lineTo(x, y + radius);
+      ctx.quadraticCurveTo(x, y, x + radius, y);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(3, 6, 14, 0.97)';
+      ctx.fill();
+      ctx.strokeStyle = colorHex;
+      ctx.lineWidth = 10;
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = '#03060e';
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = colorHex;
+      ctx.lineWidth = 10;
+      ctx.strokeRect(x, y, w, h);
+    }
 
-    // Canale Have2Want
+    // Nome Canale HAVE2WANT (grande e immediato anche su mobile)
     ctx.fillStyle = '#ffffff';
-    ctx.font = '900 80px "Inter", -apple-system, sans-serif';
-    ctx.fillText(h2wName.toUpperCase(), 512, 185);
+    ctx.font = '900 60px "Inter", -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${icon} ${h2wName.toUpperCase()}`, 384, 96);
+
+    // Codice identificativo orbitale / missione
+    ctx.fillStyle = colorHex;
+    ctx.font = '800 36px "Inter", -apple-system, sans-serif';
+    ctx.fillText(codeName.toUpperCase(), 384, 158);
   }
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  const mat = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, depthTest: true });
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(8.8, 2.1), mat);
-  mesh.position.set(0, -4.8, 0);
-  return mesh;
+  const mat = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthTest: true,
+    depthWrite: false,
+  });
+  const sprite = new THREE.Sprite(mat);
+  // Posizionato radialmente sopra il satellite (+Y = lontano dalla superficie terrestre)
+  sprite.position.set(0, 13.8, 0);
+  sprite.scale.set(20.5, 5.6, 1);
+  sprite.renderOrder = 30;
+  sprite.userData = { baseLocalY: 13.8 };
+  return sprite;
 }
 
-// Costruzione geometrica ingegneristica per ciascuno dei 14 veicoli spaziali
+// Costruzione geometrica ingegneristica per ciascuno dei 10 veicoli spaziali canonici
 export function buildEngineeredSpacecraft(
   sat: SatelliteConfig,
   materials: ReturnType<typeof createSharedAerospaceMaterials>,
   _textureLoader?: any
 ): SpacecraftBuildResult {
+  const craftGroup = new THREE.Group();
+  // Contenitore interno ingrandito (2.35x) così il veicolo è ben visibile su mobile/desktop
+  // mantenendo craftGroup.scale = 0.50 per compatibilità orbitale
   const group = new THREE.Group();
+  group.scale.set(2.35, 2.35, 2.35);
+  craftGroup.add(group);
   const clickables: THREE.Object3D[] = [];
   const {
     goldFoilMat,
@@ -254,10 +313,14 @@ export function buildEngineeredSpacecraft(
     ionPlasmaMat,
   } = materials;
 
+  const lightMode = getSatelliteLightMode(sat.id);
+  const neonEmissiveIntensity =
+    lightMode === 'BRIGHT' ? 2.2 : lightMode === 'BLINKING' ? 1.5 : 0.35;
+
   const neonMat = new THREE.MeshStandardMaterial({
     color: new THREE.Color(sat.color),
     emissive: new THREE.Color(sat.color),
-    emissiveIntensity: 0.95,
+    emissiveIntensity: neonEmissiveIntensity,
     roughness: 0.1,
   });
 
@@ -368,44 +431,46 @@ export function buildEngineeredSpacecraft(
     }
 
     // -------------------------------------------------------------------------
-    // 4. STREET_360_SAT: WORLDVIEW-3 – Fotogrammetria Stradale Sub-Metrica
+    // 2B. MAP_SAT: COPERNICUS SENTINEL-2B – Mappa 3D, Stradario 360°, Webcam & Meteo
     // -------------------------------------------------------------------------
-    case 'STREET_360_SAT': {
-      // Imponente telescopio Cassegrain ottico da 1.1m (barilotto in fibra di carbonio)
-      const telescopeTube = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.8, 5.8, 24), carbonFiberMat);
+    case 'MAP_SAT': {
+      // Barilotto telescopico multispettrale aperto in carbonio e titanio
+      const telescopeTube = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.75, 5.4, 24), carbonFiberMat);
       telescopeTube.rotation.x = Math.PI / 2;
-      telescopeTube.position.set(0, 0, 1.4);
-      const sunshadeRing = new THREE.Mesh(new THREE.TorusGeometry(1.6, 0.14, 16, 24), goldFoilMat);
-      sunshadeRing.position.set(0, 0, 4.3);
-      const apertureLens = new THREE.Mesh(new THREE.CircleGeometry(1.4, 24), neonMat);
-      apertureLens.position.set(0, 0, 4.25);
+      telescopeTube.position.set(0, 0, 1.3);
+      const sunshadeRing = new THREE.Mesh(new THREE.TorusGeometry(1.55, 0.14, 16, 24), goldFoilMat);
+      sunshadeRing.position.set(0, 0, 4.1);
+      const apertureLens = new THREE.Mesh(new THREE.CircleGeometry(1.32, 24), neonMat);
+      apertureLens.position.set(0, 0, 4.05);
       group.add(telescopeTube, sunshadeRing, apertureLens);
       clickables.push(telescopeTube, apertureLens);
 
-      // Modulo avionico e giroscopi CMG posteriore
-      const avionicsBus = new THREE.Mesh(new THREE.BoxGeometry(3.6, 3.6, 2.2), silverFoilMat);
-      avionicsBus.position.set(0, 0, -1.8);
-      group.add(avionicsBus);
-      clickables.push(avionicsBus);
+      // Modulo avionico + sensore LiDAR nadir
+      const avionicsBus = new THREE.Mesh(new THREE.BoxGeometry(3.4, 3.4, 2.2), silverFoilMat);
+      avionicsBus.position.set(0, 0, -1.7);
+      const lidarPod = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.9, 1.2, 16), titaniumMat);
+      lidarPod.position.set(0, -2.1, -1.2);
+      group.add(avionicsBus, lidarPod);
+      clickables.push(avionicsBus, lidarPod);
 
-      // Pannelli solari ad angolo per massimizzare la ricarica in orbita eliosincrona
-      const wingL = new THREE.Mesh(new THREE.BoxGeometry(4.8, 2.6, 0.2), solarCellMat);
-      wingL.position.set(-4.8, 0, -1.4);
-      wingL.rotation.y = 0.25;
-      const wingR = new THREE.Mesh(new THREE.BoxGeometry(4.8, 2.6, 0.2), solarCellMat);
-      wingR.position.set(4.8, 0, -1.4);
-      wingR.rotation.y = -0.25;
+      // Pannelli solari gemelli
+      const wingL = new THREE.Mesh(new THREE.BoxGeometry(5.0, 2.6, 0.2), solarCellMat);
+      wingL.position.set(-4.9, 0, -1.3);
+      wingL.rotation.y = 0.22;
+      const wingR = new THREE.Mesh(new THREE.BoxGeometry(5.0, 2.6, 0.2), solarCellMat);
+      wingR.position.set(4.9, 0, -1.3);
+      wingR.rotation.y = -0.22;
       group.add(wingL, wingR);
       clickables.push(wingL, wingR);
 
-      // Antenna X-band ad alto guadagno orientabile per download 3.2 Gbps
       const xBandDish = new THREE.Mesh(new THREE.SphereGeometry(0.9, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2), dishMeshMat);
       xBandDish.rotation.x = Math.PI / 2;
       xBandDish.position.set(1.4, 1.4, 0);
       group.add(xBandDish);
+      clickables.push(xBandDish);
 
-      leftBeaconPos.set(-7.4, 0, -1.4);
-      rightBeaconPos.set(7.4, 0, -1.4);
+      leftBeaconPos.set(-7.6, 0, -1.3);
+      rightBeaconPos.set(7.6, 0, -1.3);
       break;
     }
 
@@ -599,62 +664,168 @@ export function buildEngineeredSpacecraft(
       rightBeaconPos.set(11.8, 0, 0);
       break;
     }
+
+    // -------------------------------------------------------------------------
+    // 9. ACTIONFLOW_SAT: NODO MODULARE HUB APP ESTERNE
+    // -------------------------------------------------------------------------
+    case 'ACTIONFLOW_SAT': {
+      const corePrism = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 3.8, 3), carbonFiberMat);
+      corePrism.rotation.x = Math.PI / 2;
+      const emeraldRing = new THREE.Mesh(new THREE.TorusGeometry(2.7, 0.18, 12, 32), ionPlasmaMat);
+      emeraldRing.rotation.y = Math.PI / 2;
+      group.add(corePrism, emeraldRing);
+      clickables.push(corePrism, emeraldRing);
+
+      // 3 moduli ponte esterni simbolici (slot App Esterne ActionFlow)
+      for (let i = 0; i < 3; i++) {
+        const angle = (i * Math.PI * 2) / 3;
+        const arm = new THREE.Mesh(new THREE.BoxGeometry(4.4, 1.8, 0.22), solarCellMat);
+        arm.position.set(Math.cos(angle) * 4.4, Math.sin(angle) * 4.4, 0);
+        arm.rotation.z = angle;
+        group.add(arm);
+        clickables.push(arm);
+      }
+
+      leftBeaconPos.set(-6.8, 0, 0);
+      rightBeaconPos.set(6.8, 0, 0);
+      break;
+    }
+
+    // -------------------------------------------------------------------------
+    // 10. DEFIANCE_PULSE_SAT: SATELLITE CREATIVO MEDIA, MUSICA & VIDEO
+    // -------------------------------------------------------------------------
+    case 'DEFIANCE_PULSE_SAT': {
+      const pulseCore = new THREE.Mesh(new THREE.OctahedronGeometry(2.4, 1), goldFoilMat);
+      const harmonicRing = new THREE.Mesh(new THREE.TorusGeometry(3.5, 0.2, 12, 36), neonMat);
+      harmonicRing.rotation.x = Math.PI / 3;
+      group.add(pulseCore, harmonicRing);
+      clickables.push(pulseCore, harmonicRing);
+
+      const sailL = new THREE.Mesh(new THREE.BoxGeometry(6.2, 2.8, 0.2), solarCellMat);
+      sailL.position.set(-6.4, 0, 0);
+      const sailR = new THREE.Mesh(new THREE.BoxGeometry(6.2, 2.8, 0.2), solarCellMat);
+      sailR.position.set(6.4, 0, 0);
+      group.add(sailL, sailR);
+      clickables.push(sailL, sailR);
+
+      const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 3.6, 8), titaniumMat);
+      antenna.position.set(0, 3.4, 0);
+      group.add(antenna);
+      clickables.push(antenna);
+
+      leftBeaconPos.set(-9.8, 0, 0);
+      rightBeaconPos.set(9.8, 0, 0);
+      break;
+    }
   }
 
-  // Targhetta scientifica di identificazione visibile nello spazio
-  const badge = createCraftBadge(sat.codeName, sat.name, sat.color);
-  group.add(badge);
-  clickables.push(badge);
+  // Targhetta billboard ad alta leggibilità sopra il satellite (+Y radiale lontano dalla Terra)
+  const badgeSprite = createCraftBadge(sat.codeName, sat.name, sat.color, sat.icon || '🛰️');
+  craftGroup.add(badgeSprite);
+  clickables.push(badgeSprite);
 
-  // Fari stroboscopici di navigazione orbitale (rosso sinistro, verde destro)
-  const beaconGeo = new THREE.SphereGeometry(0.48, 12, 12);
-  const leftBeacon = new THREE.Mesh(beaconGeo, new THREE.MeshBasicMaterial({ color: 0xef4444 }));
+  // Fari differenziati in base alla missione del satellite:
+  // - BLINKING (METEO_SAT, MAP_SAT): Luce lampeggiante (ON/OFF)
+  // - NORMAL (EXTERNAL_MARKET_SAT): Luce normale continua a bassa intensità
+  // - BRIGHT (tutti gli altri): Luce brillante continua ad alta intensità
+  const isBlinking = lightMode === 'BLINKING';
+  const isBright = lightMode === 'BRIGHT';
+
+  const beaconRadius = isBright ? 0.92 : isBlinking ? 0.85 : 0.62;
+  const beaconGeo = new THREE.SphereGeometry(beaconRadius, 12, 12);
+  const leftColor = isBright ? new THREE.Color(sat.color) : new THREE.Color(0xef4444);
+  const rightColor = isBright ? new THREE.Color(0xffffff) : new THREE.Color(0x10b981);
+
+  const leftMat = new THREE.MeshBasicMaterial({
+    color: leftColor,
+    transparent: !isBlinking,
+    opacity: isBright ? 1.0 : isBlinking ? 1.0 : 0.68,
+  });
+  const leftBeacon = new THREE.Mesh(beaconGeo, leftMat);
   leftBeacon.position.copy(leftBeaconPos);
   group.add(leftBeacon);
 
-  const rightBeacon = new THREE.Mesh(beaconGeo, new THREE.MeshBasicMaterial({ color: 0x10b981 }));
+  const rightMat = new THREE.MeshBasicMaterial({
+    color: rightColor,
+    transparent: !isBlinking,
+    opacity: isBright ? 1.0 : isBlinking ? 1.0 : 0.68,
+  });
+  const rightBeacon = new THREE.Mesh(beaconGeo, rightMat);
   rightBeacon.position.copy(rightBeaconPos);
   group.add(rightBeacon);
 
-  // Sfera invisibile di aggancio tocco/clic per facilitare il tap su mobile
-  const hitGeo = new THREE.SphereGeometry(4.0, 8, 8);
+  // Alone luminoso ai fari laterali e corona orbitale per riconoscere i satelliti a colpo d'occhio
+  if (isBright) {
+    const haloGeo = new THREE.SphereGeometry(1.75, 12, 12);
+    const haloMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(sat.color),
+      transparent: true,
+      opacity: 0.48,
+      depthWrite: false,
+    });
+    const leftHalo = new THREE.Mesh(haloGeo, haloMat);
+    leftHalo.position.copy(leftBeaconPos);
+    const rightHalo = new THREE.Mesh(haloGeo, haloMat);
+    rightHalo.position.copy(rightBeaconPos);
+    group.add(leftHalo, rightHalo);
+  }
+
+  // Corona luminosa centrale attorno al satellite (AdditiveBlending)
+  const coronaGeo = new THREE.SphereGeometry(9.0, 16, 16);
+  const coronaMat = new THREE.MeshBasicMaterial({
+    color: new THREE.Color(sat.color),
+    transparent: true,
+    opacity: isBright ? 0.26 : isBlinking ? 0.22 : 0.16,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const coronaMesh = new THREE.Mesh(coronaGeo, coronaMat);
+  craftGroup.add(coronaMesh);
+
+  // Sfera invisibile ampia di aggancio tocco/clic per facilitare il tap su smartphone e desktop
+  const hitGeo = new THREE.SphereGeometry(17.5, 12, 12);
   const hitMat = new THREE.MeshBasicMaterial({ visible: false, wireframe: false });
   const hitSphere = new THREE.Mesh(hitGeo, hitMat);
-  group.add(hitSphere);
+  craftGroup.add(hitSphere);
   clickables.push(hitSphere);
 
-  // Indicatore radar di prossimità discreto e non invasivo (rimuove il turbinio di anelli giganti)
-  const pulseGeo = new THREE.RingGeometry(1.1, 1.35, 24);
+  // Anello radar luminoso ben visibile attorno al satellite in orbita
+  const pulseGeo = new THREE.RingGeometry(8.2, isBright ? 10.4 : 9.6, 32);
   const pulseMat = new THREE.MeshBasicMaterial({
     color: new THREE.Color(sat.color),
     transparent: true,
-    opacity: 0.16,
+    opacity: isBright ? 0.6 : isBlinking ? 0.5 : 0.3,
     side: THREE.DoubleSide,
+    depthWrite: false,
   });
   const radarPulse = new THREE.Mesh(pulseGeo, pulseMat);
   radarPulse.rotation.x = Math.PI / 2;
-  group.add(radarPulse);
+  craftGroup.add(radarPulse);
 
-  // Scala visibile proporzionata, elegante e realistica rispetto al globo (raggio 60)
-  group.scale.set(0.36, 0.36, 0.36);
+  // Scala esterna 0.50 invariata (geometria interna scalata 2.35x + corona + badge grande)
+  craftGroup.scale.set(0.50, 0.50, 0.50);
 
-  // Metadati per interazione raycasting touch/click
+  // Metadati per interazione raycasting touch/click (preservando eventuali campi esistenti es. baseLocalY)
   clickables.forEach((mesh) => {
     mesh.userData = {
+      ...(mesh.userData || {}),
       isSatellite: true,
       satelliteId: sat.id,
+      lightMode,
       name: `${sat.name} (${sat.codeName})`,
       description: sat.h2wRole,
     };
   });
 
   return {
-    group,
-    craftGroup: group,
+    group: craftGroup,
+    craftGroup,
     clickables,
     leftBeacon,
     rightBeacon,
-    strobeBeacons: [leftBeacon, rightBeacon],
+    strobeBeacons: isBlinking ? [leftBeacon, rightBeacon] : [],
     radarPulse,
+    badgeSprite,
+    lightMode,
   };
 }

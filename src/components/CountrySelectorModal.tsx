@@ -32,17 +32,25 @@ export const CountrySelectorModal: React.FC<CountrySelectorModalProps> = ({
   ];
 
   const filteredCountries = useMemo(() => {
+    const norm = (s?: string) =>
+      String(s || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim();
+
     return COUNTRIES.filter((country) => {
       if (activeContinent !== 'ALL' && country.continent !== activeContinent) {
         return false;
       }
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const matchesName = country.name.toLowerCase().includes(q);
-        const matchesCapital = country.capital.toLowerCase().includes(q);
-        const matchesLang = country.lang.toLowerCase().includes(q);
-        const matchesId = country.id.toLowerCase() === q;
-        if (!matchesName && !matchesCapital && !matchesLang && !matchesId) return false;
+        const q = norm(searchQuery);
+        const matchesName = norm(country.name).includes(q);
+        const matchesNative = norm(country.nativeName).includes(q);
+        const matchesCapital = norm(country.capital).includes(q);
+        const matchesLang = norm(country.lang).includes(q);
+        const matchesId = norm(country.id) === q;
+        if (!matchesName && !matchesNative && !matchesCapital && !matchesLang && !matchesId) return false;
       }
       return true;
     });
@@ -229,17 +237,8 @@ export const CountrySelectorModal: React.FC<CountrySelectorModalProps> = ({
                     },
                   };
 
-                  const config = continentConfigs[activeContinent] || {
-                    id: activeContinent.toLowerCase().replace(/\s+/g, '-'),
-                    name: activeContinent,
-                    flag: '🌍',
-                    currency: 'Valute Locali',
-                    lang: 'Lingue Locali',
-                    lat: 0,
-                    lng: 0,
-                    capital: activeContinent,
-                    continent: activeContinent as any,
-                  };
+                  const config = continentConfigs[activeContinent];
+                  if (!config) return;
 
                   onSelectCountry(config);
                   onClose();

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useH2W } from '../../lib/h2wContext';
-import VideoChatModal from './VideoChatModal';
+import PiChatUnifiedHub from './PiChatUnifiedHub';
+import MarketplaceOrderModal, { MarketplaceOrderTarget } from './MarketplaceOrderModal';
 import { toast } from 'sonner';
-import { X, Sprout, Navigation, Plus, Video, MessageCircle, MapPin } from 'lucide-react';
+import { X, Sprout, Navigation, Plus, Video, MessageCircle, MapPin, ShoppingBag } from 'lucide-react';
 
 interface VetrinaKmZeroProps {
   currentUser?: any;
@@ -29,6 +30,8 @@ export default function VetrinaKmZero({
   const [shareLocation, setShareLocation] = useState(() => localStorage.getItem('h2w_share_location') === 'true');
   const [showUploadForm, setShowUploadForm] = useState(false);
   const [selectedVideoProduct, setSelectedVideoProduct] = useState<any>(null);
+  const [orderTarget, setOrderTarget] = useState<MarketplaceOrderTarget | null>(null);
+  const [showOrdersHistory, setShowOrdersHistory] = useState(false);
 
   const [newProduct, setNewProduct] = useState({
     name: '',
@@ -96,7 +99,8 @@ export default function VetrinaKmZero({
       ...newProduct,
       id: Date.now(),
       pricePi: parseFloat(newProduct.pricePi) || 5,
-      merchantId: currentUser?.id || "m_local"
+      merchantId: currentUser?.id || "m_local",
+      isDemo: false,
     };
     setProducts([productToAdd, ...products]);
     setShowUploadForm(false);
@@ -129,6 +133,17 @@ export default function VetrinaKmZero({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setOrderTarget(null);
+                setShowOrdersHistory(true);
+              }}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-zinc-900 hover:bg-zinc-800 text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5 cursor-pointer transition-all shrink-0"
+            >
+              <ShoppingBag className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Ordini QR</span>
+            </button>
             <button
               onClick={() => setShowUploadForm(!showUploadForm)}
               className="px-3 py-1.5 rounded-xl text-xs font-black bg-[#00ff66] hover:bg-[#00e65c] text-black flex items-center gap-1.5 cursor-pointer transition-all shrink-0"
@@ -192,7 +207,7 @@ export default function VetrinaKmZero({
                 />
               </div>
 
-              <div className="flex items-center justify-between bg-zinc-950 p-3 rounded-xl border border-zinc-800 text-xs">
+              <div className="flex items-center justify-between py-2.5 border-t border-b border-zinc-800 text-xs">
                 <span className="font-bold text-zinc-300">Accetti pagamenti diretti in Pi Network? (Tariffa agevolata)</span>
                 <input
                   type="checkbox"
@@ -302,6 +317,25 @@ export default function VetrinaKmZero({
                       <Navigation className="w-3.5 h-3.5" />
                       <span>Ritiro Km 0</span>
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowOrdersHistory(false);
+                        setOrderTarget({
+                          itemTitle: product.name,
+                          sellerUsername: product.merchantId || 'produttore_km0',
+                          itemPricePi: Number(product.pricePi) || 1,
+                          defaultKmZeroPickup: true,
+                          defaultShippingFeePi: 0,
+                          locationLabel: product.location,
+                        });
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg bg-emerald-950 hover:bg-emerald-900 border border-emerald-500/40 text-emerald-300 text-xs font-bold cursor-pointer flex items-center gap-1"
+                      title="Crea ordine con codice QR ritiro Km 0 a zero commissioni"
+                    >
+                      <ShoppingBag className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Ordina QR</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -310,12 +344,25 @@ export default function VetrinaKmZero({
         </div>
 
         {selectedVideoProduct && (
-          <VideoChatModal
-            currentUserId={currentUser?.id || "u1"}
-            listingId={`km0_${selectedVideoProduct.id}`}
+          <PiChatUnifiedHub
+            isOpen={true}
+            initialTab="VIDEO"
+            currentUserId={currentUser?.id || 'u1'}
+            chatRoomId={`km0_${selectedVideoProduct.id}`}
+            recipientName={selectedVideoProduct.name}
             onClose={() => setSelectedVideoProduct(null)}
           />
         )}
+
+        <MarketplaceOrderModal
+          isOpen={Boolean(orderTarget) || showOrdersHistory}
+          targetItem={orderTarget}
+          currentUsername={currentUser?.username || 'pioneer_me'}
+          onClose={() => {
+            setOrderTarget(null);
+            setShowOrdersHistory(false);
+          }}
+        />
       </div>
     </div>
   );

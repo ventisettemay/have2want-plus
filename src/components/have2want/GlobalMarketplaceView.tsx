@@ -13,7 +13,9 @@ import {
   X,
   SlidersHorizontal,
   Star,
-  Settings
+  Settings,
+  Briefcase,
+  Handshake
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -26,24 +28,59 @@ import {
 } from '@/lib/globalProductsCatalog';
 import { HaveWantListing, PioneerUser, RealCategoryKey, RealSubcategoryKey } from '@/types';
 import { calculateRealPiEquivalent, getCachedPiRealPrice } from '@/lib/piRealPriceService';
+import MarketplaceOrderModal, { MarketplaceOrderTarget } from './MarketplaceOrderModal';
+import BachecaLavoroP2P from './BachecaLavoroP2P';
+
+export type GlobalMarketSection = 'CATALOGO' | 'BARATTO' | 'LAVORO';
 
 interface GlobalMarketplaceViewProps {
   onBack?: () => void;
   onAddWantListing?: (listing: HaveWantListing) => void;
   currentUser?: PioneerUser;
+  initialSection?: GlobalMarketSection;
 }
 
 export function GlobalMarketplaceView({
   onBack,
   onAddWantListing,
-  currentUser
+  currentUser,
+  initialSection = 'CATALOGO',
 }: GlobalMarketplaceViewProps) {
+  const [activeSection, setActiveSection] = useState<GlobalMarketSection>(initialSection);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [walletConfig, setWalletConfig] = useState<PartnerWalletConfig>(getPartnerWalletConfig());
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [tempWalletAddress, setTempWalletAddress] = useState(walletConfig.payoutWalletAddress);
   const [tempPartnerId, setTempPartnerId] = useState(walletConfig.partnerTrackingId);
+  const [orderTarget, setOrderTarget] = useState<MarketplaceOrderTarget | null>(null);
+  const [showOrdersModal, setShowOrdersModal] = useState(false);
+
+  // Baratto / Cerco / Acquisto state
+  const [barattoIntent, setBarattoIntent] = useState<'BARATTO_SCAMBIO' | 'ACQUISTO_CERCO'>('BARATTO_SCAMBIO');
+  const [barattoHave, setBarattoHave] = useState('');
+  const [barattoWant, setBarattoWant] = useState('');
+  const [barattoCity, setBarattoCity] = useState(currentUser?.city || 'Roma');
+  const [barattoItems, setBarattoItems] = useState([
+    {
+      id: 'brt_1',
+      intent: 'BARATTO_SCAMBIO',
+      title: 'Offro: Bicicletta Gravel 28" · Cerco: Trapano a batteria o Pannello Solare',
+      city: 'Bologna',
+      author: 'Marco R.',
+    },
+    {
+      id: 'brt_2',
+      intent: 'ACQUISTO_CERCO',
+      title: 'Cerco: Forno elettrico da banco / Impastatrice per laboratorio',
+      city: 'Napoli',
+      author: 'Lucia M.',
+    },
+  ]);
+
+  React.useEffect(() => {
+    setActiveSection(initialSection);
+  }, [initialSection]);
 
   const categories = [
     { id: 'ALL', label: 'Tutti i Prodotti', icon: '🌐' },
@@ -159,21 +196,199 @@ export function GlobalMarketplaceView({
           </div>
         </div>
 
-        {/* Pulsante Impostazioni Wallet Partner Crypto */}
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <button
+            type="button"
+            onClick={() => {
+              setOrderTarget(null);
+              setShowOrdersModal(true);
+            }}
+            className="px-3.5 py-2 rounded-xl bg-emerald-950/60 hover:bg-emerald-900/70 border border-emerald-500/40 text-emerald-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shrink-0"
+            title="Gestisci ordini tracciati, conferme consegna e wallet non-custodial"
+          >
+            <ShoppingBag className="w-4 h-4 text-[#00ff66]" />
+            <span>Ordini (π)</span>
+          </button>
+          <button
+            onClick={() => setShowWalletModal(true)}
+            className="w-full sm:w-auto px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-850 border border-zinc-700 hover:border-amber-400 text-amber-300 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm active:scale-95"
+            title="Imposta il tuo indirizzo wallet USDT per ricevere le commissioni degli ordini"
+          >
+            <Wallet className="w-4 h-4 text-amber-400 shrink-0" />
+            <span className="font-mono whitespace-nowrap">
+              {walletConfig.payoutWalletAddress.slice(0, 6)}...{walletConfig.payoutWalletAddress.slice(-4)}
+            </span>
+            <Settings className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+          </button>
+        </div>
+      </div>
+
+      {/* Sotto-barra unificata: Prodotti del Mondo | Baratto / Cerco / Acquisto | Lavoro P2P */}
+      <div className="border-b border-zinc-900 bg-zinc-950/90 px-4 sm:px-8 py-2.5 flex items-center gap-2 overflow-x-auto no-scrollbar">
         <button
-          onClick={() => setShowWalletModal(true)}
-          className="w-full sm:w-auto px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-850 border border-zinc-700 hover:border-amber-400 text-amber-300 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm active:scale-95"
-          title="Imposta il tuo indirizzo wallet USDT per ricevere le commissioni degli ordini"
+          type="button"
+          onClick={() => setActiveSection('CATALOGO')}
+          className={`px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 shrink-0 cursor-pointer border transition-all ${
+            activeSection === 'CATALOGO'
+              ? 'bg-[#00ff66] text-black border-[#00ff66]'
+              : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:text-white'
+          }`}
         >
-          <Wallet className="w-4 h-4 text-amber-400" />
-          <span className="truncate max-w-[200px]">
-            Wallet: {walletConfig.payoutWalletAddress.slice(0, 8)}...{walletConfig.payoutWalletAddress.slice(-4)}
-          </span>
-          <Settings className="w-3.5 h-3.5 text-zinc-400" />
+          <ShoppingBag className="w-3.5 h-3.5" />
+          <span>Prodotti del Mondo</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveSection('BARATTO')}
+          className={`px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 shrink-0 cursor-pointer border transition-all ${
+            activeSection === 'BARATTO'
+              ? 'bg-amber-400 text-black border-amber-300'
+              : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:text-white'
+          }`}
+        >
+          <Handshake className="w-3.5 h-3.5" />
+          <span>Baratto / Cerco / Acquisto</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveSection('LAVORO')}
+          className={`px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 shrink-0 cursor-pointer border transition-all ${
+            activeSection === 'LAVORO'
+              ? 'bg-purple-500 text-white border-purple-400'
+              : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:text-white'
+          }`}
+        >
+          <Briefcase className="w-3.5 h-3.5" />
+          <span>Lavoro P2P</span>
         </button>
       </div>
 
-      {/* Area Ricerca e Filtri per Categoria */}
+      {activeSection === 'LAVORO' ? (
+        <div className="px-2 sm:px-6 py-4 max-w-6xl mx-auto w-full">
+          <BachecaLavoroP2P isOpen={true} currentUser={currentUser} />
+        </div>
+      ) : activeSection === 'BARATTO' ? (
+        <div className="px-4 sm:px-8 py-6 max-w-5xl mx-auto w-full space-y-5">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!barattoWant.trim()) return;
+              const titleText =
+                barattoIntent === 'BARATTO_SCAMBIO'
+                  ? `SCAMBIO: ${barattoHave.trim() || 'Proposta'} ➔ ${barattoWant.trim()}`
+                  : `CERCO: ${barattoWant.trim()}`;
+              const newItem = {
+                id: `baratto_${Date.now()}`,
+                intent: barattoIntent,
+                title: titleText,
+                city: barattoCity || 'Territorio',
+                author: currentUser?.name || 'Utente Have2Want',
+              };
+              setBarattoItems((prev) => [newItem, ...prev]);
+              if (onAddWantListing) {
+                onAddWantListing({
+                  id: newItem.id,
+                  title: titleText,
+                  description: `${barattoIntent === 'BARATTO_SCAMBIO' ? 'Proposta baratto diretto' : 'Richiesta acquisto / cerco'} su Mercato Globale.`,
+                  have_description: barattoHave.trim() || 'Oggetto / prestazione da concordare',
+                  want_description: barattoWant.trim(),
+                  category: 'casa_fai_da_te',
+                  subcategory: 'accessori_varie',
+                  intent: barattoIntent,
+                  action_type: barattoIntent === 'BARATTO_SCAMBIO' ? 'baratto_scambio' : 'acquisto_cerco',
+                  originType: 'REAL_P2P',
+                  isExternal: false,
+                  piPrice: 0,
+                  created_at: new Date().toISOString(),
+                  city: newItem.city,
+                  author: {
+                    name: newItem.author,
+                    username: currentUser?.username || 'pioneer_me',
+                    city: newItem.city,
+                    reputation: 5.0,
+                    isPioneerVerified: true,
+                  },
+                } as any);
+              }
+              setBarattoHave('');
+              setBarattoWant('');
+              toast.success('Proposta Baratto / Cerco pubblicata');
+            }}
+            className="p-5 rounded-2xl bg-zinc-950 border border-amber-500/40 space-y-3"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-black text-amber-300 uppercase">
+                Pubblica Scambio Diretto, Baratto o Richiesta Acquisto
+              </h2>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setBarattoIntent('BARATTO_SCAMBIO')}
+                  className={`px-3 py-1 rounded-lg text-xs font-black cursor-pointer ${
+                    barattoIntent === 'BARATTO_SCAMBIO' ? 'bg-amber-400 text-black' : 'bg-zinc-900 text-zinc-300'
+                  }`}
+                >
+                  Baratto / Scambio
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBarattoIntent('ACQUISTO_CERCO')}
+                  className={`px-3 py-1 rounded-lg text-xs font-black cursor-pointer ${
+                    barattoIntent === 'ACQUISTO_CERCO' ? 'bg-sky-400 text-black' : 'bg-zinc-900 text-zinc-300'
+                  }`}
+                >
+                  Cerco / Acquisto
+                </button>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <input
+                type="text"
+                value={barattoHave}
+                onChange={(e) => setBarattoHave(e.target.value)}
+                placeholder={barattoIntent === 'BARATTO_SCAMBIO' ? 'Cosa offri in scambio...' : 'Budget o metodo (Pi / Scambio)...'}
+                className="px-3 py-2 rounded-xl bg-black border border-zinc-800 text-xs text-white"
+              />
+              <input
+                type="text"
+                value={barattoWant}
+                onChange={(e) => setBarattoWant(e.target.value)}
+                placeholder="Cosa cerchi o vuoi acquistare..."
+                required
+                className="px-3 py-2 rounded-xl bg-black border border-zinc-800 text-xs text-white"
+              />
+              <input
+                type="text"
+                value={barattoCity}
+                onChange={(e) => setBarattoCity(e.target.value)}
+                placeholder="Città / Area"
+                className="px-3 py-2 rounded-xl bg-black border border-zinc-800 text-xs text-white"
+              />
+            </div>
+            <button
+              type="submit"
+              className="px-4 py-2 rounded-xl bg-[#00ff66] hover:bg-[#00e65c] text-black text-xs font-black cursor-pointer"
+            >
+              Pubblica in Bacheca P2P
+            </button>
+          </form>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {barattoItems.map((b) => (
+              <div key={b.id} className="p-4 rounded-2xl bg-zinc-950 border border-zinc-800 space-y-1.5">
+                <span className="text-[10px] font-black px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  {b.intent === 'BARATTO_SCAMBIO' ? 'BARATTO / SCAMBIO' : 'CERCO / ACQUISTO'}
+                </span>
+                <div className="text-sm font-black text-white">{b.title}</div>
+                <div className="text-[11px] text-zinc-400">
+                  {b.author} • {b.city}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+      /* Area Ricerca e Filtri per Categoria (CATALOGO) */
       <div className="px-4 sm:px-8 py-5 max-w-7xl mx-auto w-full space-y-4">
         {/* Barra di Ricerca */}
         <div className="relative w-full rounded-2xl border-2 border-zinc-800 focus-within:border-[#00ff66] bg-zinc-950 transition-all shadow-md">
@@ -299,7 +514,7 @@ export function GlobalMarketplaceView({
                         <span>{item.rating}</span>
                         <span className="text-zinc-500 font-normal">({item.reviewsCount} recensioni verificate)</span>
                       </div>
-                      <h3 className="text-sm font-bold text-white group-hover:text-[#00ff66] transition-colors line-clamp-2 leading-snug">
+                      <h3 className="text-sm font-bold text-white group-hover:text-[#00ff66] transition-colors leading-snug break-words">
                         {item.title}
                       </h3>
 
@@ -343,6 +558,26 @@ export function GlobalMarketplaceView({
                         <Repeat className="w-3.5 h-3.5 text-amber-400" />
                         <span>Cerco in Baratto su Have2Want (WANT)</span>
                       </button>
+
+                      {/* Pulsante 3: Ordine Diretto Tracciato Non-Custodial (Zero Commissioni) */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowOrdersModal(false);
+                          setOrderTarget({
+                            itemTitle: item.title,
+                            sellerUsername: item.store || 'global_partner',
+                            itemPricePi: piEquiv.piAmount,
+                            defaultKmZeroPickup: false,
+                            defaultShippingFeePi: 3.0,
+                          });
+                        }}
+                        className="w-full py-2 px-3 rounded-xl bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-500/30 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
+                        title="Registra ordine tracciato non-custodial a zero commissioni"
+                      >
+                        <Truck className="w-3.5 h-3.5 text-[#00ff66]" />
+                        <span>Registra Ordine Tracciato (π)</span>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -351,6 +586,7 @@ export function GlobalMarketplaceView({
           </div>
         )}
       </div>
+      )}
 
       {/* MODALE DI CONFIGURAZIONE WALLET PARTNER & PAYOUT CRYPTO */}
       {showWalletModal && (
@@ -428,6 +664,16 @@ export function GlobalMarketplaceView({
           </div>
         </div>
       )}
+
+      <MarketplaceOrderModal
+        isOpen={Boolean(orderTarget) || showOrdersModal}
+        targetItem={orderTarget}
+        currentUsername={currentUser?.username || 'pioneer_me'}
+        onClose={() => {
+          setOrderTarget(null);
+          setShowOrdersModal(false);
+        }}
+      />
     </div>
   );
 }

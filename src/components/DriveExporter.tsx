@@ -16,6 +16,7 @@ import {
   FolderSync
 } from "lucide-react";
 import { uploadFileToGoogleDrive } from "../lib/drive";
+import firebaseConfig from "../../firebase-applet-config.json";
 
 interface DriveExporterProps {
   documentTitle: string;
@@ -35,6 +36,8 @@ export const DriveExporter: React.FC<DriveExporterProps> = ({
   const [uploadMessage, setUploadMessage] = useState<string>("");
   const [uploadedLink, setUploadedLink] = useState<string | null>(null);
   const [exportFormat, setExportFormat] = useState<"pdf" | "md" | "html">("pdf");
+  const [showManualTokenPanel, setShowManualTokenPanel] = useState(false);
+  const [manualTokenInput, setManualTokenInput] = useState("");
 
   // Client-side Direct PDF Download generator using jsPDF
   const generateDirectPdfBlob = async (): Promise<Blob> => {
@@ -93,10 +96,14 @@ export const DriveExporter: React.FC<DriveExporterProps> = ({
     setUploadedLink(null);
 
     // If we have GIS token client available in window
-    if (typeof window !== "undefined" && window.google?.accounts?.oauth2) {
+    const clientId =
+      (import.meta as any).env?.VITE_GOOGLE_OAUTH_CLIENT_ID ||
+      firebaseConfig.oAuthClientId ||
+      "";
+    if (typeof window !== "undefined" && window.google?.accounts?.oauth2 && clientId) {
       try {
         const client = window.google.accounts.oauth2.initTokenClient({
-          client_id: "774771012847-default.apps.googleusercontent.com", // standard client or user session
+          client_id: clientId,
           scope: "https://www.googleapis.com/auth/drive.file",
           callback: async (resp) => {
             if (resp.error) {
@@ -106,13 +113,13 @@ export const DriveExporter: React.FC<DriveExporterProps> = ({
             }
             if (resp.access_token) {
               setDriveAccessToken(resp.access_token);
+              setShowManualTokenPanel(false);
               await performUpload(resp.access_token);
             }
           },
         });
         client.requestAccessToken({ prompt: "consent" });
-      } catch (e: any) {
-        // Fallback to manual token input if inside restricted iframe
+      } catch {
         fallbackUploadWorkflow();
       }
     } else {
@@ -120,15 +127,9 @@ export const DriveExporter: React.FC<DriveExporterProps> = ({
     }
   };
 
-  const fallbackUploadWorkflow = async () => {
-    // If GIS popup blocked in dev sandboxed iframe, provide explicit helper instructions & manual access
+  const fallbackUploadWorkflow = () => {
     setUploadStatus("idle");
-    const manualToken = prompt(
-      "Inserisci l'Access Token Google OAuth o salva direttamente il file PDF scaricato nella cartella Google Drive:"
-    );
-    if (manualToken) {
-      await performUpload(manualToken);
-    }
+    setShowManualTokenPanel(true);
   };
 
   const performUpload = async (token: string) => {
@@ -288,6 +289,46 @@ export const DriveExporter: React.FC<DriveExporterProps> = ({
             </div>
           </button>
         </div>
+
+        {/* Inline Manual OAuth Token Panel (when GIS popup is blocked inside iframe) */}
+        {showManualTokenPanel && (
+          <div className="mt-4 p-3.5 rounded-xl bg-slate-950/90 border border-slate-700 space-y-2 text-xs">
+            <div className="font-semibold text-amber-300">
+              Popup OAuth bloccato o non disponibile in questo frame
+            </div>
+            <p className="text-slate-400">
+              Puoi scaricare il PDF localmente oppure inserire manualmente un Google OAuth Access Token (<code className="text-slate-300">drive.file</code>):
+            </p>
+            <div className="flex items-center gap-2">
+              <input
+                type="password"
+                value={manualTokenInput}
+                onChange={(e) => setManualTokenInput(e.target.value)}
+                placeholder="Incolla Access Token OAuth 2.0..."
+                className="flex-1 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white text-xs outline-none focus:border-blue-500"
+              />
+              <button
+                type="button"
+                onClick={async () => {
+                  const trimmed = manualTokenInput.trim();
+                  if (!trimmed) return;
+                  setShowManualTokenPanel(false);
+                  await performUpload(trimmed);
+                }}
+                className="px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs cursor-pointer"
+              >
+                Carica
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowManualTokenPanel(false)}
+                className="px-2.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs cursor-pointer"
+              >
+                Annulla
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Upload Status Notification */}
         {uploadStatus !== "idle" && (

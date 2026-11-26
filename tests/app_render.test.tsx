@@ -39,7 +39,7 @@ describe('App Render Integrity', () => {
 
   it('Globo3D component is defined and can be instantiated without reference errors', async () => {
     const Globo3DModule = await import('../src/components/have2want/Globo3D');
-    const Globo3D = Globo3DModule.default;
+    const Globo3D = Globo3DModule.default as React.ComponentType<any>;
     expect(Globo3D).toBeDefined();
     expect(typeof Globo3D).toBe('function');
     const element = React.createElement(Globo3D, { listings: [] });
