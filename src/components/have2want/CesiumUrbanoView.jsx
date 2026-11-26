@@ -12,8 +12,12 @@ import 'cesium/Build/Cesium/Widgets/widgets.css';
 
 const CESIUM_BASE_URL = '/cesium/';
 
-// Imposta BASE_URL e Ion Token PRIMA di creare qualsiasi Viewer/primitiva Cesium
-Cesium.BASE_URL = CESIUM_BASE_URL;
+// Imposta BASE_URL e Ion Token PRIMA di creare qualsiasi Viewer/primitiva Cesium.
+// window.CESIUM_BASE_URL viene letto da Cesium al momento della costruzione del Viewer
+// (non si può riassegnare Cesium.BASE_URL su un import namespace: Rollup lo rifiuta).
+if (typeof window !== 'undefined') {
+  window.CESIUM_BASE_URL = CESIUM_BASE_URL;
+}
 if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_CESIUM_ION_TOKEN) {
   Cesium.Ion.defaultAccessToken = import.meta.env.VITE_CESIUM_ION_TOKEN;
 }

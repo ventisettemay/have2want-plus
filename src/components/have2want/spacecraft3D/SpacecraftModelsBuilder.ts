@@ -678,33 +678,63 @@ export function buildEngineeredSpacecraft(
     }
 
     // -------------------------------------------------------------------------
-    // DEFAULT: modello satellitare generico per canali senza case dedicato
-    // Bus metallico oro/argento, pannelli solari fotovoltaici, antenna parabolica
+    // DEFAULT: modello satellitare stile NASA per canali senza case dedicato
+    // Bus rivestito MLI Kapton (oro/argento), ali fotovoltaiche blu-scuro con celle
+    // e telaio metallico, antenna parabolica bianca con feed centrale.
+    // Orbite ed etichette distanziate per evitare sovrapposizioni e tagli ai bordi.
     // -------------------------------------------------------------------------
     default: {
-      const bus = new THREE.Mesh(new THREE.BoxGeometry(2.8, 2.8, 3.8), goldFoilMat);
-      const silverDeck = new THREE.Mesh(new THREE.BoxGeometry(2.9, 2.9, 0.3), silverFoilMat);
-      silverDeck.position.set(0, 0, 1.9);
+      // Bus centrale: strato MLI dorato esterno + pannello argentato superiore
+      const bus = new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.6, 3.6), goldFoilMat);
+      const silverDeck = new THREE.Mesh(new THREE.BoxGeometry(2.7, 2.7, 0.35), silverFoilMat);
+      silverDeck.position.set(0, 0, 1.85);
       group.add(bus, silverDeck);
       clickables.push(bus, silverDeck);
 
-      const antennaMast = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 3.2, 8), titaniumMat);
-      antennaMast.position.set(0, 0, 2.1);
-      const dish = new THREE.Mesh(new THREE.SphereGeometry(0.9, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2), dishMeshMat);
+      // Strati MLI laterali (coperta termica Kapton) sui lati del bus
+      const mliLeft = new THREE.Mesh(new THREE.BoxGeometry(0.22, 2.6, 3.0), goldFoilMat);
+      mliLeft.position.set(-1.42, 0, 0);
+      const mliRight = new THREE.Mesh(new THREE.BoxGeometry(0.22, 2.6, 3.0), goldFoilMat);
+      mliRight.position.set(1.42, 0, 0);
+      const mliFront = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.22, 3.0), goldFoilMat);
+      mliFront.position.set(0, -1.42, 0);
+      const mliBack = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.22, 3.0), goldFoilMat);
+      mliBack.position.set(0, 1.42, 0);
+      group.add(mliLeft, mliRight, mliFront, mliBack);
+      clickables.push(mliLeft, mliRight, mliFront, mliBack);
+
+      // Antenna parabolica bianca (stile NASA DSN) con feed centrale
+      const dish = new THREE.Mesh(new THREE.SphereGeometry(0.85, 18, 18, 0, Math.PI * 2, 0, Math.PI / 2), whiteRadiatorMat);
       dish.rotation.x = Math.PI;
-      dish.position.set(0, 0, 3.9);
-      group.add(antennaMast, dish);
-      clickables.push(antennaMast, dish);
+      dish.position.set(0, 0, 3.75);
+      const feed = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.55, 10), whiteRadiatorMat);
+      feed.position.set(0, 0, 4.15);
+      const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.10, 3.3, 8), titaniumMat);
+      mast.position.set(0, 0, 2.05);
+      group.add(dish, feed, mast);
+      clickables.push(dish, feed, mast);
 
-      const wingL = new THREE.Mesh(new THREE.BoxGeometry(6.0, 2.6, 0.18), solarCellMat);
-      wingL.position.set(-5.8, 0, 0);
-      const wingR = new THREE.Mesh(new THREE.BoxGeometry(6.0, 2.6, 0.18), solarCellMat);
-      wingR.position.set(5.8, 0, 0);
-      group.add(wingL, wingR);
-      clickables.push(wingL, wingR);
+      // Ali fotovoltaiche blu-scuro con telaio metallico (titanium) ai lati
+      const frameW = 0.16;
+      const frameL = 6.4;
+      const frameH = 3.0;
+      const cellW = 6.0;
+      const cellH = 2.6;
 
-      leftBeaconPos.set(-9.0, 0, 0);
-      rightBeaconPos.set(9.0, 0, 0);
+      const frameLMesh = new THREE.Mesh(new THREE.BoxGeometry(frameL, frameH, frameW), titaniumMat);
+      frameLMesh.position.set(-frameL / 2 - 0.3, 0, 0);
+      const frameRMesh = new THREE.Mesh(new THREE.BoxGeometry(frameL, frameH, frameW), titaniumMat);
+      frameRMesh.position.set(frameL / 2 + 0.3, 0, 0);
+      const wingL = new THREE.Mesh(new THREE.BoxGeometry(cellW, cellH, 0.14), solarCellMat);
+      wingL.position.set(-5.35, 0, 0);
+      const wingR = new THREE.Mesh(new THREE.BoxGeometry(cellW, cellH, 0.14), solarCellMat);
+      wingR.position.set(5.35, 0, 0);
+      group.add(frameLMesh, frameRMesh, wingL, wingR);
+      clickables.push(frameLMesh, frameRMesh, wingL, wingR);
+
+      // Beacon distanziati ai bordi esterni delle ali per evitare sovrapposizioni col bus
+      leftBeaconPos.set(-10.6, 0, 0);
+      rightBeaconPos.set(10.6, 0, 0);
       break;
     }
   }

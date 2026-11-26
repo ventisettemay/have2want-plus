@@ -9,6 +9,7 @@ import {
   Minimize2,
   Camera,
   MapPin,
+  GraduationCap,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { isValidCoord } from '@/lib/worldAtlas';
@@ -21,6 +22,7 @@ interface StreetView360ModalProps {
   cityName?: string;
   streetName?: string;
   placeName?: string;
+  onOpenTutor?: () => void;
 }
 
 interface StreetPhotoItem {
@@ -40,6 +42,7 @@ export function StreetView360Modal({
   cityName = 'Mondo',
   streetName = 'Via locale',
   placeName,
+  onOpenTutor,
 }: StreetView360ModalProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [resolvedRoad, setResolvedRoad] = useState<string>(streetName);
@@ -388,24 +391,38 @@ export function StreetView360Modal({
               )}
 
               {activePhotos.length > 1 && (
-                <div className="bg-black/90 backdrop-blur-md p-1 rounded-xl border border-zinc-800 flex items-center gap-1.5 pointer-events-auto">
+                <>
                   <button
                     type="button"
-                    onClick={() => setPhotoIdx((prev) => (prev - 1 + activePhotos.length) % activePhotos.length)}
-                    className="px-3 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-bold flex items-center gap-1 cursor-pointer"
+                    onClick={() => {
+                      onOpenTutor?.();
+                      toast.info('Apri la guida ufficiale Tutor dal menu principale');
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-[#00ff66] text-[10px] font-black flex items-center gap-1 cursor-pointer border border-zinc-700 transition-colors"
+                    title="Apri il Tutor Ufficiale: guida interattiva alla navigazione stradale"
                   >
-                    <ChevronLeft className="w-4 h-4" />
-                    <span>Prec</span>
+                    <GraduationCap className="w-3.5 h-3.5" />
+                    <span>Tutor</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setPhotoIdx((prev) => (prev + 1) % activePhotos.length)}
-                    className="px-3 py-2 rounded-lg bg-[#00ff66] hover:bg-[#00e65c] text-black text-xs font-black flex items-center gap-1 cursor-pointer"
-                  >
-                    <span>Succ</span>
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
+                  <div className="bg-black/90 backdrop-blur-md p-1 rounded-xl border border-zinc-800 flex items-center gap-1.5 pointer-events-auto">
+                    <button
+                      type="button"
+                      onClick={() => setPhotoIdx((prev) => (prev - 1 + activePhotos.length) % activePhotos.length)}
+                      className="px-3 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      <span>Prec</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPhotoIdx((prev) => (prev + 1) % activePhotos.length)}
+                      className="px-3 py-2 rounded-lg bg-[#00ff66] hover:bg-[#00e65c] text-black text-xs font-black flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>Succ</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           </div>

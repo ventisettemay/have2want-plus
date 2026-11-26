@@ -110,6 +110,23 @@ export default function Urbano3D({
     }
   }, [placeData, countryName]);
 
+  // Aggiorna sempre territorio, paese, lingua e valuta quando si centra/cerca una nuova località
+  // (mai lasciare bloccato il territorio precedente).
+  useEffect(() => {
+    if (typeof effectiveLat !== 'number' || typeof effectiveLng !== 'number') return;
+    let isMounted = true;
+    lookupLocationFromCoords(effectiveLat, effectiveLng).then((place) => {
+      if (isMounted) {
+        setCurrentPlace(place);
+        setSelectedCity(place.name);
+        if (onLocationChange) onLocationChange(place);
+      }
+    }).catch(() => {
+      if (isMounted) setSelectedCity('Mia Posizione');
+    });
+    return () => { isMounted = false; };
+  }, [effectiveLat, effectiveLng, onLocationChange]);
+
   // Normalizza gli annunci con coordinate visibili e supporto dedicato a ogni città
   const annunci = useMemo(() => {
     if (filter === 'LIBRI_SCOLASTICI' || filter === 'LIBRI') {
