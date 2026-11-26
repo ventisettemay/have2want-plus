@@ -322,12 +322,12 @@ export default function VetrinaKmZero({
                       onClick={() => {
                         setShowOrdersHistory(false);
                         setOrderTarget({
-                          itemTitle: product.name,
+                          id: product.id || 'km0_' + product.name,
+                          title: product.name,
                           sellerUsername: product.merchantId || 'produttore_km0',
                           itemPricePi: Number(product.pricePi) || 1,
                           defaultKmZeroPickup: true,
                           defaultShippingFeePi: 0,
-                          locationLabel: product.location,
                         });
                       }}
                       className="px-2.5 py-1.5 rounded-lg bg-emerald-950 hover:bg-emerald-900 border border-emerald-500/40 text-emerald-300 text-xs font-bold cursor-pointer flex items-center gap-1"
@@ -356,8 +356,9 @@ export default function VetrinaKmZero({
 
         <MarketplaceOrderModal
           isOpen={Boolean(orderTarget) || showOrdersHistory}
+          listing={null}
           targetItem={orderTarget}
-          currentUsername={currentUser?.username || 'pioneer_me'}
+          currentUser={{ username: currentUser?.username || 'pioneer_me' }}
           onClose={() => {
             setOrderTarget(null);
             setShowOrdersHistory(false);

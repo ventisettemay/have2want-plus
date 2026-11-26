@@ -6,7 +6,7 @@ import {
   handleWorkerRequest,
   resetWorkerDeduplicationStateForTests,
 } from '../worker';
-import Urbano3D, { INITIAL_PI_MERCHANTS } from '../src/components/have2want/Urbano3D';
+import Urbano3D from '../src/components/have2want/Urbano3D';
 import { classifyMerchantPin } from '../src/lib/merchantPinClassifier';
 
 describe('Cloudflare Pages + Worker + Urbano3D Security & TDZ Suite', () => {
@@ -23,7 +23,7 @@ describe('Cloudflare Pages + Worker + Urbano3D Security & TDZ Suite', () => {
     expect(getApiBaseUrl('https://urbano3d-api.example.workers.dev/')).toBe(
       'https://urbano3d-api.example.workers.dev'
     );
-    expect(resolveApiUrl('/api/health', '')).toBe('/api/health');
+    expect(resolveApiUrl('/api/health')).toBe('/api/health');
     expect(buildApiUrl('api/pi/approve', 'https://urbano3d-api.example.workers.dev/')).toBe(
       'https://urbano3d-api.example.workers.dev/api/pi/approve'
     );

@@ -9,8 +9,12 @@ import {
   X,
   ChevronRight,
   Globe2,
-  Lock
+  Lock,
+  Smartphone,
+  MapPin,
+  Send,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   WORLD_EMERGENCY_SERVICES,
   CountryEmergencyNumbers,
@@ -34,6 +38,52 @@ export default function WorldEmergencyModal({
   };
 
   const [selectedCountryCode, setSelectedCountryCode] = useState(() => resolveCode(defaultCountryCode));
+  const [gpsPosition, setGpsPosition] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [gpsError, setGpsError] = useState<string | null>(null);
+
+  const getEmergencyGps = () => {
+    if (!navigator.geolocation) {
+      setGpsError('Geolocalizzazione non supportata da questo browser/dispositivo');
+      return;
+    }
+    setGpsLoading(true);
+    setGpsError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setGpsPosition({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: Math.round(pos.coords.accuracy),
+        });
+        setGpsLoading(false);
+      },
+      (err) => {
+        setGpsError(err.message === 'User denied geolocation'
+          ? 'Permesso posizione negato dall\'utente'
+          : 'Impossibile ottenere la posizione GPS');
+        setGpsLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
+
+  const shareGpsLink = () => {
+    if (!gpsPosition) return;
+    const { lat, lng } = gpsPosition;
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+    if (navigator.share) {
+      navigator.share({
+        title: 'Posizione di Emergenza',
+        text: `La mia posizione di emergenza: ${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+        url: mapsUrl,
+      }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(mapsUrl).then(() => {
+        toast.success('Link posizione copiato negli appunti');
+      });
+    }
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -217,6 +267,50 @@ export default function WorldEmergencyModal({
               <ExternalLink className="w-3.5 h-3.5 text-sky-400" />
             </a>
           </div>
+        </div>
+
+        {/* CONDIVIDI POSIZIONE GPS DI EMERGENZA */}
+        <div className="mt-4 p-4 rounded-2xl bg-red-950/40 border border-red-500/30 space-y-3">
+          <div className="flex items-center gap-2">
+            <Smartphone className="w-5 h-5 text-red-400" />
+            <h4 className="font-black text-sm text-red-200">Condividi Posizione GPS di Emergenza</h4>
+          </div>
+          <p className="text-[11px] text-red-200/70 leading-relaxed">
+            Invia le tue coordinate esatte a contatti di fiducia o servizi di soccorso. Nessun dato salvato.
+          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={getEmergencyGps}
+              disabled={gpsLoading}
+              className={`flex-1 sm:flex-auto px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${gpsLoading ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' : 'bg-red-600 hover:bg-red-500 text-white border border-red-500/40'}`}
+            >
+              {gpsLoading ? <MapPin className="w-3.5 h-3.5 animate-spin" /> : <MapPin className="w-3.5 h-3.5" />}
+              <span>{gpsLoading ? 'Ricerca...' : 'Ottieni Posizione GPS'}</span>
+            </button>
+            {gpsPosition && (
+              <button
+                type="button"
+                onClick={shareGpsLink}
+                className="px-3 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>Condividi Link</span>
+              </button>
+            )}
+          </div>
+          {gpsPosition && (
+            <div className="p-3 rounded-xl bg-red-900/40 border border-red-500/30 text-xs text-red-100 flex items-center gap-2">
+              <span className="font-mono text-red-300">{gpsPosition.lat.toFixed(6)}, {gpsPosition.lng.toFixed(6)}</span>
+              <span className="text-red-200/60">• precisione ±{gpsPosition.accuracy}m</span>
+            </div>
+          )}
+          {gpsError && (
+            <div className="p-2.5 rounded-xl bg-red-900/20 border border-red-500/30 text-[11px] text-red-300/80 flex items-center gap-2">
+              <span className="w-3.5 h-3.5 text-red-400">⚠️</span>
+              <span>{gpsError}</span>
+            </div>
+          )}
         </div>
 
         {/* Footer Privacy */}

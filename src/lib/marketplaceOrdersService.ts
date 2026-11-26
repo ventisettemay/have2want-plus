@@ -24,6 +24,9 @@ export interface MarketplaceOrder extends MarketplaceOrderInput {
   updatedAt: string;
   txId?: string;
   paymentError?: string;
+  shippingFeePi?: number;
+  totalPi?: number;
+  qrPickupCode?: string;
 }
 
 const STORAGE_KEY = 'h2w_marketplace_orders_v1';
@@ -114,6 +117,38 @@ export function confirmMarketplaceOrderPayment(orderId: string, txId: string): M
   return updated;
 }
 
+export function listMarketplaceOrders(buyerUsername?: string): MarketplaceOrder[] {
+  return getMarketplaceOrders(buyerUsername);
+}
+
+export function confirmOrderPickupWithQr(orderId: string, qrCode: string): MarketplaceOrder | null {
+  const orders = readOrders();
+  const index = orders.findIndex((order) => order.id === orderId);
+  if (index < 0) return null;
+  const updated: MarketplaceOrder = {
+    ...orders[index],
+    qrPickupCode: qrCode,
+    updatedAt: new Date().toISOString(),
+  };
+  orders[index] = updated;
+  writeOrders(orders);
+  return updated;
+}
+
+export function updateMarketplaceOrderStatus(orderId: string, status: MarketplaceOrderStatus): MarketplaceOrder | null {
+  const orders = readOrders();
+  const index = orders.findIndex((order) => order.id === orderId);
+  if (index < 0) return null;
+  const updated: MarketplaceOrder = {
+    ...orders[index],
+    status,
+    updatedAt: new Date().toISOString(),
+  };
+  orders[index] = updated;
+  writeOrders(orders);
+  return updated;
+}
+
 export function failMarketplaceOrderPayment(orderId: string, error: string): MarketplaceOrder | null {
   const orders = readOrders();
   const index = orders.findIndex((order) => order.id === orderId);
@@ -129,6 +164,7 @@ export function failMarketplaceOrderPayment(orderId: string, error: string): Mar
   writeOrders(orders);
   return updated;
 }
+
 
 export function cancelMarketplaceOrder(orderId: string): MarketplaceOrder | null {
   const orders = readOrders();

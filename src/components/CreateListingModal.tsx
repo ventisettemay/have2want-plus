@@ -440,7 +440,7 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({
               type="button"
               onClick={() => {
                 setNewCategory("libri_scuola_cultura");
-                setNewSubcategory("libri_scolastici");
+                setNewSubcategory("scambio_libri_scolastici");
                 if (!newTitle) setNewTitle("Libri Scolastici Usati");
                 toast.info("Impostata categoria: Libri Scolastici e Cultura");
               }}

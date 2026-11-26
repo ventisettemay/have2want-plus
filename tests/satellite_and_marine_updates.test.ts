@@ -12,7 +12,6 @@ import { INITIAL_SATELLITES_CATALOG } from '../src/lib/satelliteModularEngine';
 describe('Satellite Light Modes, Scale 0.50 & Specs', () => {
   it('Differenzia correttamente le luci dei 10 satelliti (BLINKING, NORMAL, BRIGHT)', () => {
     expect(getSatelliteLightMode('METEO_SAT')).toBe('BLINKING');
-    expect(getSatelliteLightMode('MAP_SAT')).toBe('BLINKING');
     expect(getSatelliteLightMode('EXTERNAL_MARKET_SAT')).toBe('NORMAL');
     expect(getSatelliteLightMode('KM0_SAT')).toBe('BRIGHT');
     expect(getSatelliteLightMode('GLOBAL_MARKET_SAT')).toBe('BRIGHT');
@@ -45,7 +44,7 @@ describe('Satellite Light Modes, Scale 0.50 & Specs', () => {
       );
       expect(hitSpheres.length).toBeGreaterThanOrEqual(1);
 
-      if (sat.id === 'METEO_SAT' || sat.id === 'MAP_SAT') {
+      if (sat.id === 'METEO_SAT') {
         expect(built.lightMode).toBe('BLINKING');
         expect(built.strobeBeacons?.length).toBe(2);
       } else if (sat.id === 'EXTERNAL_MARKET_SAT') {

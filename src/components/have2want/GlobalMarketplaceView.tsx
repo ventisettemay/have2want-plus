@@ -565,7 +565,8 @@ export function GlobalMarketplaceView({
                         onClick={() => {
                           setShowOrdersModal(false);
                           setOrderTarget({
-                            itemTitle: item.title,
+                            id: item.id,
+                            title: item.title,
                             sellerUsername: item.store || 'global_partner',
                             itemPricePi: piEquiv.piAmount,
                             defaultKmZeroPickup: false,
@@ -667,8 +668,9 @@ export function GlobalMarketplaceView({
 
       <MarketplaceOrderModal
         isOpen={Boolean(orderTarget) || showOrdersModal}
+        listing={null}
         targetItem={orderTarget}
-        currentUsername={currentUser?.username || 'pioneer_me'}
+        currentUser={{ username: currentUser?.username || 'pioneer_me' }}
         onClose={() => {
           setOrderTarget(null);
           setShowOrdersModal(false);

@@ -10,7 +10,7 @@ import { SatelliteConfig, SatelliteId } from '@/lib/satelliteModularEngine';
 export type SatelliteLightMode = 'BLINKING' | 'NORMAL' | 'BRIGHT';
 
 export function getSatelliteLightMode(id: SatelliteId): SatelliteLightMode {
-  if (id === 'METEO_SAT' || id === 'MAP_SAT') return 'BLINKING';
+  if (id === 'METEO_SAT') return 'BLINKING';
   if (id === 'EXTERNAL_MARKET_SAT') return 'NORMAL';
   return 'BRIGHT';
 }
@@ -433,47 +433,6 @@ export function buildEngineeredSpacecraft(
     // -------------------------------------------------------------------------
     // 2B. MAP_SAT: COPERNICUS SENTINEL-2B – Mappa 3D, Stradario 360°, Webcam & Meteo
     // -------------------------------------------------------------------------
-    case 'MAP_SAT': {
-      // Barilotto telescopico multispettrale aperto in carbonio e titanio
-      const telescopeTube = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.75, 5.4, 24), carbonFiberMat);
-      telescopeTube.rotation.x = Math.PI / 2;
-      telescopeTube.position.set(0, 0, 1.3);
-      const sunshadeRing = new THREE.Mesh(new THREE.TorusGeometry(1.55, 0.14, 16, 24), goldFoilMat);
-      sunshadeRing.position.set(0, 0, 4.1);
-      const apertureLens = new THREE.Mesh(new THREE.CircleGeometry(1.32, 24), neonMat);
-      apertureLens.position.set(0, 0, 4.05);
-      group.add(telescopeTube, sunshadeRing, apertureLens);
-      clickables.push(telescopeTube, apertureLens);
-
-      // Modulo avionico + sensore LiDAR nadir
-      const avionicsBus = new THREE.Mesh(new THREE.BoxGeometry(3.4, 3.4, 2.2), silverFoilMat);
-      avionicsBus.position.set(0, 0, -1.7);
-      const lidarPod = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.9, 1.2, 16), titaniumMat);
-      lidarPod.position.set(0, -2.1, -1.2);
-      group.add(avionicsBus, lidarPod);
-      clickables.push(avionicsBus, lidarPod);
-
-      // Pannelli solari gemelli
-      const wingL = new THREE.Mesh(new THREE.BoxGeometry(5.0, 2.6, 0.2), solarCellMat);
-      wingL.position.set(-4.9, 0, -1.3);
-      wingL.rotation.y = 0.22;
-      const wingR = new THREE.Mesh(new THREE.BoxGeometry(5.0, 2.6, 0.2), solarCellMat);
-      wingR.position.set(4.9, 0, -1.3);
-      wingR.rotation.y = -0.22;
-      group.add(wingL, wingR);
-      clickables.push(wingL, wingR);
-
-      const xBandDish = new THREE.Mesh(new THREE.SphereGeometry(0.9, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2), dishMeshMat);
-      xBandDish.rotation.x = Math.PI / 2;
-      xBandDish.position.set(1.4, 1.4, 0);
-      group.add(xBandDish);
-      clickables.push(xBandDish);
-
-      leftBeaconPos.set(-7.6, 0, -1.3);
-      rightBeaconPos.set(7.6, 0, -1.3);
-      break;
-    }
-
     // -------------------------------------------------------------------------
     // 5. PI_CHAT_SAT: IRIDIUM-NEXT – Costellazione Mesh & Canale Pi Chat
     // -------------------------------------------------------------------------

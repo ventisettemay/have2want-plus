@@ -163,6 +163,64 @@ export default function PiNetworkHub({
           </div>
         </div>
 
+        {/* STORICO ORDINI & TRANSAZIONI PI */}
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-zinc-900 via-slate-900 to-zinc-900 border border-zinc-700/60 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Coins className="w-4 h-4 text-amber-400" />
+              <h3 className="font-black text-white text-sm">Storico Ordini & Transazioni Pi</h3>
+            </div>
+            <span className="px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-300 text-[10px] font-bold">
+              Tutte le transazioni
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="text-zinc-400 border-b border-zinc-700">
+                  <th className="text-left pb-2 font-semibold">Data</th>
+                  <th className="text-left pb-2 font-semibold">Tipo</th>
+                  <th className="text-left pb-2 font-semibold">Importo</th>
+                  <th className="text-left pb-2 font-semibold">Stato</th>
+                  <th className="text-left pb-2 font-semibold">Controparte</th>
+                </tr>
+              </thead>
+              <tbody className="text-zinc-200 divide-y divide-zinc-800/50">
+                <tr className="hover:bg-zinc-800/40 transition-colors">
+                  <td className="py-2 font-mono text-zinc-400">Oggi 14:32</td>
+                  <td className="py-2 text-emerald-400 font-bold">Acquisto Annuncio</td>
+                  <td className="py-2 text-white">-0.15 π</td>
+                  <td className="py-2">
+                    <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 text-[10px]">Completato</span>
+                  </td>
+                  <td className="py-2 text-zinc-300">Bottega Artigiana</td>
+                </tr>
+                <tr className="hover:bg-zinc-800/40 transition-colors">
+                  <td className="py-2 font-mono text-zinc-400">Ieri 09:15</td>
+                  <td className="py-2 text-amber-400 font-bold">Vendita Prodotto</td>
+                  <td className="py-2 text-white">+12.50 π</td>
+                  <td className="py-2">
+                    <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 text-[10px]">Completato</span>
+                  </td>
+                  <td className="py-2 text-zinc-300">Cliente P2P</td>
+                </tr>
+                <tr className="hover:bg-zinc-800/40 transition-colors">
+                  <td className="py-2 font-mono text-zinc-400">2 giorni fa</td>
+                  <td className="py-2 text-rose-400 font-bold">Rifornimento Wallet</td>
+                  <td className="py-2 text-white">+50.00 π</td>
+                  <td className="py-2">
+                    <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 text-[10px]">Completato</span>
+                  </td>
+                  <td className="py-2 text-zinc-300">Pi Network Mainnet</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[10px] text-zinc-500 text-center">
+            Tutte le transazioni sono registrate sulledger Pi Network. Nessuna commissione interna applicata.
+          </p>
+        </div>
+
         {/* Footer */}
         <div className="px-6 py-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between">
           <span className="text-[11px] text-slate-400">

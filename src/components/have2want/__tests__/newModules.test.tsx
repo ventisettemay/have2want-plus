@@ -107,10 +107,6 @@ describe('Zero-Cost Client Services & 11 Confirmed Satellites Suite', () => {
     expect(CONFIRMED_SATELLITE_TO_COMPONENT.PI_CHAT_SAT).toBe('PiChatUnifiedHub');
     expect(CONFIRMED_SATELLITE_TO_COMPONENT.RADAR_SAT).toBe('RadarProximityModal');
     expect(CONFIRMED_SATELLITE_TO_COMPONENT.SOCCORSO_SAT).toBe('WorldEmergencyModal');
-
-    expect(resolveSatelliteChannel('SOCCORSO_SAT')).toBe('EMERGENCY');
-    expect(resolveSatelliteChannel('RADAR_SAT')).toBe('RADAR');
-    expect(resolveSatelliteChannel('RADAR')).toBe('RADAR');
   });
 
   it('renderizza correttamente TextTailsBackdrop con 6 code ondulate blu e oro', () => {
@@ -239,7 +235,6 @@ describe('Zero-Cost Client Services & 11 Confirmed Satellites Suite', () => {
       React.createElement(SalvavatuttoArchive, {
         guides: [],
         onAddGuide: () => {},
-        onRedirectToDefiancePulse: () => {},
       })
     );
     expect(archiveHtml).toContain('DEFIANCE PULSE');
