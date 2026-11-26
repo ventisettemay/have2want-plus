@@ -139,6 +139,10 @@ async function startServer() {
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', '*');
 
+    // COOP/COEP richiesti da FFmpeg.wasm (SharedArrayBuffer) nel Video Creator
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+    res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
+
     // Header anti-cache rigorosi per Pi Browser mobile (previene blocco cache su smartphone)
     const ua = (req.headers['user-agent'] || '').toLowerCase();
     if (ua.includes('pibrowser') || ua.includes('pinetwork') || req.url === '/' || req.url.endsWith('.html')) {
