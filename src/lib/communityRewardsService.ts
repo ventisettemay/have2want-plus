@@ -604,6 +604,8 @@ export function buildAdImpressionTransaction({
 
 /**
  * Accredita punti per un'impressione pubblicitaria verificata (causale AD_IMPRESSION_VERIFIED).
+ * Il valore points viene fornito dal chiamante (es. Blocco 2). Se mancante o <= 0,
+ * si usa EARN_RATES.AD_IMPRESSION_VERIFIED come fallback.
  * Frontend-only: opera su localStorage + sincronizzazione Firestore.
  */
 export function awardAdImpressionVerified({
@@ -613,22 +615,23 @@ export function awardAdImpressionVerified({
   userId,
   description,
 }: {
-  points: number;
+  points?: number;
   campaignId: string;
   impressionId: string;
   userId?: string;
   description?: string;
 }): { success: boolean; newBalance: number; pointsEarned: number } {
-  if (!points || points <= 0) {
+  const pointsToAward = points && points > 0 ? points : REWARDS_CONFIG.EARN_RATES.AD_IMPRESSION_VERIFIED;
+  if (!pointsToAward || pointsToAward <= 0) {
     return { success: false, newBalance: 0, pointsEarned: 0 };
   }
 
   const state = getPioneerRewardsState();
-  state.pointsBalance += points;
-  state.totalPointsEarned += points;
+  state.pointsBalance += pointsToAward;
+  state.totalPointsEarned += pointsToAward;
 
   const tx = buildAdImpressionTransaction({
-    points,
+    points: pointsToAward,
     campaignId,
     impressionId,
     userId,
@@ -641,6 +644,6 @@ export function awardAdImpressionVerified({
   return {
     success: true,
     newBalance: state.pointsBalance,
-    pointsEarned: points,
+    pointsEarned: pointsToAward,
   };
 }

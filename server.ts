@@ -396,12 +396,14 @@ async function startServer() {
           };
         }
 
+        const pointsToAward = payload.points && payload.points > 0 ? payload.points : 5;
+
         const tx: any = {
           id: `tx_webhook_adimp_${payload.impressionId}`,
           type: 'AD_IMPRESSION_VERIFIED',
           description: 'Visione pubblicitaria certificata (webhook Blocco 2)',
-          pointsDelta: payload.points,
-          piEquivalent: Number((payload.points / 1000).toFixed(4)),
+          pointsDelta: pointsToAward,
+          piEquivalent: Number((pointsToAward / 1000).toFixed(4)),
           timestamp: payload.timestamp || Date.now(),
           status: 'completed',
           campaignId: payload.campaignId,
@@ -416,8 +418,8 @@ async function startServer() {
           return res.status(200).json({ success: true, duplicate: true, credited: 0 });
         }
 
-        wallet.pointsBalance = Number((wallet.pointsBalance + payload.points).toFixed(0));
-        wallet.totalPointsEarned = Number((wallet.totalPointsEarned + payload.points).toFixed(0));
+        wallet.pointsBalance = Number((wallet.pointsBalance + pointsToAward).toFixed(0));
+        wallet.totalPointsEarned = Number((wallet.totalPointsEarned + pointsToAward).toFixed(0));
         wallet.history.unshift(tx);
         wallet.updatedAt = Date.now();
 
@@ -437,7 +439,7 @@ async function startServer() {
         return res.status(200).json({
           success: true,
           duplicate: false,
-          credited: payload.points,
+          credited: pointsToAward,
           newBalance: wallet.pointsBalance,
           impressionId: payload.impressionId,
         });

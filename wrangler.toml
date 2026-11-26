@@ -1,0 +1,25 @@
+name = "have2want-blocco2"
+main = "worker/src/index.ts"
+compatibility_date = "2026-11-26"
+
+[d1_databases]
+binding = "DB"
+database_name = "have2want-ad"
+database_id = ""
+
+[r2_buckets]
+binding = "ADS_R2"
+bucket_name = "have2want-ads"
+
+[kv_namespaces]
+binding = "ADS_KV"
+id = ""
+
+[ai]
+binding = "AI"
+
+[[triggers]]
+crons = ["0 3 * * *"]
+
+[vars]
+ENVIRONMENT = "production"
