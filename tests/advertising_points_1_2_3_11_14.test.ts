@@ -17,7 +17,7 @@ import {
   type ModerationResult,
   type AnalyzeResult,
   type GenerateAssetResult,
-} from '../server/adProviderRegistry';
+} from '../src/lib/adProviderRegistry';
 import {
   getProject,
   listProjectsByAdvertiser,
@@ -30,7 +30,7 @@ import {
   addMedia,
   deleteMedia,
   resetCreativeStoreForTests,
-} from '../server/adCreativeStore';
+} from '../src/lib/adCreativeStore';
 
 // ========== Punti 3, 11, 14 — Provider Registry ==========
 

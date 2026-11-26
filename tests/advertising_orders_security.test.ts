@@ -28,11 +28,11 @@ import {
   linkOrderToCreative,
   deleteOrder,
   resetForTests as resetForOrdersTests,
-} from '../server/adOrders';
+} from '../src/lib/adOrders';
 import {
   saveCreative,
   approveCreative,
-} from '../server/adStore';
+} from '../src/lib/adStore';
 import {
   authenticateRequest,
   authorizeRole,
@@ -42,7 +42,7 @@ import {
   writeAuditLog,
   getAuditLog,
   type AdRole,
-} from '../server/adSecurity';
+} from '../src/lib/adSecurity';
 
 const resetOrders = resetForOrdersTests;
 

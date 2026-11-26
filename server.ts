@@ -7,7 +7,7 @@ import { createServer as createViteServer } from 'vite';
 import type {
   CreateCampaignInput,
   CertifyImpressionInput,
-} from './server/adTypes';
+} from './src/lib/adTypes';
 import {
   createCampaign as adCreateCampaign,
   getAdFeed as adGetAdFeed,
@@ -23,7 +23,7 @@ import {
   getGlobalReconciliation as adGetGlobalReconciliation,
   refundCampaign as adRefundCampaign,
   reverseRewardAction as adReverseRewardAction,
-} from './server/adService';
+} from './src/lib/adService';
 import {
   createOrder as adCreateOrder,
   listAllOrders as adListAllOrders,
@@ -44,7 +44,7 @@ import {
   type SubmitDraftInput,
   type ReviewOrderInput,
   type ChangeOrderStatusInput,
-} from './server/adOrders';
+} from './src/lib/adOrders';
 import {
   adsAuthMiddleware,
   adsRoleMiddleware,
@@ -56,13 +56,13 @@ import {
   validateFileUpload,
   validateUrlNoSsrf,
   type AdRole,
-} from './server/adSecurity';
+} from './src/lib/adSecurity';
 import {
   adProviderRegistry,
   type ModerationInput,
   type AnalyzeInput,
   type GenerateAssetInput,
-} from './server/adProviderRegistry';
+} from './src/lib/adProviderRegistry';
 import {
   getProject as adGetProject,
   listProjectsByAdvertiser as adListProjectsByAdvertiser,
@@ -75,7 +75,7 @@ import {
   listMediaByAdvertiser as adListMediaByAdvertiser,
   addMedia as adAddMedia,
   deleteMedia as adDeleteMedia,
-} from './server/adCreativeStore';
+} from './src/lib/adCreativeStore';
 
 const VALIDATION_KEY = '41d098c27068bf811f67caeefe5dc094a6304c413d84b17e9e0c5ae364e3af4ac4086bc073ce287d5bdc3f21cdf45a09ea1f1a842d5a6ccd784777aae7a286b7';
 const PI_API_BASE = 'https://api.minepi.com/v2';
