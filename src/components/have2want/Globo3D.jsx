@@ -2022,171 +2022,195 @@ export default function Globo3D({
 
 
 
-      {/* DOCK VERTICALE ESSENZIALE (IN ALTO A DESTRA, NERO/BIANCO/NEON SENZA CORNICI APPESANTITE) */}
-      <div className="absolute top-4 right-3 sm:right-4 z-20 pointer-events-auto flex flex-col items-center gap-1.5 bg-black/90 p-1.5 rounded-xl border border-zinc-900 shadow-xl">
-        {/* Toggle Espandi Schermo Intero / Allarga Cartina */}
-        {onToggleFullscreen && (
-          <button
-            id="btn-globe-toggle-fullscreen"
-            onClick={onToggleFullscreen}
-            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer active:scale-95 border ${
-              isFullscreen
-                ? 'bg-[#00ff66] text-black font-black border-[#00ff66]'
-                : 'bg-zinc-950 text-[#00ff66] hover:bg-zinc-900 border-zinc-800'
-            }`}
-            title={isFullscreen ? 'Riduci cartina alla vista standard' : 'Allarga cartina a schermo intero (100% display)'}
-          >
-            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-          </button>
+      {/* BARRA STRUMENTI LATERALE - chiusa di default per lasciare il globo completamente libero */}
+      <div className="absolute top-4 right-3 sm:right-4 z-20 pointer-events-auto flex flex-col items-center gap-1.5">
+        {/* Singola icona per aprire/chiudere gli strumenti laterali */}
+        <button
+          id="btn-globe-toggle-tools"
+          onClick={() => setIsGlobeToolsOpen((prev) => !prev)}
+          className="w-8 h-8 rounded-lg bg-black/90 backdrop-blur-md flex items-center justify-center text-[#00ff66] border border-zinc-800 hover:bg-zinc-800 hover:border-[#00ff66]/50 transition-colors cursor-pointer active:scale-95 shadow-lg"
+          title={isGlobeToolsOpen ? 'Chiudi strumenti laterali' : 'Apri strumenti laterali'}
+        >
+          {isGlobeToolsOpen ? <X className="w-4 h-4" /> : <Disc className="w-4 h-4" />}
+        </button>
+
+        {isGlobeToolsOpen && (
+          <div className="flex flex-col items-center gap-1.5 bg-black/90 p-1.5 rounded-xl border border-zinc-900 shadow-xl">
+            {/* Toggle Espandi Schermo Intero / Allarga Cartina */}
+            {onToggleFullscreen && (
+              <button
+                id="btn-globe-toggle-fullscreen"
+                onClick={onToggleFullscreen}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer active:scale-95 border ${
+                  isFullscreen
+                    ? 'bg-[#00ff66] text-black font-black border-[#00ff66]'
+                    : 'bg-zinc-950 text-[#00ff66] hover:bg-zinc-900 border-zinc-800'
+                }`}
+                title={isFullscreen ? 'Riduci cartina alla vista standard' : 'Allarga cartina a schermo intero (100% display)'}
+              >
+                {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              </button>
+            )}
+
+            {/* Controllo Flotta 8 Satelliti Spaziali & Preset */}
+            <button
+              id="btn-globe-satellites-fleet"
+              onClick={() => {
+                if (onOpenSatelliteRef.current) {
+                  onOpenSatelliteRef.current("FLEET_CONTROLS");
+                }
+              }}
+              className="w-8 h-8 rounded-lg bg-zinc-950 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 border border-zinc-800 hover:border-emerald-500 flex items-center justify-center text-sm transition-colors cursor-pointer active:scale-95 shadow-md shadow-emerald-500/10"
+              title="Centro Controllo Flotta Spaziale: Interruttori ON/OFF degli 8 Satelliti, 8 Preset & Dati di Volo"
+            >
+              <span>🛰️</span>
+            </button>
+
+            {/* Vista Urbana 3D Edifici & Verifica Sponsor sul Posto */}
+            <button
+              id="btn-globe-to-urban-3d"
+              onClick={() => {
+                if (onEnterUrban3DRef.current) {
+                  const target = activeZone || { lat: 41.8902, lng: 12.4922, name: 'Roma', countryName: 'Italia', flag: '🇮🇹' };
+                  toast.info(`🏙️ Apertura Vista Edifici 3D su ${target.name}...`);
+                  onEnterUrban3DRef.current(target);
+                }
+              }}
+              className="w-8 h-8 rounded-lg bg-zinc-950 hover:bg-amber-400/20 text-amber-400 hover:text-amber-300 border border-zinc-800 hover:border-amber-400 flex items-center justify-center text-sm transition-colors cursor-pointer active:scale-95 shadow-md shadow-amber-500/10"
+              title="Vista Edifici 3D: guarda i palazzi volumetrici a livello strada e verifica gli sponsor sul luogo"
+            >
+              <span>🏙️</span>
+            </button>
+
+            {/* Centra Italia */}
+            <button
+              id="btn-globe-flyto-italy"
+              onClick={() => {
+                const italy = COUNTRIES.find((c) => c.id === 'it');
+                if (italy && flyToCountryRef.current) {
+                  flyToCountryRef.current(italy);
+                }
+              }}
+              className="w-8 h-8 rounded-lg bg-zinc-950 hover:bg-[#00ff66]/20 text-white flex items-center justify-center text-sm transition-colors cursor-pointer active:scale-95"
+              title="Centra istantaneamente sull'Italia e le sue 20 Regioni"
+            >
+              <span>🇮🇹</span>
+            </button>
+
+            {/* Vista Macro Mondo */}
+            <button
+              id="btn-globe-flyto-world"
+              onClick={() => {
+                if (flyToResetRef.current) {
+                  flyToResetRef.current(true);
+                }
+              }}
+              className="w-8 h-8 rounded-lg bg-zinc-950 hover:bg-zinc-800 text-white flex items-center justify-center text-sm transition-colors cursor-pointer active:scale-95"
+              title="Reset telecamera: Torna alla vista macro globale intera"
+            >
+              <span>🌍</span>
+            </button>
+
+            {/* Pulsante Selettore Mappa: Fotografica vs Geopolitica (Sulla stessa identica sfera) */}
+            <button
+              id="btn-globe-toggle-political-layer"
+              onClick={() => {
+                if (togglePoliticalRevealRef.current) {
+                  const active = togglePoliticalRevealRef.current();
+                  if (active) {
+                    toast.success("🗺️ Mappa Geopolitica attivata", {
+                      description: "Confini degli Stati e territori mondiali",
+                      duration: 2000,
+                    });
+                  } else {
+                    toast.info("🌍 Mappa Fotografica 3D ripristinata", {
+                      description: "Superficie fotorealistica attiva",
+                      duration: 2000,
+                    });
+                  }
+                }
+              }}
+              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer active:scale-95 border ${
+                isPoliticalRevealed
+                  ? 'bg-[#00ff66] text-black font-black border-[#00ff66]'
+                  : 'bg-zinc-950 text-zinc-300 hover:text-white border-zinc-800'
+              }`}
+              title={isPoliticalRevealed ? 'Torna a Mappa Fotografica 3D' : 'Attiva Mappa Geopolitica (Stati e territori)'}
+            >
+              <Layers className="w-4 h-4" />
+            </button>
+
+            {/* Toggle Meteo Dinamico: Nuvole & Pioggia 3D (Satellite 1) */}
+            <button
+              id="btn-globe-toggle-weather"
+              onClick={() => {
+                if (toggleWeatherRef.current) {
+                  const active = toggleWeatherRef.current();
+                  if (active) {
+                    toast.success("⛅ Meteo Dinamico Attivato", {
+                      description: "Nuvole troposferiche e precipitazioni 3D attive",
+                      duration: 2500,
+                    });
+                  } else {
+                    toast.info("☀️ Meteo Disabilitato", {
+                      description: "Cielo limpido e superficie visibile al 100%",
+                      duration: 2000,
+                    });
+                  }
+                }
+              }}
+              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer active:scale-95 border ${
+                isWeatherActive
+                  ? 'bg-sky-500 text-white font-black border-sky-400'
+                  : 'bg-zinc-950 text-zinc-400 hover:text-white border-zinc-800'
+              }`}
+              title={isWeatherActive ? "Disabilita Nuvole & Pioggia Dinamica" : "Attiva Nuvole & Pioggia Dinamica"}
+            >
+              {isWeatherActive ? <CloudRain className="w-4 h-4" /> : <CloudSun className="w-4 h-4" />}
+            </button>
+
+            {/* Pausa / Attiva Rotazione Asse Terrestre Reale (Inclinazione 23.44°) */}
+            <button
+              id="btn-globe-toggle-rotation"
+              onClick={() => {
+                const next = !isRotating;
+                setIsRotating(next);
+                if (next) {
+                  toast.success("🌍 Rotazione Asse Terrestre Attiva", {
+                    description: "Inclinazione astronomica reale di 23.44°",
+                    duration: 2500,
+                  });
+                } else {
+                  toast.info("⏸️ Rotazione Terrestre in Pausa", {
+                    description: "Visuale fissa per esplorazione statica",
+                    duration: 2000,
+                  });
+                }
+              }}
+              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer active:scale-95 ${
+                isRotating
+                  ? 'bg-[#00ff66] text-black font-black'
+                  : 'bg-zinc-950 text-zinc-400 hover:text-white'
+              }`}
+              title={isRotating ? 'Pausa rotazione asse terrestre (23.44°)' : 'Attiva rotazione naturale asse terrestre (23.44°)'}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRotating ? 'animate-spin' : ''}`} style={{ animationDuration: '8s' }} />
+            </button>
+          </div>
         )}
-
-
-
-        {/* Controllo Flotta 8 Satelliti Spaziali & Preset */}
-        <button
-          id="btn-globe-satellites-fleet"
-          onClick={() => {
-            if (onOpenSatelliteRef.current) {
-              onOpenSatelliteRef.current("FLEET_CONTROLS");
-            }
-          }}
-          className="w-8 h-8 rounded-lg bg-zinc-950 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 border border-zinc-800 hover:border-emerald-500 flex items-center justify-center text-sm transition-colors cursor-pointer active:scale-95 shadow-md shadow-emerald-500/10"
-          title="Centro Controllo Flotta Spaziale: Interruttori ON/OFF degli 8 Satelliti, 8 Preset & Dati di Volo"
-        >
-          <span>🛰️</span>
-        </button>
-
-        {/* Vista Urbana 3D Edifici & Verifica Sponsor sul Posto */}
-        <button
-          id="btn-globe-to-urban-3d"
-          onClick={() => {
-            if (onEnterUrban3DRef.current) {
-              const target = activeZone || { lat: 41.8902, lng: 12.4922, name: 'Roma', countryName: 'Italia', flag: '🇮🇹' };
-              toast.info(`🏙️ Apertura Vista Edifici 3D su ${target.name}...`);
-              onEnterUrban3DRef.current(target);
-            }
-          }}
-          className="w-8 h-8 rounded-lg bg-zinc-950 hover:bg-amber-400/20 text-amber-400 hover:text-amber-300 border border-zinc-800 hover:border-amber-400 flex items-center justify-center text-sm transition-colors cursor-pointer active:scale-95 shadow-md shadow-amber-500/10"
-          title="Vista Edifici 3D: guarda i palazzi volumetrici a livello strada e verifica gli sponsor sul luogo"
-        >
-          <span>🏙️</span>
-        </button>
-
-        {/* Centra Italia */}
-        <button
-          id="btn-globe-flyto-italy"
-          onClick={() => {
-            const italy = COUNTRIES.find((c) => c.id === 'it');
-            if (italy && flyToCountryRef.current) {
-              flyToCountryRef.current(italy);
-            }
-          }}
-          className="w-8 h-8 rounded-lg bg-zinc-950 hover:bg-[#00ff66]/20 text-white flex items-center justify-center text-sm transition-colors cursor-pointer active:scale-95"
-          title="Centra istantaneamente sull'Italia e le sue 20 Regioni"
-        >
-          <span>🇮🇹</span>
-        </button>
-
-        {/* Vista Macro Mondo */}
-        <button
-          id="btn-globe-flyto-world"
-          onClick={() => {
-            if (flyToResetRef.current) {
-              flyToResetRef.current(true);
-            }
-          }}
-          className="w-8 h-8 rounded-lg bg-zinc-950 hover:bg-zinc-800 text-white flex items-center justify-center text-sm transition-colors cursor-pointer active:scale-95"
-          title="Reset telecamera: Torna alla vista macro globale intera"
-        >
-          <span>🌍</span>
-        </button>
-
-        {/* Pulsante Selettore Mappa: Fotografica vs Geopolitica (Sulla stessa identica sfera) */}
-        <button
-          id="btn-globe-toggle-political-layer"
-          onClick={() => {
-            if (togglePoliticalRevealRef.current) {
-              const active = togglePoliticalRevealRef.current();
-              if (active) {
-                toast.success("🗺️ Mappa Geopolitica attivata", {
-                  description: "Confini degli Stati e territori mondiali",
-                  duration: 2000,
-                });
-              } else {
-                toast.info("🌍 Mappa Fotografica 3D ripristinata", {
-                  description: "Superficie fotorealistica attiva",
-                  duration: 2000,
-                });
-              }
-            }
-          }}
-          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer active:scale-95 border ${
-            isPoliticalRevealed
-              ? 'bg-[#00ff66] text-black font-black border-[#00ff66]'
-              : 'bg-zinc-950 text-zinc-300 hover:text-white border-zinc-800'
-          }`}
-          title={isPoliticalRevealed ? 'Torna a Mappa Fotografica 3D' : 'Attiva Mappa Geopolitica (Stati e territori)'}
-        >
-          <Layers className="w-4 h-4" />
-        </button>
-
-        {/* Toggle Meteo Dinamico: Nuvole & Pioggia 3D (Satellite 1) */}
-        <button
-          id="btn-globe-toggle-weather"
-          onClick={() => {
-            if (toggleWeatherRef.current) {
-              const active = toggleWeatherRef.current();
-              if (active) {
-                toast.success("⛅ Meteo Dinamico Attivato", {
-                  description: "Nuvole troposferiche e precipitazioni 3D attive",
-                  duration: 2500,
-                });
-              } else {
-                toast.info("☀️ Meteo Disabilitato", {
-                  description: "Cielo limpido e superficie visibile al 100%",
-                  duration: 2000,
-                });
-              }
-            }
-          }}
-          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer active:scale-95 border ${
-            isWeatherActive
-              ? 'bg-sky-500 text-white font-black border-sky-400'
-              : 'bg-zinc-950 text-zinc-400 hover:text-white border-zinc-800'
-          }`}
-          title={isWeatherActive ? "Disabilita Nuvole & Pioggia Dinamica" : "Attiva Nuvole & Pioggia Dinamica"}
-        >
-          {isWeatherActive ? <CloudRain className="w-4 h-4" /> : <CloudSun className="w-4 h-4" />}
-        </button>
-
-        {/* Pausa / Attiva Rotazione Asse Terrestre Reale (Inclinazione 23.44°) */}
-        <button
-          id="btn-globe-toggle-rotation"
-          onClick={() => {
-            const next = !isRotating;
-            setIsRotating(next);
-            if (next) {
-              toast.success("🌍 Rotazione Asse Terrestre Attiva", {
-                description: "Inclinazione astronomica reale di 23.44°",
-                duration: 2500,
-              });
-            } else {
-              toast.info("⏸️ Rotazione Terrestre in Pausa", {
-                description: "Visuale fissa per esplorazione statica",
-                duration: 2000,
-              });
-            }
-          }}
-          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer active:scale-95 ${
-            isRotating
-              ? 'bg-[#00ff66] text-black font-black'
-              : 'bg-zinc-950 text-zinc-400 hover:text-white'
-          }`}
-          title={isRotating ? 'Pausa rotazione asse terrestre (23.44°)' : 'Attiva rotazione naturale asse terrestre (23.44°)'}
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isRotating ? 'animate-spin' : ''}`} style={{ animationDuration: '8s' }} />
-        </button>
       </div>
+
+      {/* Pulsante compatto controlli in basso - apre/chiude gli strumenti */}
+      <button
+        id="btn-globe-bottom-tools"
+        onClick={() => setIsGlobeToolsOpen((prev) => !prev)}
+        className="absolute bottom-4 left-4 z-30 bg-black/90 backdrop-blur-md px-3 py-1.5 rounded-full border border-zinc-800 text-[#00ff66] text-[10px] font-black flex items-center gap-1 hover:bg-zinc-800 hover:border-[#00ff66]/50 transition-colors cursor-pointer active:scale-95 shadow-lg"
+        title={isGlobeToolsOpen ? 'Chiudi controlli in basso' : 'Apri controlli in basso'}
+      >
+        <span>•</span>
+        <span>Strumenti</span>
+        <span>{isGlobeToolsOpen ? 'v' : '^'}</span>
+      </button>
 
       {/* Scheda Territoriale Fluttuante con Ingresso Diretto (Spostata in alto per liberare totalmente il fondo) */}
       {activeZone && (
