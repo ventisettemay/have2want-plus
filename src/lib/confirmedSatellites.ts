@@ -1,21 +1,21 @@
 /**
  * CONFIRMED SATELLITES – HAVE2WANT PLUS
- * Elenco canonico degli 11 satelliti definitivi confermati dal proprietario.
+ * Elenco canonico degli 11 satelliti ufficiali confermati dal proprietario.
  * Fonte unica di verità per tutti i moduli che necessitano l'elenco completo.
  */
 
 export type ConfirmedSatelliteId =
-  | 'SOCCORSO_SAT'
   | 'MAP_SAT'
-  | 'ACTIONFLOW_SAT'
-  | 'DEFIANCE_PULSE_SAT'
-  | 'RADAR_SAT'
   | 'METEO_SAT'
   | 'KM0_SAT'
-  | 'PI_CHAT_SAT'
   | 'GLOBAL_MARKET_SAT'
+  | 'PI_CHAT_SAT'
+  | 'SOCCORSO_SAT'
+  | 'DEFIANCE_PULSE_SAT'
+  | 'ACTIONFLOW_SAT'
   | 'EXTERNAL_MARKET_SAT'
-  | 'BUSINESS_ADS_SAT';
+  | 'CREATOR_ADS_SAT'
+  | 'PUBLISH_STORE_SAT';
 
 export interface ConfirmedSatellite {
   id: ConfirmedSatelliteId;
@@ -26,69 +26,69 @@ export interface ConfirmedSatellite {
 
 export const CONFIRMED_SATELLITES: ConfirmedSatellite[] = [
   {
-    id: 'SOCCORSO_SAT',
-    name: 'SOCCORSO — Emergenze & Mutuo Aiuto',
-    codeName: 'COSPAS-SARSAT',
-    category: 'COMUNITA',
-  },
-  {
     id: 'MAP_SAT',
-    name: 'MAP — Navigazione & Territorio',
-    codeName: 'MAP-COMPOSITE',
-    category: 'TERRITORIO',
-  },
-  {
-    id: 'ACTIONFLOW_SAT',
-    name: 'ACTIONFLOW HUB — Portal App Esterne',
-    codeName: 'ACTIONFLOW-CORE',
-    category: 'COMUNITA',
-  },
-  {
-    id: 'DEFIANCE_PULSE_SAT',
-    name: 'DEFIANCE PULSE — Multimedia AI (Creator, Music, Video, Promotion)',
-    codeName: 'DEFIANCE-CORE',
-    category: 'COMUNICAZIONE',
-  },
-  {
-    id: 'RADAR_SAT',
-    name: 'RADAR — Scansione Prossimità Territoriale',
-    codeName: 'RADAR-SCAN',
+    name: 'MAPPA 3D — Navigazione & Territorio',
+    codeName: 'Landsat 9',
     category: 'TERRITORIO',
   },
   {
     id: 'METEO_SAT',
-    name: 'METEO — Clima & Radar Live',
-    codeName: 'METEOSAT-3G',
+    name: 'METEO LIVE — Globo Mondiale',
+    codeName: 'GOES-18',
     category: 'METEO',
   },
   {
     id: 'KM0_SAT',
     name: 'KM 0 — Filiera Corta',
-    codeName: 'SENTINEL-2',
+    codeName: 'SMAP',
     category: 'TERRITORIO',
-  },
-  {
-    id: 'PI_CHAT_SAT',
-    name: 'PI CHAT — Chat Vocale & Video',
-    codeName: 'STARLINK-COMM',
-    category: 'COMUNICAZIONE',
   },
   {
     id: 'GLOBAL_MARKET_SAT',
     name: 'PRODOTTI DEL MONDO — Marketplace Interno',
-    codeName: 'TELSTAR 19V',
+    codeName: 'TDRS-13',
     category: 'MERCATI',
+  },
+  {
+    id: 'PI_CHAT_SAT',
+    name: 'CHAT & VIDEOCHAT — Comunicazione Diretta',
+    codeName: 'TDRS-12',
+    category: 'COMUNICAZIONE',
+  },
+  {
+    id: 'SOCCORSO_SAT',
+    name: 'SOCCORSO — Emergenze & Mutuo Aiuto',
+    codeName: 'NOAA-20',
+    category: 'COMUNITA',
+  },
+  {
+    id: 'DEFIANCE_PULSE_SAT',
+    name: 'DEFIANCE PULSE — Multimedia AI (Creator, Music, Video)',
+    codeName: 'ISS (Zarya)',
+    category: 'COMUNICAZIONE',
+  },
+  {
+    id: 'ACTIONFLOW_SAT',
+    name: 'ACTIONFLOW HUB — Portal App Esterne',
+    codeName: 'TDRS-11',
+    category: 'COMUNITA',
   },
   {
     id: 'EXTERNAL_MARKET_SAT',
     name: 'MARKETPLACE ESTERNI — Canali Esterni',
-    codeName: 'GATEWAY-RELAIS',
+    codeName: 'AQUA',
     category: 'MERCATI',
   },
   {
-    id: 'BUSINESS_ADS_SAT',
-    name: 'CREAZIONE PUBBLICITÀ — Vetrine Sponsorizzate',
-    codeName: 'BEACON-BUSINESS',
+    id: 'CREATOR_ADS_SAT',
+    name: 'CREATOR ADS — Pubblicità VIP a Pagamento',
+    codeName: 'TERRA',
+    category: 'TERRITORIO',
+  },
+  {
+    id: 'PUBLISH_STORE_SAT',
+    name: 'PUBLISH & STORE — Vetrina Pubblica',
+    codeName: 'ICESAT-2',
     category: 'TERRITORIO',
   },
 ];

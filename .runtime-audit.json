@@ -88,5 +88,65 @@
     "details": {
       "test": true
     }
+  },
+  {
+    "id": "mwzl83nj-a7a31cb5",
+    "timestamp": 1795820610943,
+    "action": "test_action",
+    "userId": "user_audit",
+    "role": "advertiser",
+    "ip": "1.2.3.4",
+    "path": "/api/ads/test",
+    "method": "POST",
+    "status": 200,
+    "success": true,
+    "details": {
+      "test": true
+    }
+  },
+  {
+    "id": "mwzl8x9n-15c9092c",
+    "timestamp": 1795820649323,
+    "action": "test_action",
+    "userId": "user_audit",
+    "role": "advertiser",
+    "ip": "1.2.3.4",
+    "path": "/api/ads/test",
+    "method": "POST",
+    "status": 200,
+    "success": true,
+    "details": {
+      "test": true
+    }
+  },
+  {
+    "id": "mwzl9m76-e6243ca5",
+    "timestamp": 1795820681635,
+    "action": "test_action",
+    "userId": "user_audit",
+    "role": "advertiser",
+    "ip": "1.2.3.4",
+    "path": "/api/ads/test",
+    "method": "POST",
+    "status": 200,
+    "success": true,
+    "details": {
+      "test": true
+    }
+  },
+  {
+    "id": "mwzla0hq-504fc932",
+    "timestamp": 1795820700158,
+    "action": "test_action",
+    "userId": "user_audit",
+    "role": "advertiser",
+    "ip": "1.2.3.4",
+    "path": "/api/ads/test",
+    "method": "POST",
+    "status": 200,
+    "success": true,
+    "details": {
+      "test": true
+    }
   }
 ]

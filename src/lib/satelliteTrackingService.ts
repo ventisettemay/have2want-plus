@@ -172,16 +172,7 @@ export const TRACKABLE_SATELLITES_METADATA: Record<SatelliteId, SatelliteCatalog
     isPhysicalSpacecraft: false,
     nonPhysicalReason:
       'Canale logico HAVE2WANT (Defiance Pulse): nessun satellite fisico associato su NORAD/CelesTrak.',
-  },
-  RADAR_SAT: {
-    satelliteId: 'RADAR_SAT',
-    noradId: null,
-    officialName: 'RADAR-SAT',
-    operator: 'HAVE2WANT Network',
-    orbitRegime: 'LOGICAL',
-    isPhysicalSpacecraft: false,
-    nonPhysicalReason: 'Canale logico.',
-  },
+  }
 };
 
 const DEG_TO_RAD = Math.PI / 180;

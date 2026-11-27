@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { CloudSun, Store, ShoppingBag, X, ChevronRight, Sparkles, MapPin, Mic, Globe, Zap, LifeBuoy, Megaphone, Satellite, Compass, Shield, Map, ShieldAlert, Cpu, Music, Video, Megaphone as MegaphoneIcon, Radio } from 'lucide-react';
+import { CloudSun, Store, ShoppingBag, X, ChevronRight, Sparkles, MapPin, Mic, Globe, Zap, LifeBuoy, Megaphone, Satellite, Compass, Shield, Map, ShieldAlert, Cpu, Music, Video, Megaphone as MegaphoneIcon, Radio, Store as StoreIcon, Building2 as Building2Icon } from 'lucide-react';
 import VetrinaKmZero from './VetrinaKmZero';
 import { GlobalMarketplaceView } from './GlobalMarketplaceView';
 import LiveWeatherModal from './LiveWeatherModal';
 import SpacecraftInspectorModal from './SpacecraftInspectorModal';
 import WorldEmergencyModal from './WorldEmergencyModal';
+import PiChatUnifiedHub from './PiChatUnifiedHub';
+import MerchantDetailModal from './MerchantDetailModal';
 import { SatelliteId, satelliteEngine, SATELLITE_TO_CHANNEL, SATELLITE_TO_COMPONENT } from '@/lib/satelliteModularEngine';
 
 interface OrbitalSatellitesHubProps {
@@ -30,7 +32,8 @@ type ChannelId =
   | 'EMERGENCY'
   | 'ACTIONFLOW'
   | 'DEFIANCE_PULSE'
-  | 'RADAR'
+  | 'CREATOR_ADS'
+  | 'PUBLISH_STORE'
   | null;
 
 export default function OrbitalSatellitesHub({
@@ -106,8 +109,8 @@ export default function OrbitalSatellitesHub({
     {
       id: 'CHAT' as const,
       satId: 'PI_CHAT_SAT' as SatelliteId,
-      name: 'CHAT E VIDEO — Comunicazione Diretta',
-      desc: 'Messaggistica, note vocali, videochiamata, gruppi comunità/quartiere',
+      name: 'CHAT & VIDEOCHAT — Comunicazione Diretta',
+      desc: 'Chat privata, note vocali, gruppi quartiere e videochiamate P2P (PiChatUnifiedHub + VideoChatModal)',
       icon: Mic,
       color: 'from-emerald-500 to-green-600',
       badge: 'CHAT & CALL',
@@ -117,7 +120,7 @@ export default function OrbitalSatellitesHub({
       id: 'BUSINESS_ADS' as const,
       satId: 'BUSINESS_ADS_SAT' as SatelliteId,
       name: 'CREAZIONE PUBBLICITÀ — Vetrine Sponsorizzate',
-      desc: 'Pubblicità 7gg Pi-paid, AI Creator per contenuti, vetrine geolocalizzate',
+      desc: 'Area VIP a pagamento per creare pubblicità, volantini e PIN luminosi (anche con AI)',
       icon: Megaphone,
       color: 'from-purple-500 to-fuchsia-600',
       badge: 'ADV VIP + AI',
@@ -126,8 +129,8 @@ export default function OrbitalSatellitesHub({
     {
       id: 'MAP' as const,
       satId: 'MAP_SAT' as SatelliteId,
-      name: 'MAP — Navigazione & Territorio',
-      desc: 'GPS, strade/edifici reali, percorsi OSRM, meteo integrato, webcam, layer 3-tier',
+      name: 'MAPPA 3D — Navigazione & Territorio',
+      desc: 'GPS, stradario 360°, webcam, meteo percorso e radar prossimità (interno). Giunzioni: Urbano3D, StreetView360Modal, LiveWebcamsModal, Google3DUrbanLayer, RadarProximityModal.',
       icon: Map,
       color: 'from-cyan-500 to-blue-600',
       badge: 'NAVIGAZIONE REALE',
@@ -137,41 +140,61 @@ export default function OrbitalSatellitesHub({
       id: 'EMERGENCY' as const,
       satId: 'SOCCORSO_SAT' as SatelliteId,
       name: 'SOCCORSO — Emergenze & Mutuo Aiuto',
-      desc: 'Numeri emergenza mondiali, carpooling solidale, punti incontro certificati',
+      desc: 'Numeri utili e di emergenza globali per Paese',
       icon: ShieldAlert,
       color: 'from-red-500 to-rose-600',
       badge: 'EMERGENZA GLOBALE',
       badgeColor: 'bg-red-500/20 text-red-300 border-red-500/40',
     },
     {
+      id: 'DEFIANCE_PULSE' as const,
+      satId: 'DEFIANCE_PULSE_SAT' as SatelliteId,
+      name: 'DEFIANCE PULSE — Multimedia AI (Creator, Music, Video)',
+      desc: 'Canale video, musica e creazione video AI (senza pubblicità commerciale)',
+      icon: Cpu,
+      color: 'from-violet-500 to-pink-600',
+      badge: 'AI CREATOR • MUSIC • VIDEO',
+      badgeColor: 'bg-violet-500/20 text-violet-300 border-violet-500/40',
+    },
+    {
       id: 'ACTIONFLOW' as const,
       satId: 'ACTIONFLOW_SAT' as SatelliteId,
-      name: 'ACTIONFLOW HUB — Portal App Esterne',
-      desc: 'Centro missioni, attività AI, ricompense, portal ecosistema esterno',
+      name: 'ACTIONFLOW HUB — Portal Applicazioni Esterne',
+      desc: 'Ponte per collegare fino a 3 app esterne',
       icon: Zap,
       color: 'from-violet-500 to-purple-600',
       badge: 'ACTIONFLOW HUB',
       badgeColor: 'bg-violet-500/20 text-violet-300 border-violet-500/40',
     },
     {
-      id: 'DEFIANCE_PULSE' as const,
-      satId: 'DEFIANCE_PULSE_SAT' as SatelliteId,
-      name: 'DEFIANCE PULSE — Multimedia AI (4 Aree)',
-      desc: 'CREATOR, MUSIC, VIDEO, PROMOTION — generazione client-side, no API esterne',
-      icon: Cpu,
-      color: 'from-violet-500 to-pink-600',
-      badge: 'AI CREATOR • MUSIC • VIDEO • PROMO',
-      badgeColor: 'bg-violet-500/20 text-violet-300 border-violet-500/40',
+      id: 'EXTERNAL' as const,
+      satId: 'EXTERNAL_MARKET_SAT' as SatelliteId,
+      name: 'MARKETPLACE ESTERNI — Canali Esterni',
+      desc: 'Market globali filtrati per Paese, partner convenzionati, card prepagate e link di affiliazione',
+      icon: Globe,
+      color: 'from-amber-500 to-yellow-600',
+      badge: 'MARKET ESTERNO',
+      badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
     },
     {
-      id: 'RADAR' as const,
-      satId: 'RADAR_SAT' as SatelliteId,
-      name: 'RADAR — Scansione Prossimità 35 km',
-      desc: 'Marker territoriali locali, geolocalizzazione P2P, prossimità reale',
-      icon: Radio,
-      color: 'from-amber-500 to-yellow-600',
-      badge: 'RADAR PROSSIMITÀ',
-      badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+      id: 'CREATOR_ADS' as const,
+      satId: 'CREATOR_ADS_SAT' as SatelliteId,
+      name: 'CREATOR ADS — Pubblicità VIP a Pagamento',
+      desc: 'Area VIP a pagamento per creare pubblicità, volantini e PIN luminosi (anche con AI)',
+      icon: MegaphoneIcon,
+      color: 'from-rose-500 to-pink-600',
+      badge: 'CREATOR ADS VIP',
+      badgeColor: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+    },
+    {
+      id: 'PUBLISH_STORE' as const,
+      satId: 'PUBLISH_STORE_SAT' as SatelliteId,
+      name: 'PUBLISH & STORE — Vetrina Pubblica',
+      desc: 'Vetrina pubblica per visionare negozi, professionisti e attività sul globo',
+      icon: StoreIcon,
+      color: 'from-emerald-500 to-teal-600',
+      badge: 'VETRINA PUBBLICA',
+      badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
     },
   ];
 
@@ -196,7 +219,7 @@ export default function OrbitalSatellitesHub({
               ? 'bg-[#00ff66] text-black border-[#00ff66] shadow-[#00ff66]/20'
               : 'bg-zinc-950/90 hover:bg-zinc-900 text-white border-zinc-700/80 hover:border-zinc-500'
           }`}
-          title="Canali Territoriali: 10 Satelliti Definitivi"
+          title="Canali Territoriali: 11 Satelliti Ufficiali"
         >
           <span className="relative flex h-2.5 w-2.5">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00ff66] opacity-75"></span>
@@ -213,7 +236,7 @@ export default function OrbitalSatellitesHub({
                 <span className="text-base">🌐</span>
                 <div>
                   <h4 className="text-xs font-black text-white uppercase tracking-wider">Canali & Servizi Territoriali</h4>
-                  <p className="text-[10px] text-zinc-400">10 Satelliti Definitivi</p>
+                  <p className="text-[10px] text-zinc-400">11 Satelliti Ufficiali</p>
                 </div>
               </div>
               <button
@@ -381,14 +404,14 @@ export default function OrbitalSatellitesHub({
         </div>
       )}
 
-      {/* CANALE: CHAT E VIDEO */}
+      {/* CANALE: CHAT & VIDEOCHAT */}
       {activeChannel === 'CHAT' && (
         <div className="fixed inset-0 z-50 bg-slate-950 overflow-y-auto animate-in fade-in duration-200">
           <div className="sticky top-0 z-40 bg-slate-900/95 border-b border-slate-800 px-4 py-3 flex items-center justify-between backdrop-blur-md">
             <div className="flex items-center gap-2">
-              <span className="text-lg">🎙️</span>
+              <span className="text-lg">💬</span>
               <span className="text-xs font-black text-emerald-400 uppercase tracking-wider">
-                CHAT E VIDEO — COMUNICAZIONE DIRETTA
+                CHAT & VIDEOCHAT — COMUNICAZIONE DIRETTA
               </span>
             </div>
             <button
@@ -401,11 +424,7 @@ export default function OrbitalSatellitesHub({
             </button>
           </div>
           <div className="max-w-7xl mx-auto p-4">
-            <div className="text-center py-12 text-zinc-400">
-              <Mic className="w-16 h-16 mx-auto mb-4 text-emerald-500/50" />
-              <p className="text-sm">VoiceNoteChat — Messaggistica, note vocali, videochiamata</p>
-              <p className="text-xs mt-2">Gruppi comunità, quartiere, chat private — separato da SOCCORSO</p>
-            </div>
+            <PiChatUnifiedHub currentUser={currentUser} onOpenChat={onOpenChat} />
           </div>
         </div>
       )}
@@ -439,14 +458,14 @@ export default function OrbitalSatellitesHub({
         </div>
       )}
 
-      {/* CANALE: MAP — Navigazione Unificata */}
+      {/* CANALE: MAPPA 3D — Navigazione Unificata */}
       {activeChannel === 'MAP' && (
         <div className="fixed inset-0 z-50 bg-black overflow-hidden animate-in fade-in duration-200">
           <div className="sticky top-0 z-40 bg-black/95 border-b border-zinc-800 px-4 py-3 flex items-center justify-between backdrop-blur-md">
             <div className="flex items-center gap-2">
               <span className="text-lg">🗺️</span>
               <span className="text-xs font-black text-cyan-400 uppercase tracking-wider">
-                MAP — NAVIGAZIONE & TERRITORIO
+                MAPPA 3D — NAVIGAZIONE & TERRITORIO
               </span>
             </div>
             <button
@@ -462,7 +481,8 @@ export default function OrbitalSatellitesHub({
             <div className="text-center py-12 text-zinc-400">
               <Map className="w-16 h-16 mx-auto mb-4 text-cyan-500/50" />
               <p className="text-sm">MapView3DContainer — GPS, Strade/Edifici Reali, OSRM, Meteo Integrato, Webcam</p>
-              <p className="text-xs mt-2">Layer: Commerciali 3-tier • Meteo su Percorsi • Webcam Live</p>
+              <p className="text-xs mt-2">Giunzioni: Urbano3D • StreetView360Modal • LiveWebcamsModal • Google3DUrbanLayer • RadarProximityModal (interno)</p>
+              <p className="text-xs mt-1">Layer: Commerciali 3-tier • Meteo su Percorsi • Webcam Live • Radar Prossimità</p>
             </div>
           </div>
         </div>
@@ -534,14 +554,14 @@ export default function OrbitalSatellitesHub({
         </div>
       )}
 
-      {/* CANALE: RADAR — Scansione Prossimità */}
-      {activeChannel === 'RADAR' && (
+      {/* CANALE: CREATOR ADS — Pubblicità VIP a Pagamento */}
+      {activeChannel === 'CREATOR_ADS' && (
         <div className="fixed inset-0 z-50 bg-slate-950 overflow-y-auto animate-in fade-in duration-200">
           <div className="sticky top-0 z-40 bg-slate-900/95 border-b border-slate-800 px-4 py-3 flex items-center justify-between backdrop-blur-md">
             <div className="flex items-center gap-2">
-              <span className="text-lg">📡</span>
-              <span className="text-xs font-black text-amber-400 uppercase tracking-wider">
-                RADAR — SCANSIONE PROSSIMITÀ 35 KM
+              <span className="text-lg">📢</span>
+              <span className="text-xs font-black text-rose-400 uppercase tracking-wider">
+                CREATOR ADS — PUBBLICITÀ VIP A PAGAMENTO
               </span>
             </div>
             <button
@@ -555,9 +575,38 @@ export default function OrbitalSatellitesHub({
           </div>
           <div className="max-w-7xl mx-auto p-4">
             <div className="text-center py-12 text-zinc-400">
-              <Radio className="w-16 h-16 mx-auto mb-4 text-amber-500/50" />
-              <p className="text-sm">RadarProximityModal — Marker territoriali, geolocalizzazione P2P</p>
-              <p className="text-xs mt-2">Scansione radar 35 km, prossimità reale tra utenti</p>
+              <MegaphoneIcon className="w-16 h-16 mx-auto mb-4 text-rose-500/50" />
+              <p className="text-sm">BusinessSponsorModal — Area VIP a pagamento per creare pubblicità, volantini e PIN luminosi</p>
+              <p className="text-xs mt-2">Collegato a server/ad*.ts (campagne, ordini, ledger, wallet, provider AI Gemini)</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CANALE: PUBLISH & STORE — Vetrina Pubblica */}
+      {activeChannel === 'PUBLISH_STORE' && (
+        <div className="fixed inset-0 z-50 bg-slate-950 overflow-y-auto animate-in fade-in duration-200">
+          <div className="sticky top-0 z-40 bg-slate-900/95 border-b border-slate-800 px-4 py-3 flex items-center justify-between backdrop-blur-md">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🏪</span>
+              <span className="text-xs font-black text-emerald-400 uppercase tracking-wider">
+                PUBLISH & STORE — VETRINA PUBBLICA
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveChannel(null)}
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+              <span>Chiudi</span>
+            </button>
+          </div>
+          <div className="max-w-7xl mx-auto p-4">
+            <div className="text-center py-12 text-zinc-400">
+              <Building2Icon className="w-16 h-16 mx-auto mb-4 text-emerald-500/50" />
+              <p className="text-sm">MerchantDetailModal — Vetrina pubblica per visionare negozi, professionisti e attività sul globo</p>
+              <p className="text-xs mt-2">Negozi, professionisti e servizi geolocalizzati sul globo 3D</p>
             </div>
           </div>
         </div>

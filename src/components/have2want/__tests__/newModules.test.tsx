@@ -54,7 +54,7 @@ describe('Servizi gratuiti, satelliti e nuovi moduli', () => {
     expect(CONFIRMED_SATELLITES).toHaveLength(11);
     expect(CONFIRMED_SATELLITES.some((s) => s.id === 'PI_CHAT_SAT')).toBe(true);
     expect(CONFIRMED_SATELLITES.some((s) => s.id === 'DEFIANCE_PULSE_SAT')).toBe(true);
-    expect(CONFIRMED_SATELLITES.some((s) => s.id === 'RADAR_SAT')).toBe(true);
+
     expect(CONFIRMED_SATELLITES.some((s) => s.id === 'SOCCORSO_SAT')).toBe(true);
     expect(CONFIRMED_SATELLITES.some((s) => s.id === 'MAP_SAT')).toBe(true);
     expect(CONFIRMED_SATELLITES.some((s) => s.id === 'ACTIONFLOW_SAT')).toBe(true);

@@ -1,5 +1,5 @@
-// BUILDER 3D DEI 10 VEICOLI SPAZIALI INGEGNERISTICI – HAVE2WANT PLUS
-// Ciascun modello rappresenta i 10 canali canonici (6 fisici NORAD + 4 relay logici H2W)
+// BUILDER 3D DEGLI 11 VEICOLI SPAZIALI UFFICIALI – HAVE2WANT PLUS
+// Ciascun modello rappresenta un satellite reale NASA/NOAA tracciato via CelesTrak
 // con geometrie metalliche PBR ad alta fedeltà, pannelli solari fotovoltaici, parabole,
 // sensori ottici, alone orbitale luminoso e targhetta billboard nitida.
 // Geometrie e materiali condivisi per 60 FPS fluidi su Pi Browser, Mobile e Desktop.
@@ -10,7 +10,7 @@ import { SatelliteConfig, SatelliteId } from '@/lib/satelliteModularEngine';
 export type SatelliteLightMode = 'BLINKING' | 'NORMAL' | 'BRIGHT';
 
 export function getSatelliteLightMode(id: SatelliteId): SatelliteLightMode {
-  if (id === 'METEO_SAT' || id === 'MAP_SAT' || id === 'RADAR_SAT') return 'BLINKING';
+  if (id === 'METEO_SAT' || id === 'MAP_SAT') return 'BLINKING';
   if (id === 'EXTERNAL_MARKET_SAT') return 'NORMAL';
   return 'BRIGHT';
 }
@@ -774,8 +774,7 @@ export function buildEngineeredSpacecraft(
     // -------------------------------------------------------------------------
     // 12. SOCCORSO_SAT: COSPAS-SARSAT – Ricerca e Soccorso
     // -------------------------------------------------------------------------
-    case 'SOCCORSO_SAT': {
-      // Chassis in lamina argento con accenti rossi emergenza (alta visibilità)
+    case 'SOCCORSO_SAT': {      // Chassis in lamina argento con accenti rossi emergenza (alta visibilità)
       const bus = new THREE.Mesh(new THREE.BoxGeometry(3.6, 3.6, 3.8), silverFoilMat);
       const redStripe = new THREE.Mesh(new THREE.BoxGeometry(3.7, 0.8, 3.9), rescueRedMat);
       redStripe.position.set(0, 0, 1.8);
@@ -820,55 +819,7 @@ export function buildEngineeredSpacecraft(
       break;
     }
 
-    // -------------------------------------------------------------------------
-    // 13. RADAR_SAT: RADAR-SCAN – Scansione Prossimità Territoriale
-    // -------------------------------------------------------------------------
-    case 'RADAR_SAT': {
-      // Chassis compatto in lamina oro per riflettività radar
-      const bus = new THREE.Mesh(new THREE.BoxGeometry(2.8, 2.8, 3.2), goldFoilMat);
-      group.add(bus);
-      clickables.push(bus);
 
-      // Array radar phased-array anteriore (grande pannello piatto con elementi)
-      const radarArray = new THREE.Mesh(new THREE.BoxGeometry(3.2, 2.6, 0.3), carbonFiberMat);
-      radarArray.position.set(0, 0, 1.75);
-      const radarElements = new THREE.Group();
-      for (let x = -1.2; x <= 1.2; x += 0.6) {
-        for (let y = -1.0; y <= 1.0; y += 0.5) {
-          const element = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.4, 8), neonMat);
-          element.position.set(x, y, 1.95);
-          element.material.emissiveIntensity = 0.8;
-          radarElements.add(element);
-        }
-      }
-      group.add(radarArray, radarElements);
-      clickables.push(radarArray, radarElements);
-
-      // Modulo elaborazione segnale posteriore
-      const signalPod = new THREE.Mesh(new THREE.BoxGeometry(2.0, 2.0, 1.8), titaniumMat);
-      signalPod.position.set(0, 0, -1.6);
-      group.add(signalPod);
-      clickables.push(signalPod);
-
-      // Antenna downlink per trasmissione dati scansione
-      const downlinkDish = new THREE.Mesh(new THREE.SphereGeometry(0.7, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2), dishMeshMat);
-      downlinkDish.rotation.x = Math.PI / 2;
-      downlinkDish.position.set(1.2, 1.2, -0.5);
-      group.add(downlinkDish);
-      clickables.push(downlinkDish);
-
-      // Ali solari laterali
-      const wingL = new THREE.Mesh(new THREE.BoxGeometry(4.4, 2.4, 0.18), solarCellMat);
-      wingL.position.set(-4.6, 0, 0);
-      const wingR = new THREE.Mesh(new THREE.BoxGeometry(4.4, 2.4, 0.18), solarCellMat);
-      wingR.position.set(4.6, 0, 0);
-      group.add(wingL, wingR);
-      clickables.push(wingL, wingR);
-
-      leftBeaconPos.set(-7.6, 0, 0);
-      rightBeaconPos.set(7.6, 0, 0);
-      break;
-    }
   }
 
   // Targhetta billboard ad alta leggibilità sopra il satellite (+Y radiale lontano dalla Terra)

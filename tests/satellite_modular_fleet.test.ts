@@ -19,17 +19,17 @@ describe('Satellite Modular Fleet Engine – HAVE2WANT PLUS (11 Satelliti Defini
 
   it('Dovrebbe contenere esattamente gli 11 identificativi satellite ufficiali', () => {
     const EXPECTED_11_IDS: SatelliteId[] = [
-      'KM0_SAT',
-      'METEO_SAT',
-      'PI_CHAT_SAT',
-      'GLOBAL_MARKET_SAT',
-      'EXTERNAL_MARKET_SAT',
-      'BUSINESS_ADS_SAT',
       'MAP_SAT',
+      'METEO_SAT',
+      'KM0_SAT',
+      'GLOBAL_MARKET_SAT',
+      'PI_CHAT_SAT',
       'SOCCORSO_SAT',
-      'ACTIONFLOW_SAT',
       'DEFIANCE_PULSE_SAT',
-      'RADAR_SAT',
+      'ACTIONFLOW_SAT',
+      'EXTERNAL_MARKET_SAT',
+      'CREATOR_ADS_SAT',
+      'PUBLISH_STORE_SAT',
     ];
 
     expect(INITIAL_SATELLITES_CATALOG).toHaveLength(11);
@@ -114,7 +114,7 @@ describe('Satellite Modular Fleet Engine – HAVE2WANT PLUS (11 Satelliti Defini
     expect(satelliteEngine.getActiveCount()).toBe(2);
 
     expect(satelliteEngine.isSatelliteActive('GLOBAL_MARKET_SAT')).toBe(false);
-    expect(satelliteEngine.isSatelliteActive('BUSINESS_ADS_SAT')).toBe(false);
+    expect(satelliteEngine.isSatelliteActive('CREATOR_ADS_SAT')).toBe(false);
   });
 
   it('Dovrebbe applicare il preset SOLO_MERCATI (2 satelliti commerciali)', () => {
@@ -133,18 +133,19 @@ describe('Satellite Modular Fleet Engine – HAVE2WANT PLUS (11 Satelliti Defini
     expect(satelliteEngine.isSatelliteActive('DEFIANCE_PULSE_SAT')).toBe(false);
   });
 
-  it('Dovrebbe applicare il preset SOLO_TERRITORIO (4 satelliti di prossimità e navigazione)', () => {
+  it('Dovrebbe applicare il preset SOLO_TERRITORIO (4 satelliti di territorio e navigazione)', () => {
     satelliteEngine.applyPreset('SOLO_TERRITORIO');
     const expectedTerritory: SatelliteId[] = [
       'KM0_SAT',
       'MAP_SAT',
-      'BUSINESS_ADS_SAT',
+      'PUBLISH_STORE_SAT',
+      'CREATOR_ADS_SAT',
     ];
 
     expectedTerritory.forEach((id) => {
       expect(satelliteEngine.isSatelliteActive(id)).toBe(true);
     });
-    expect(satelliteEngine.getActiveCount()).toBe(3);
+    expect(satelliteEngine.getActiveCount()).toBe(4);
 
     expect(satelliteEngine.isSatelliteActive('GLOBAL_MARKET_SAT')).toBe(false);
   });

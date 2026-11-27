@@ -954,18 +954,7 @@ export default function MapView3DContainer({
                   }
                   break;
 
-                case 'RADAR_SAT':
-                case 'RADAR':
-                  if (activeSatellite === 'RADAR') {
-                    setActiveSatellite(null);
-                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange(null);
-                    toast.info('📡 RADAR-SCAN: Scansione Prossimità Disattivata', { duration: 1800 });
-                  } else {
-                    setActiveSatellite('RADAR');
-                    if (onActiveSatelliteChannelChange) onActiveSatelliteChannelChange('RADAR');
-                    toast.success('📡 RADAR-SCAN: RADAR — Scansione Prossimità 35 km Attiva');
-                  }
-                  break;
+
 
                 default:
                   setInspectorTab('INSPECTOR');
@@ -1373,7 +1362,6 @@ export default function MapView3DContainer({
             BUSINESS_ADS: 'BUSINESS_ADS',
             ACTIONFLOW: 'ACTIONFLOW',
             DEFIANCE_PULSE: 'DEFIANCE_PULSE',
-            RADAR: 'RADAR',
           };
           const targetChannel = CHANNEL_MAP[satId] || satId;
           setActiveSatellite(targetChannel);

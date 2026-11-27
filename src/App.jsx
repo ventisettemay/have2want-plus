@@ -844,22 +844,7 @@ function Have2WantPlusMain() {
               </div>
             </button>
 
-            {/* 11. Radar: Contorno LED Arancione/Ambra */}
-            <button
-              id="btn-scroll-channel-radar"
-              onClick={() => {
-                setActiveSatelliteChannel(SATELLITE_TO_CHANNEL.RADAR_SAT);
-                toast.info("📡 RADAR — Scansione Prossimità 35 km, Marker Territoriali, Geolocalizzazione P2P");
-              }}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-amber-950/60 border-2 border-[#f59e0b] shadow-[0_0_12px_rgba(245,158,11,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
-              title="RADAR — Scansione Radar 35 km, Prossimità Reale tra Utenti"
-            >
-              <span className="w-2.5 h-2.5 rounded-full bg-[#f59e0b] shadow-[0_0_8px_#f59e0b] animate-pulse shrink-0" />
-              <div className="flex flex-col text-left leading-tight">
-                <span className="text-[12px] font-black text-amber-300">📡 RADAR</span>
-                <span className="text-[9px] font-bold text-amber-400/80 uppercase tracking-tighter">Prossimità 35km</span>
-              </div>
-            </button>
+
 
             {/* Separatore */}
             <div className="w-[1px] h-5 bg-zinc-800 shrink-0" />
