@@ -9,6 +9,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as Cesium from 'cesium';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
+import SatelliteSystem3D from './SatelliteSystem3D';
 
 const CESIUM_BASE_URL = '/cesium/';
 
@@ -431,11 +432,21 @@ export default function CesiumUrbanoView({
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="absolute inset-0 w-full h-full z-0 bg-[#0b1120] outline-none"
-      tabIndex={-1}
-      aria-label="Vista 3D volumetrica Cesium"
-    />
+    <>
+      <div
+        ref={containerRef}
+        className="absolute inset-0 w-full h-full z-0 bg-[#0b1120] outline-none"
+        tabIndex={-1}
+        aria-label="Vista 3D volumetrica Cesium"
+      />
+      {isInitialized && viewerRef.current && (
+        <SatelliteSystem3D
+          viewer={viewerRef.current}
+          enabled
+          visualScale={3}
+          onSatelliteSelect={() => {}}
+        />
+      )}
+    </>
   );
 }
