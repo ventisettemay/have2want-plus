@@ -1,5 +1,5 @@
 // SATELLITE MODULAR ENGINE – HAVE2WANT PLUS
-// Registro centrale e centro di controllo dei 10 satelliti definitivi + DEFIANCE PULSE.
+// Registro centrale e centro di controllo degli 11 satelliti ufficiali.
 // Gestisce l'attivazione/disattivazione autonoma (ON/OFF), le orbite, i preset
 // e la persistenza locale/cloud, preservando l'integrità di tutti i servizi esistenti.
 
@@ -34,7 +34,7 @@ export interface SatelliteConfig {
   icon: string;
   color: string;
   foilColor: number; // Colore lamina termica (oro 0xd4af37, argento 0xe2e8f0, titanio 0x64748b)
-  altitudeKm: number;
+  altitudeKm: number | null;
   orbitMultiplier: number;
   speed: number;
   inclination: number; // Inclinazione orbitale in radianti
@@ -42,9 +42,12 @@ export interface SatelliteConfig {
   h2wRole: string;
   targetComponent: string;
   isActive: boolean;
+  noradId?: number; // ID NORAD per satelliti fisici reali, null per logici H2W
+  officialDesignation?: string; // Designazione ufficiale del satellite
+  isPhysicalSpacecraft?: boolean; // true se veicolo spaziale fisico, false se relay logico
 }
 
-// Configurazione Ingegneristica dei 10 Satelliti Definitivi + DEFIANCE PULSE (Distribuzione orbitale a 360° LEO, MEO, GEO)
+// Configurazione Ingegneristica degli 11 Satelliti Ufficiali (Distribuzione orbitale a 360° LEO, MEO, GEO)
 export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
   {
     id: 'KM0_SAT',
@@ -62,6 +65,9 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
     h2wRole: 'Produttori locali, agricoltori e filiera corta a chilometro zero',
     targetComponent: 'VetrinaKmZero',
     isActive: true,
+    noradId: 40697,
+    officialDesignation: 'SENTINEL-2A',
+    isPhysicalSpacecraft: true,
   },
   {
     id: 'METEO_SAT',
@@ -79,6 +85,9 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
     h2wRole: 'Previsioni climatologiche Open-Meteo, radar precipitazioni, allerte per ogni territorio',
     targetComponent: 'LiveWeatherModal',
     isActive: true,
+    noradId: 54743,
+    officialDesignation: 'METEOSAT-3G',
+    isPhysicalSpacecraft: true,
   },
   {
     id: 'PI_CHAT_SAT',
@@ -96,6 +105,9 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
     h2wRole: 'Messaggistica discreta, note vocali, videochiamata diretta, gruppi comunità/quartiere',
     targetComponent: 'VoiceNoteChat',
     isActive: true,
+    noradId: 49143,
+    officialDesignation: 'STARLINK-COMM',
+    isPhysicalSpacecraft: true,
   },
   {
     id: 'GLOBAL_MARKET_SAT',
@@ -113,6 +125,9 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
     h2wRole: 'Annunci utenti HAVE2WANT, compravendita P2P, pagamenti Pi, Conferma di Acquisto',
     targetComponent: 'GlobalMarketplaceView',
     isActive: true,
+    noradId: 43562,
+    officialDesignation: 'TELSTAR 19V',
+    isPhysicalSpacecraft: true,
   },
   {
     id: 'EXTERNAL_MARKET_SAT',
@@ -130,6 +145,9 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
     h2wRole: 'Ricerca prodotti su piattaforme esterne (Amazon, eBay, ecc.), link affiliati, commissioni in criptovaluta',
     targetComponent: 'ExternalListings',
     isActive: true,
+    noradId: null,
+    officialDesignation: 'GATEWAY-RELAIS',
+    isPhysicalSpacecraft: false,
   },
   {
     id: 'BUSINESS_ADS_SAT',
@@ -147,6 +165,9 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
     h2wRole: 'Pubblicità commercianti 7gg a pagamento Pi, AI Creator per contenuti, vetrine geolocalizzate',
     targetComponent: 'BusinessSponsorModal',
     isActive: true,
+    noradId: null,
+    officialDesignation: 'BEACON-BUSINESS',
+    isPhysicalSpacecraft: false,
   },
   {
     id: 'MAP_SAT',
@@ -164,6 +185,9 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
     h2wRole: 'GPS, strade ed edifici reali (MapLibre), percorsi reali (OSRM), meteo integrato, webcam live, layer commerciali 3-tier',
     targetComponent: 'MapView3DContainer',
     isActive: true,
+    noradId: null,
+    officialDesignation: 'MAP-COMPOSITE',
+    isPhysicalSpacecraft: false,
   },
   {
     id: 'SOCCORSO_SAT',
@@ -181,6 +205,9 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
     h2wRole: 'Numeri emergenza mondiali, carpooling solidale, mutuo aiuto, punti incontro certificati — SEPARATO da Chat/Video',
     targetComponent: 'WorldEmergencyModal',
     isActive: true,
+    noradId: 43566,
+    officialDesignation: 'COSPAS-SARSAT',
+    isPhysicalSpacecraft: true,
   },
   {
     id: 'ACTIONFLOW_SAT',
@@ -198,6 +225,9 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
     h2wRole: 'Centro operativo missioni, attività AI e ricompense — Portal per app esterne dell\'ecosistema',
     targetComponent: 'ActionFlowHubModal',
     isActive: true,
+    noradId: null,
+    officialDesignation: 'ACTIONFLOW-CORE',
+    isPhysicalSpacecraft: false,
   },
   {
     id: 'DEFIANCE_PULSE_SAT',
@@ -215,6 +245,9 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
     h2wRole: 'Quattro aree: CREATOR (AI generativa contenuti), MUSIC (basi/loop locali), VIDEO (feed verticale), PROMOTION (ADS interno) — client-side, no API esterne',
     targetComponent: 'DefiancePulseHub',
     isActive: true,
+    noradId: null,
+    officialDesignation: 'DEFIANCE-CORE',
+    isPhysicalSpacecraft: false,
   },
   {
     id: 'RADAR_SAT',
@@ -232,6 +265,9 @@ export const INITIAL_SATELLITES_CATALOG: SatelliteConfig[] = [
     h2wRole: 'Scansione radar di prossimità 35 km, marker territoriali locali, geolocalizzazione P2P',
     targetComponent: 'RadarProximityModal',
     isActive: true,
+    noradId: null,
+    officialDesignation: 'RADAR-SCAN',
+    isPhysicalSpacecraft: false,
   },
 ];
 

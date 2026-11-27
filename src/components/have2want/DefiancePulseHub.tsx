@@ -14,6 +14,7 @@ export interface CreatorPromoItem {
   placement: 'BANNER' | 'PIN_VIDEO' | 'CREATOR_SPACE';
   pinCoords?: { lat: number; lng: number };
   createdAt: number;
+  isAiGenerated?: boolean; // true = contenuto dimostrativo generato via AI (didattico), false = upload manuale creator
 }
 
 interface DefiancePulseHubProps {
@@ -41,6 +42,74 @@ const PLACEMENT_LABELS: Record<CreatorPromoItem['placement'], string> = {
   CREATOR_SPACE: 'Spazio creator nella pagina',
 };
 
+// Contenuti didattici dimostrativi generati via AI (Punto 5 — Defiance Pulse AI Creator)
+// NON sono campagne pubblicitarie commerciali (quelle appartengono a CREATOR ADS).
+// Sono contenuti educativi/didattici iniziali per avviare la piattaforma senza commercianti reali.
+const AI_DEMO_CONTENT: CreatorPromoItem[] = [
+  {
+    id: 'ai-demo-mestieri-001',
+    creatorName: 'AI Studio — Have2Want',
+    format: 'VIDEO',
+    title: 'Mestieri antichi: fabbro e arte del ferro',
+    mediaUrl: 'https://archive.org/details/ai-demo-mestieri-fabbro',
+    placement: 'CREATOR_SPACE',
+    createdAt: Date.now() - 86400000 * 3,
+    isAiGenerated: true,
+  },
+  {
+    id: 'ai-demo-riparazioni-002',
+    creatorName: 'AI Studio — Have2Want',
+    format: 'VIDEO',
+    title: 'Riparazioni domestiche: rubinetto che perde',
+    mediaUrl: 'https://archive.org/details/ai-demo-riparazioni-rubinetto',
+    placement: 'PIN_VIDEO',
+    pinCoords: { lat: 44.3845, lng: 7.5427 },
+    createdAt: Date.now() - 86400000 * 2,
+    isAiGenerated: true,
+  },
+  {
+    id: 'ai-demo-auto-003',
+    creatorName: 'AI Studio — Have2Want',
+    format: 'VIDEO',
+    title: 'Automobili: cambio olio e filtro motore',
+    mediaUrl: 'https://archive.org/details/ai-demo-auto-cambio-olio',
+    placement: 'CREATOR_SPACE',
+    createdAt: Date.now() - 86400000,
+    isAiGenerated: true,
+  },
+  {
+    id: 'ai-demo-cucina-004',
+    creatorName: 'AI Studio — Have2Want',
+    format: 'VIDEO',
+    title: 'Cucina: pasta fatta in casa, ricetta tradizionale',
+    mediaUrl: 'https://archive.org/details/ai-demo-cucina-pasta',
+    placement: 'PIN_VIDEO',
+    pinCoords: { lat: 45.4642, lng: 9.1900 },
+    createdAt: Date.now() - 43200000,
+    isAiGenerated: true,
+  },
+  {
+    id: 'ai-demo-giardinaggio-005',
+    creatorName: 'AI Studio — Have2Want',
+    format: 'VIDEO',
+    title: 'Giardinaggio: orto in vaso su balcone',
+    mediaUrl: 'https://archive.org/details/ai-demo-giardinaggio-balcone',
+    placement: 'CREATOR_SPACE',
+    createdAt: Date.now() - 21600000,
+    isAiGenerated: true,
+  },
+  {
+    id: 'ai-demo-cultura-006',
+    creatorName: 'AI Studio — Have2Want',
+    format: 'MUSIC',
+    title: 'Cultura: musica popolare tradizionale regionale',
+    mediaUrl: 'https://archive.org/details/ai-demo-cultura-musica-popolare',
+    placement: 'CREATOR_SPACE',
+    createdAt: Date.now() - 10800000,
+    isAiGenerated: true,
+  },
+];
+
 export const DefiancePulseHub: React.FC<DefiancePulseHubProps> = ({
   isOpen = true,
   onClose = () => {},
@@ -57,7 +126,7 @@ export const DefiancePulseHub: React.FC<DefiancePulseHubProps> = ({
   const [placement, setPlacement] = useState<CreatorPromoItem['placement']>('PIN_VIDEO');
   const [lat, setLat] = useState('44.3845');
   const [lng, setLng] = useState('7.5427');
-  const [items, setItems] = useState<CreatorPromoItem[]>([]);
+  const [items, setItems] = useState<CreatorPromoItem[]>(() => [...AI_DEMO_CONTENT]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleCreate = (e: React.FormEvent) => {
@@ -277,15 +346,63 @@ export const DefiancePulseHub: React.FC<DefiancePulseHubProps> = ({
           </div>
         </form>
 
-        {/* Lista autopromozioni create in questa sessione */}
-        {items.length > 0 && (
-          <div className="p-4 border-t border-zinc-800 bg-black/30 max-h-64 overflow-y-auto">
+        {/* Contenuti didattici dimostrativi generati via AI — separati dalle autopromozioni commerciali */}
+        {AI_DEMO_CONTENT.length > 0 && (
+          <div className="p-4 border-t border-violet-500/30 bg-violet-900/10 max-h-64 overflow-y-auto">
             <h3 className="text-xs font-black text-violet-300 uppercase tracking-wider mb-3 flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5" />
-              Autopromozioni Attive ({items.length})
+              Contenuti Didattici AI (Dimostrativi)
             </h3>
             <div className="space-y-2">
-              {items.map((item) => {
+              {AI_DEMO_CONTENT.map((item) => {
+                const ItemFormatIcon = FORMAT_ICONS[item.format];
+                return (
+                  <div
+                    key={item.id}
+                    className="p-3 rounded-xl bg-violet-900/30 border border-violet-500/20 flex items-center justify-between gap-3 group"
+                  >
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="w-9 h-9 rounded-xl bg-violet-500/20 border border-violet-400/30 flex items-center justify-center shrink-0">
+                        <ItemFormatIcon className="w-4 h-4 text-violet-300" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-black text-white truncate">{item.title}</span>
+                          <span className="px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-300 text-[9px] font-bold border border-violet-500/40 shrink-0">
+                            {FORMAT_LABELS[item.format]}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[9px] font-bold border border-amber-500/40 shrink-0">
+                            AI GENERATO
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-violet-200 truncate">
+                          {item.creatorName} · {item.pinCoords ? `PIN: ${item.pinCoords.lat.toFixed(4)}, ${item.pinCoords.lng.toFixed(4)}` : 'Nessun PIN'}
+                        </p>
+                        <p className="text-[9px] text-zinc-500 truncate">
+                          Contenuto educativo dimostrativo — non è una campagna pubblicitaria commerciale
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-[9px] text-zinc-500 mt-2">
+              Strumenti AI gratuiti da valutare per generazione video, musica e contenuti multimediali:
+              tier gratuito con limiti di qualità e diritti di utilizzo commerciale da verificare.
+            </p>
+          </div>
+        )}
+
+        {/* Lista autopromozioni create in questa sessione (upload manuale creator, NON AI generato) */}
+        {items.length > AI_DEMO_CONTENT.length && (
+          <div className="p-4 border-t border-zinc-800 bg-black/30 max-h-64 overflow-y-auto">
+            <h3 className="text-xs font-black text-violet-300 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+              <Upload className="w-3.5 h-3.5" />
+              Autopromozioni Creator (Upload Manuale)
+            </h3>
+            <div className="space-y-2">
+              {items.filter((item) => !item.isAiGenerated).map((item) => {
                 const ItemFormatIcon = FORMAT_ICONS[item.format];
                 return (
                   <div
