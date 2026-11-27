@@ -1,33 +1,37 @@
-// SatelliteSystem3D.jsx — Sistema satellitare 3D realistico integrato nel globo Cesium (Urbano 3D).
+// SatelliteSystem3D.tsx — Sistema satellitare 3D integrato nel globo Cesium (Urbano 3D).
 // - Posizioni reali da CelesTrak OMM + propagazione SGP4 (satellite.js)
-// - Orbite 3D colorate per categoria (LEO azzurro, MEO verde, GEO arancione, HEO viola)
+// - Orbite 3D colorate per categoria
 // - Scala fisica reale (coordinate inalterate) + scala visiva adattiva (billboard)
 // - Interfaccia informativa, selezione, filtri, animazione temporale
 // - Integrazione nel viewer Cesium esistente: nessun secondo globo
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+// - Usa esclusivamente i 10 satelliti canonici di INITIAL_SATELLITES_CATALOG
+import React, { useEffect, useRef, useState } from 'react';
 import * as Cesium from 'cesium';
 import {
   satelliteTelemetryStore,
   type SatelliteTelemetry,
   computeInstantaneousOrbitTrack,
 } from '@/lib/satelliteTrackingService';
-import {
-  getRealSatelliteCatalog,
-  SATELLITE_ORBIT_COLORS,
-  EARTH_RADIUS_KM,
-  VISUAL_SCALE_INITIAL,
-} from '@/lib/satelliteModularEngine';
+import { INITIAL_SATELLITES_CATALOG } from '@/lib/satelliteModularEngine';
 
 const CELESTRIAL_EARTH_RADIUS_M = 6371000; // raggio medio Terra (m) per Cesium
+const VISUAL_SCALE_INITIAL = 3;
 
 interface SatelliteSystem3DProps {
   viewer?: Cesium.Viewer | null;
   enabled?: boolean;
-  visualScale?: number; // fattore ingrandimento visivo (default 3x)
+  visualScale?: number;
   onSatelliteSelect?: (sat: SatelliteTelemetry | null) => void;
 }
 
-const DEFAULT_VISUAL_SCALE = VISUAL_SCALE_INITIAL ?? 3;
+// Colori orbita per categoria (derivati dal category di SatelliteConfig)
+const ORBIT_COLORS: Record<string, string> = {
+  TERRITORIO: '#38bdf8', // azzurro
+  METEO: '#10b981',      // verde
+  MERCATI: '#f97316',    // arancione
+  COMUNICAZIONE: '#a855f7', // viola
+  COMUNITA: '#ef4444',   // rosso
+};
 
 // Genera una texture canvas (cerchio + icona) per il billboard del satellite
 function createBillboardTexture(colorHex: string, glyph: string): string {
@@ -37,18 +41,15 @@ function createBillboardTexture(colorHex: string, glyph: string): string {
   const ctx = canvas.getContext('2d');
   if (!ctx) return '';
   ctx.clearRect(0, 0, 128, 128);
-  // Cerchio esterno (colore categoria)
   ctx.fillStyle = colorHex;
   ctx.beginPath();
   ctx.arc(64, 64, 50, 0, 2 * Math.PI);
   ctx.fill();
-  // Anello interno scuro
   ctx.strokeStyle = 'rgba(0,0,0,0.45)';
   ctx.lineWidth = 4;
   ctx.beginPath();
   ctx.arc(64, 64, 46, 0, 2 * Math.PI);
   ctx.stroke();
-  // Glifo centrale
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 48px "Segoe UI Emoji", "Apple Color Emoji", sans-serif';
   ctx.textAlign = 'center';
@@ -57,7 +58,6 @@ function createBillboardTexture(colorHex: string, glyph: string): string {
   return canvas.toDataURL('image/png');
 }
 
-// Converte lat/lng/alt(km) in Cartesian3 Cesium (metri sopra ellissoide WGS84)
 function toCartesian(lng: number, lat: number, altKm: number | null): Cesium.Cartesian3 {
   const altM = (altKm ?? 0) * 1000;
   return Cesium.Cartesian3.fromDegrees(lng, lat, CELESTRIAL_EARTH_RADIUS_M + altM);
@@ -66,44 +66,38 @@ function toCartesian(lng: number, lat: number, altKm: number | null): Cesium.Car
 export default function SatelliteSystem3D({
   viewer: viewerProp,
   enabled = true,
-  visualScale = DEFAULT_VISUAL_SCALE,
+  visualScale = VISUAL_SCALE_INITIAL,
   onSatelliteSelect,
 }: SatelliteSystem3DProps) {
   const viewerRef = useRef<Cesium.Viewer | null>(viewerProp ?? null);
   const entitiesRef = useRef<Map<string, Cesium.Entity>>(new Map());
   const orbitLinesRef = useRef<Map<string, Cesium.Entity>>(new Map());
-  const selectedRef = useRef<string | null>(null);
-  const [catalog, setCatalog] = useState<ReturnType<typeof getRealSatelliteCatalog>>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [catalog, setCatalog] = useState<typeof INITIAL_SATELLITES_CATALOG>([]);
   const [telemetry, setTelemetry] = useState<Record<string, SatelliteTelemetry>>({});
   const [simTime, setSimTime] = useState<Date>(new Date());
   const [isRunning, setIsRunning] = useState(true);
-  const [timeScale, setTimeScale] = useState(1); // 1 = tempo reale
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [timeScale, setTimeScale] = useState(1);
   const [orbitsVisible, setOrbitsVisible] = useState(true);
-  const [filterCategory, setFilterCategory] = useState<'ALL' | 'LEO' | 'MEO' | 'GEO' | 'HEO'>('ALL');
+  const [filterCategory, setFilterCategory] = useState<'ALL' | 'TERRITORIO' | 'METEO' | 'MERCATI' | 'COMUNICAZIONE' | 'COMUNITA'>('ALL');
   const rafRef = useRef<number | null>(null);
 
-  // Aggiorna il viewer se arriva da props
   if (viewerProp && !viewerRef.current) {
     viewerRef.current = viewerProp;
   }
 
-  // Carica catalogo satelliti reali
   useEffect(() => {
-    setCatalog(getRealSatelliteCatalog());
+    setCatalog(INITIAL_SATELLITES_CATALOG);
   }, []);
 
-  // Inizializzazione quando viewer e abilitazione sono pronti
   useEffect(() => {
     if (!enabled || !viewerRef.current) return;
     const viewer = viewerRef.current;
 
-    // Carica dati orbitali reali (una volta)
     satelliteTelemetryStore.refreshAll().then(() => {
       setTelemetry(satelliteTelemetryStore.getSnapshot(new Date()));
     });
 
-    // Sottoscrizione aggiornamento telemetria (cache OMM, propagazione locale)
     const unsub = satelliteTelemetryStore.subscribe((snap) => {
       setTelemetry(snap);
     });
@@ -114,7 +108,6 @@ export default function SatelliteSystem3D({
     };
   }, [enabled]);
 
-  // Loop animazione temporale
   useEffect(() => {
     if (!isRunning || !viewerRef.current) {
       if (rafRef.current !== null) {
@@ -138,7 +131,6 @@ export default function SatelliteSystem3D({
     };
   }, [isRunning, timeScale]);
 
-  // Aggiorna entità ogni volta che cambia simTime o telemetria
   useEffect(() => {
     if (!viewerRef.current || !enabled) return;
     updateEntities();
@@ -166,24 +158,16 @@ export default function SatelliteSystem3D({
       const tel = telemetry[sat.id];
       if (!tel || tel.status !== 'live' || tel.lat === null || tel.lng === null) return;
 
-      // Filtro categoria orbitale
-      if (filterCategory !== 'ALL' && tel.orbitRegime !== filterCategory) return;
+      if (filterCategory !== 'ALL' && sat.category !== filterCategory) return;
 
-      const color = Cesium.Color.fromCssColorString(
-        SATELLITE_ORBIT_COLORS[tel.orbitRegime as keyof typeof SATELLITE_ORBIT_COLORS] ?? '#ffffff'
-      );
+      const color = Cesium.Color.fromCssColorString(sat.color ?? '#ffffff');
       const isSelected = selectedId === sat.id;
 
-      // Posizione reale (coordinate orbitali NON modificate dalla scala visiva)
       const position = toCartesian(tel.lng, tel.lat, tel.altitudeKm);
 
-      // Texture billboard adattiva
-      const tex = createBillboardTexture(
-        SATELLITE_ORBIT_COLORS[tel.orbitRegime as keyof typeof SATELLITE_ORBIT_COLORS] ?? '#ffffff',
-        sat.icon
-      );
+      const tex = createBillboardTexture(sat.color ?? '#ffffff', sat.icon);
 
-      const entity = viewer.entities.add({
+      viewer.entities.add({
         id: `sat_${sat.id}`,
         name: sat.name,
         position,
@@ -202,12 +186,12 @@ export default function SatelliteSystem3D({
           verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
           pixelOffset: new Cesium.Cartesian2(0, -16 * visualScale),
           scaleByDistance: new Cesium.NearFarScalar(1.5e6, 1.0, 4e7, 0.2),
-          show: isSelected || true,
+          show: true,
         },
         description: `
           <strong>${sat.name}</strong><br/>
-          NORAD: ${sat.noradId}<br/>
-          Operatore: ${sat.operatore}<br/>
+          NORAD: ${sat.noradId ?? 'N/D'}<br/>
+          Ruolo: ${sat.h2wRole}<br/>
           Categoria: ${tel.orbitRegime}<br/>
           Altitudine: ${tel.altitudeKm!.toFixed(0)} km<br/>
           Velocità: ${tel.velocityKms!.toFixed(2)} km/s<br/>
@@ -217,16 +201,13 @@ export default function SatelliteSystem3D({
         `,
       });
 
-      entitiesRef.current.set(`sat_${sat.id}`, entity);
-
-      // Linea orbitale (colore per categoria)
       if (orbitsVisible) {
         const omm = satelliteTelemetryStore.getOmmRecord(sat.id);
         if (omm) {
           const track = computeInstantaneousOrbitTrack(omm, simTime, 64);
           if (track.length > 1) {
             const positions = track.map((p) => toCartesian(p.lng, p.lat, p.altitudeKm));
-            const orbitEntity = viewer.entities.add({
+            viewer.entities.add({
               id: `orbit_${sat.id}`,
               name: `Orbita ${sat.name}`,
               polyline: {
@@ -235,26 +216,22 @@ export default function SatelliteSystem3D({
                 material: color.withAlpha(0.5),
               },
             });
-            orbitLinesRef.current.set(`orbit_${sat.id}`, orbitEntity);
           }
         }
       }
     });
   }
 
-  // Pannello informativo satelliti (HTML/CSS, non canvas 3D)
   const selectedSat = catalog.find((s) => s.id === selectedId) ?? null;
   const selectedTel = selectedId ? telemetry[selectedId] : null;
 
   return (
     <>
-      {/* Overlay interfaccia satellitare (sopra il globo Cesium, non dentro la scena 3D) */}
       {enabled && viewerRef.current && (
         <div
           className="absolute top-4 left-4 z-30 flex flex-col gap-2 pointer-events-auto"
           style={{ userSelect: 'none' }}
         >
-          {/* Barra controllo */}
           <div className="bg-black/85 backdrop-blur-md border border-zinc-800 rounded-xl p-3 shadow-2xl text-xs text-zinc-200">
             <div className="font-black text-[#00ff66] mb-1">🛰️ Sistema Satellitare 3D</div>
             <div className="flex items-center gap-2 mb-2">
@@ -279,7 +256,7 @@ export default function SatelliteSystem3D({
               </button>
             </div>
             <div className="flex gap-1 mb-2">
-              {['ALL', 'LEO', 'MEO', 'GEO', 'HEO'].map((cat) => (
+              {['ALL', 'TERRITORIO', 'METEO', 'MERCATI', 'COMUNICAZIONE', 'COMUNITA'].map((cat) => (
                 <button
                   key={cat}
                   onClick={() => setFilterCategory(cat as any)}
@@ -306,18 +283,17 @@ export default function SatelliteSystem3D({
             </div>
           </div>
 
-          {/* Scheda dettaglio satellite selezionato */}
           {selectedSat && selectedTel && (
             <div className="bg-black/90 backdrop-blur-md border border-zinc-800 rounded-xl p-3 shadow-2xl text-xs text-zinc-200 max-w-[320px]">
               <div className="flex items-center gap-2 mb-2">
-                <div
-                  className="w-8 h-8 rounded bg-zinc-900 flex items-center justify-center text-[#00ff66] font-bold text-xs border border-zinc-800"
-                >
+                <div className="w-8 h-8 rounded bg-zinc-900 flex items-center justify-center text-[#00ff66] font-bold text-xs border border-zinc-800">
                   {selectedSat.icon}
                 </div>
                 <div>
                   <div className="font-black text-white">{selectedSat.name}</div>
-                  <div className="text-[10px] text-zinc-400">NORAD {selectedSat.noradId} • {selectedTel?.orbitRegime ?? selectedSat.category}</div>
+                  <div className="text-[10px] text-zinc-400">
+                    NORAD {selectedSat.noradId ?? 'N/D'} • {selectedSat.category}
+                  </div>
                 </div>
                 <button
                   onClick={() => setSelectedId(null)}
@@ -332,11 +308,10 @@ export default function SatelliteSystem3D({
                 <div className="flex justify-between"><span className="text-zinc-500">Inclinazione</span><span>{selectedTel.inclinationDeg!.toFixed(2)}°</span></div>
                 <div className="flex justify-between"><span className="text-zinc-500">Periodo</span><span>{selectedTel.periodMinutes!.toFixed(0)} min</span></div>
                 <div className="flex justify-between"><span className="text-zinc-500">Posizione</span><span>{selectedTel.lat!.toFixed(2)}°, {selectedTel.lng!.toFixed(2)}°</span></div>
-                <div className="flex justify-between"><span className="text-zinc-500">Operatore</span><span className="truncate">{selectedSat.operatore}</span></div>
-                <div className="flex justify-between"><span className="text-zinc-500">Missione</span><span className="truncate">{selectedSat.missione}</span></div>
-                <div className="flex justify-between"><span className="text-zinc-500">Lancio</span><span>{selectedSat.lancioAnno}</span></div>
+                <div className="flex justify-between"><span className="text-zinc-500">Categoria</span><span>{selectedSat.category}</span></div>
+                <div className="flex justify-between"><span className="text-zinc-500">Ruolo</span><span className="truncate">{selectedSat.h2wRole}</span></div>
                 <div className="flex justify-between"><span className="text-zinc-500">Fonte dati</span><span className="truncate text-zinc-400">{selectedTel.source}</span></div>
-                <div className="flex justify-between"><span className="text-zinc-500">Epoca OMM</span><span className="truncate text-zinc-400">{selectedSat.designazioneInternazionale ?? 'N/D'}</span></div>
+                <div className="flex justify-between"><span className="text-zinc-500">Epoca OMM</span><span className="truncate text-zinc-400">{selectedSat.officialDesignation ?? 'N/D'}</span></div>
                 <div className="flex justify-between"><span className="text-zinc-500">Aggiornato</span><span className="text-zinc-400">{new Date(selectedTel.computedAtIso).toLocaleString()}</span></div>
                 <div className="flex justify-between mt-2 pt-2 border-t border-zinc-800">
                   <span className="text-zinc-500">Scala visiva</span>
@@ -381,7 +356,6 @@ export default function SatelliteSystem3D({
         </div>
       )}
 
-      {/* Lista satelliti selezionabile (sotto la barra controllo) */}
       {enabled && viewerRef.current && (
         <div className="absolute bottom-4 left-4 z-30 w-64 max-h-[60vh] overflow-y-auto bg-black/85 backdrop-blur-md border border-zinc-800 rounded-xl p-2 shadow-2xl pointer-events-auto">
           <div className="font-black text-[#00ff66] text-[10px] mb-2">Satelliti reali</div>

@@ -1,5 +1,5 @@
-name = "have2want-blocco2"
-main = "worker/src/index.ts"
+name = "have2want-plus"
+main = "src/worker.ts"
 compatibility_date = "2026-11-26"
 
 [d1_databases]
