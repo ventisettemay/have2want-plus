@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Compass,
   Navigation,
@@ -161,7 +162,7 @@ export default function StreetView360Modal({
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div className={`fixed inset-0 z-[60] bg-black flex flex-col p-0`}>
       <div className="relative w-full h-full flex flex-col bg-slate-950">
         {/* Top Navigation Bar: Google Street View style */}
@@ -347,5 +348,5 @@ export default function StreetView360Modal({
         </div>
       </div>
     </div>
-  );
+  , document.body);
 }
