@@ -283,5 +283,20 @@
     "details": {
       "test": true
     }
+  },
+  {
+    "id": "mx0tnx1j-98882c55",
+    "timestamp": 1795895251975,
+    "action": "test_action",
+    "userId": "user_audit",
+    "role": "advertiser",
+    "ip": "1.2.3.4",
+    "path": "/api/ads/test",
+    "method": "POST",
+    "status": 200,
+    "success": true,
+    "details": {
+      "test": true
+    }
   }
 ]
