@@ -1,120 +1,107 @@
-/**
- * CONFIRMED SATELLITES – HAVE2WANT PLUS
- * Elenco canonico degli 11 satelliti ufficiali confermati dal proprietario.
- * Fonte unica di verità per tutti i moduli che necessitano l'elenco completo.
- */
-
-export type ConfirmedSatelliteId =
-  | 'MAP_SAT'
-  | 'METEO_SAT'
-  | 'KM0_SAT'
-  | 'GLOBAL_MARKET_SAT'
-  | 'PI_CHAT_SAT'
-  | 'SOCCORSO_SAT'
-  | 'DEFIANCE_PULSE_SAT'
-  | 'ACTIONFLOW_SAT'
-  | 'EXTERNAL_MARKET_SAT'
-  | 'CREATOR_ADS_SAT'
-  | 'PUBLISH_STORE_SAT';
+// SATELLITI CONFERMATI – ALLINEAMENTO CON have2want-aistudio
+// Elenco canonico degli 11 satelliti ufficiali usato per la barra rotante LED.
+// Colori e NORAD IDs tracciabili via CelesTrak (satelliteModularEngine.ts).
 
 export interface ConfirmedSatellite {
-  id: ConfirmedSatelliteId;
+  id: string;
   name: string;
-  codeName: string;
-  category: 'TERRITORIO' | 'METEO' | 'MERCATI' | 'COMUNICAZIONE' | 'COMUNITA';
+  shortName: string;
+  icon: string;
+  color: string;
+  shortDescription: string;
 }
 
 export const CONFIRMED_SATELLITES: ConfirmedSatellite[] = [
   {
     id: 'MAP_SAT',
     name: 'MAPPA 3D — Navigazione & Territorio',
-    codeName: 'Landsat 9',
-    category: 'TERRITORIO',
+    shortName: 'Mappa 3D',
+    icon: '🛰️',
+    color: '#06b6d4',
+    shortDescription: 'GPS, stradario 360°, webcam, meteo integrato',
   },
   {
     id: 'METEO_SAT',
     name: 'METEO LIVE — Globo Mondiale',
-    codeName: 'GOES-18',
-    category: 'METEO',
+    shortName: 'Meteo Live',
+    icon: '🌤️',
+    color: '#38bdf8',
+    shortDescription: 'Previsioni Open-Meteo, radar 3D, allerte',
   },
   {
     id: 'KM0_SAT',
     name: 'KM 0 — Filiera Corta',
-    codeName: 'SMAP',
-    category: 'TERRITORIO',
+    shortName: 'Km 0',
+    icon: '🌾',
+    color: '#10b981',
+    shortDescription: 'Produttori locali, filiera corta a chilometro zero',
   },
   {
     id: 'GLOBAL_MARKET_SAT',
     name: 'PRODOTTI DEL MONDO — Marketplace Interno',
-    codeName: 'TDRS-13',
-    category: 'MERCATI',
+    shortName: 'Marketplace',
+    icon: '🛒',
+    color: '#a855f7',
+    shortDescription: 'Annunci utenti, compravendita P2P, pagamenti Pi',
   },
   {
     id: 'PI_CHAT_SAT',
     name: 'CHAT & VIDEOCHAT — Comunicazione Diretta',
-    codeName: 'TDRS-12',
-    category: 'COMUNICAZIONE',
+    shortName: 'Chat & Video',
+    icon: '💬',
+    color: '#22c55e',
+    shortDescription: 'Chat privata, note vocali, videochiamate P2P',
   },
   {
     id: 'SOCCORSO_SAT',
     name: 'SOCCORSO — Emergenze & Mutuo Aiuto',
-    codeName: 'NOAA-20',
-    category: 'COMUNITA',
+    shortName: 'Soccorso',
+    icon: '🆘',
+    color: '#ef4444',
+    shortDescription: 'Numeri emergenza globali, mutuo aiuto, presidi civici',
   },
   {
     id: 'DEFIANCE_PULSE_SAT',
-    name: 'DEFIANCE PULSE — Multimedia AI (Creator, Music, Video)',
-    codeName: 'ISS (Zarya)',
-    category: 'COMUNICAZIONE',
+    name: 'DEFIANCE PULSE — Multimedia AI',
+    shortName: 'Defiance Pulse',
+    icon: '⚡',
+    color: '#ec4899',
+    shortDescription: 'Creator, musica e video AI',
   },
   {
     id: 'ACTIONFLOW_SAT',
     name: 'ACTIONFLOW HUB — Portal App Esterne',
-    codeName: 'TDRS-11',
-    category: 'COMUNITA',
+    shortName: 'ActionFlow',
+    icon: '🎮',
+    color: '#8b5cf6',
+    shortDescription: 'Ponte per collegare fino a 3 app esterne',
   },
   {
     id: 'EXTERNAL_MARKET_SAT',
     name: 'MARKETPLACE ESTERNI — Canali Esterni',
-    codeName: 'AQUA',
-    category: 'MERCATI',
+    shortName: 'Market Esterni',
+    icon: '🛒',
+    color: '#f97316',
+    shortDescription: 'Amazon, eBay, AliExpress, commissioni crypto',
   },
   {
     id: 'CREATOR_ADS_SAT',
-    name: 'CREATOR ADS — Pubblicità VIP a Pagamento',
-    codeName: 'TERRA',
-    category: 'TERRITORIO',
+    name: 'CREATOR ADS — Pubblicità VIP',
+    shortName: 'Pubblicità H2W',
+    icon: '📢',
+    color: '#ffd700',
+    shortDescription: 'Banner, volantini, spot per Pin e Vetrine',
   },
   {
     id: 'PUBLISH_STORE_SAT',
     name: 'PUBLISH & STORE — Vetrina Pubblica',
-    codeName: 'ICESAT-2',
-    category: 'TERRITORIO',
+    shortName: 'Vetrine & Negozi',
+    icon: '🏪',
+    color: '#8b5cf6',
+    shortDescription: 'Vetrina pubblica per negozi e professionisti',
   },
 ];
 
-export function isConfirmedSatellite(id: string): id is ConfirmedSatelliteId {
-  return CONFIRMED_SATELLITES.some((s) => s.id === id);
-}
-
-export function getConfirmedSatellite(id: ConfirmedSatelliteId): ConfirmedSatellite | undefined {
-  return CONFIRMED_SATELLITES.find((s) => s.id === id);
-}
-
-export const CONFIRMED_SATELLITE_TO_COMPONENT: Record<ConfirmedSatelliteId, string> = {
-  MAP_SAT: 'MapView3DContainer',
-  METEO_SAT: 'LiveWeatherModal',
-  KM0_SAT: 'VetrinaKmZero',
-  GLOBAL_MARKET_SAT: 'GlobalMarketplaceView',
-  PI_CHAT_SAT: 'PiChatUnifiedHub',
-  SOCCORSO_SAT: 'WorldEmergencyModal',
-  DEFIANCE_PULSE_SAT: 'DefiancePulseHub',
-  ACTIONFLOW_SAT: 'ActionFlowHubModal',
-  EXTERNAL_MARKET_SAT: 'ExternalListings',
-  CREATOR_ADS_SAT: 'BusinessSponsorModal',
-  PUBLISH_STORE_SAT: 'MerchantDetailModal',
-};
-
-export function getConfirmedSatelliteById(id: ConfirmedSatelliteId): ConfirmedSatellite | undefined {
+export function getConfirmedSatelliteById(id: string): ConfirmedSatellite | undefined {
   return CONFIRMED_SATELLITES.find((s) => s.id === id);
 }

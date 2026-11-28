@@ -903,8 +903,6 @@ function Have2WantPlusMain() {
             {/* Separatore */}
             <div className="w-[1px] h-5 bg-zinc-800 shrink-0" />
 
-
-
             {/* ⚙️ PANNELLO IMPOSTAZIONI COMPLETO */}
             <button
               id="btn-scroll-interruttori"
@@ -1724,6 +1722,21 @@ function Have2WantPlusMain() {
         </div>
       )}
 
+      {/* PI ADS MODAL — Canale autonomo separato da Pubblicità H2W */}
+      {showPiAds && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
+          <div className="relative w-full max-w-md">
+            <button
+              onClick={() => setShowPiAds(false)}
+              className="absolute -top-3 -right-3 z-10 p-2 rounded-full bg-[#070b19] hover:bg-slate-800 text-slate-200 border border-slate-700 shadow-xl cursor-pointer"
+            >
+              ✕
+            </button>
+            <AdRewardHub />
+          </div>
+        </div>
+      )}
+
       {/* CREATIVE STUDIO MODAL — Pubblicità H2W */}
       {showCreativeStudio && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
@@ -1750,21 +1763,6 @@ function Have2WantPlusMain() {
               ✕
             </button>
             <VideoCreator isOpen={showVideoCreator} onClose={() => setShowVideoCreator(false)} />
-          </div>
-        </div>
-      )}
-
-      {/* PI ADS MODAL — Canale autonomo separato da Pubblicità H2W */}
-      {showPiAds && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
-          <div className="relative w-full max-w-md">
-            <button
-              onClick={() => setShowPiAds(false)}
-              className="absolute -top-3 -right-3 z-10 p-2 rounded-full bg-[#070b19] hover:bg-slate-800 text-slate-200 border border-slate-700 shadow-xl cursor-pointer"
-            >
-              ✕
-            </button>
-            <AdRewardHub />
           </div>
         </div>
       )}
