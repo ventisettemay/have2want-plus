@@ -19,9 +19,10 @@ import {
 export interface PioneerRewardsHubModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpenCreateListing?: () => void;
 }
 
-export default function PioneerRewardsHubModal({
+export function PioneerRewardsHubModal({
   isOpen,
   onClose,
 }: PioneerRewardsHubModalProps) {
@@ -146,3 +147,5 @@ export default function PioneerRewardsHubModal({
     </div>
   );
 }
+
+export default PioneerRewardsHubModal;
