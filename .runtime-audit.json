@@ -163,5 +163,20 @@
     "details": {
       "test": true
     }
+  },
+  {
+    "id": "mx0lrfkt-a08817d1",
+    "timestamp": 1795881979037,
+    "action": "test_action",
+    "userId": "user_audit",
+    "role": "advertiser",
+    "ip": "1.2.3.4",
+    "path": "/api/ads/test",
+    "method": "POST",
+    "status": 200,
+    "success": true,
+    "details": {
+      "test": true
+    }
   }
 ]
