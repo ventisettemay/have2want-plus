@@ -100,3 +100,21 @@ export function isConfirmedSatellite(id: string): id is ConfirmedSatelliteId {
 export function getConfirmedSatellite(id: ConfirmedSatelliteId): ConfirmedSatellite | undefined {
   return CONFIRMED_SATELLITES.find((s) => s.id === id);
 }
+
+export const CONFIRMED_SATELLITE_TO_COMPONENT: Record<ConfirmedSatelliteId, string> = {
+  MAP_SAT: 'MapView3DContainer',
+  METEO_SAT: 'LiveWeatherModal',
+  KM0_SAT: 'VetrinaKmZero',
+  GLOBAL_MARKET_SAT: 'GlobalMarketplaceView',
+  PI_CHAT_SAT: 'PiChatUnifiedHub',
+  SOCCORSO_SAT: 'WorldEmergencyModal',
+  DEFIANCE_PULSE_SAT: 'DefiancePulseHub',
+  ACTIONFLOW_SAT: 'ActionFlowHubModal',
+  EXTERNAL_MARKET_SAT: 'ExternalListings',
+  CREATOR_ADS_SAT: 'BusinessSponsorModal',
+  PUBLISH_STORE_SAT: 'MerchantDetailModal',
+};
+
+export function getConfirmedSatelliteById(id: ConfirmedSatelliteId): ConfirmedSatellite | undefined {
+  return CONFIRMED_SATELLITES.find((s) => s.id === id);
+}

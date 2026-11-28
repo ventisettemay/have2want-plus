@@ -152,121 +152,6 @@ export function resolveGlobeUrbanTarget({ activeZone, selectedCountryId, fallbac
   return null;
 }
 
-export const SATELLITES_CONFIG = [
-  {
-    type: 'KMZERO',
-    code: 'KM0',
-    name: 'Km 0',
-    label: 'Km 0',
-    sublabel: 'Produttori Locali',
-    desc: 'Accesso diretto ai produttori agricoli del territorio e filiera corta a Km 0',
-    color: '#10b981',
-    foilColor: 0xd4af37, // Oro termico MLI
-    orbitMultiplier: 1.22,
-    speed: 0.0012,
-    inclination: 0.65,
-    angle: 0.8,
-  },
-  {
-    type: 'WEATHER',
-    code: 'METEO',
-    name: 'Meteo Live',
-    label: 'Meteo Live',
-    sublabel: 'Clima in Tempo Reale',
-    desc: 'Previsioni e rilevamento meteorologico in tempo reale Open-Meteo per ogni territorio',
-    color: '#38bdf8',
-    foilColor: 0xe2e8f0,
-    orbitMultiplier: 1.30,
-    speed: 0.0007,
-    inclination: 0.12,
-    angle: 2.1,
-  },
-  {
-    type: 'MONDO',
-    code: 'MARKETPLACE',
-    name: 'Marketplace Globale',
-    label: 'Marketplace',
-    sublabel: 'Prodotti dal Mondo',
-    desc: 'Supermarket globale con compravendite internazionali, valute reali e spedizioni tracciate',
-    color: '#a855f7',
-    foilColor: 0xd4af37,
-    orbitMultiplier: 1.38,
-    speed: 0.0009,
-    inclination: -0.52,
-    angle: 3.5,
-  },
-  {
-    type: 'P2P',
-    code: 'LAVORO',
-    name: 'Lavoro P2P',
-    label: 'Lavoro P2P',
-    sublabel: 'Bacheca & Servizi',
-    desc: 'Rete autonoma di annunci, compravendite, offerte di lavoro e scambi tra privati',
-    color: '#00ff66',
-    foilColor: 0xe2e8f0,
-    orbitMultiplier: 1.46,
-    speed: 0.0011,
-    inclination: 0.40,
-    angle: 4.8,
-  },
-  {
-    type: 'RADAR',
-    code: 'RADAR',
-    name: 'Radar Territoriale',
-    label: 'Radar',
-    sublabel: 'Scansione di Prossimità',
-    desc: 'Scansione geografica locale e raggio di vicinanza P2P (Near You / Community)',
-    color: '#f59e0b',
-    foilColor: 0xd4af37,
-    orbitMultiplier: 1.54,
-    speed: 0.0008,
-    inclination: -0.25,
-    angle: 1.4,
-  },
-  {
-    type: 'COMUNITA',
-    code: 'COMUNITÀ',
-    name: 'Comunità & Soccorso',
-    label: 'Comunità',
-    sublabel: 'Mutuo Aiuto',
-    desc: 'Rete solidale di emergenza civica, soccorso mutuo e carpooling solidale',
-    color: '#ef4444',
-    foilColor: 0xe2e8f0,
-    orbitMultiplier: 1.62,
-    speed: 0.0010,
-    inclination: 0.55,
-    angle: 5.7,
-  },
-  {
-    type: 'BARATTO',
-    code: 'BARATTO',
-    name: 'Baratto Puro & WANT',
-    label: 'Baratto',
-    sublabel: 'Scambio Senza Denaro',
-    desc: 'Filtro esclusivo scambio merci reciproco e matching desideri WANT',
-    color: '#ec4899',
-    foilColor: 0xd4af37,
-    orbitMultiplier: 1.70,
-    speed: 0.0013,
-    inclination: -0.45,
-    angle: 0.2,
-  },
-  {
-    type: 'STRADARIO',
-    code: 'STRADARIO',
-    name: 'Stradario & 360°',
-    label: 'Stradario',
-    sublabel: 'Vista Panoramica Reale',
-    desc: 'Passeggiata stradale a 360 gradi, incroci e viabilità territoriale reale',
-    color: '#06b6d4',
-    foilColor: 0xe2e8f0,
-    orbitMultiplier: 1.78,
-    speed: 0.0006,
-    inclination: 0.35,
-    angle: 2.9,
-  },
-];
-
 export default function Globo3D({
   listings = [],
   allListings = [],
@@ -353,9 +238,9 @@ export default function Globo3D({
   const toggleWeatherRef = useRef(null);
   const [isPoliticalRevealed, setIsPoliticalRevealed] = useState(false);
   const [isWeatherActive, setIsWeatherActive] = useState(true);
-  const [showWeatherLegend, setShowWeatherLegend] = useState(true);
   const [isRadarPlaying, setIsRadarPlaying] = useState(true);
   const [radarTimestamp, setRadarTimestamp] = useState(null);
+  const [isGlobeToolsOpen, setIsGlobeToolsOpen] = useState(false);
   const globeListingEntriesRef = useRef([]);
   const globeMerchantGroupsRef = useRef([]);
   const globeChatGroupsRef = useRef([]);
@@ -1805,8 +1690,9 @@ export default function Globo3D({
     };
     flyToCountryRef.current = flyToCountry;
 
-    // Funzione Fly-To su un satellite specifico nello spazio con inquadratura ravvicinata
-    const flyToSatellite = (satIdOrType) => {
+    // Funzione Fly-To su un satellite specifico nello spazio con inquadratura ravvicinata.
+    // Uso: flyToSatellite(satId, true) forza l'inquadratura ravvicinata sul satellite.
+    const flyToSatellite = (satIdOrType, force = false) => {
       const sat = activeSatellites.find((s) => s.id === satIdOrType || s.type === satIdOrType || s.legacyType === satIdOrType);
       if (!sat || !sat.craftGroup) return;
 
@@ -2529,7 +2415,7 @@ export default function Globo3D({
 
 
       {/* LEGENDA METEO COMPATTA IN ALTO A SINISTRA + CONTROLLI RADAR */}
-      {isWeatherActive && !isPoliticalRevealed && showWeatherLegend && (
+      {isWeatherActive && !isPoliticalRevealed && (
         <div className="absolute top-3 left-3 z-20 pointer-events-auto flex flex-col gap-1.5 bg-black/85 border border-zinc-800 rounded-xl px-2.5 py-2 text-[10px] font-bold text-zinc-200 shadow-lg max-w-[78vw] overflow-x-auto no-scrollbar">
           <div className="flex items-center gap-2">
             <span className="text-amber-400 whitespace-nowrap">☀️ Sole</span>
@@ -2541,14 +2427,7 @@ export default function Globo3D({
             <span className="text-sky-100 whitespace-nowrap">❄️ Neve</span>
             <span className="text-zinc-600">•</span>
             <span className="text-purple-400 whitespace-nowrap">⛈️ Temporale</span>
-            <button
-              type="button"
-              onClick={() => setShowWeatherLegend(false)}
-              className="ml-1 text-zinc-400 hover:text-white cursor-pointer"
-              title="Nascondi legenda meteo"
-            >
-              <X className="w-3 h-3" />
-            </button>
+
           </div>
           {/* Controlli Radar: Play/Pausa + Timestamp */}
           <div className="flex items-center gap-2 px-1 py-1 border-t border-zinc-800">

@@ -259,6 +259,8 @@ export default function Urbano3D({
   const [navDestination, setNavDestination] = useState(null);
   const [alternativeRoutes, setAlternativeRoutes] = useState([]);
   const [showAlternativeRoutes, setShowAlternativeRoutes] = useState(false);
+  const [showRoutePlanner, setShowRoutePlanner] = useState(false);
+  const [isUrbanToolsOpen, setIsUrbanToolsOpen] = useState(false);
   const [selectedAlternativeIndex, setSelectedAlternativeIndex] = useState(-1);
   const [placeSearchQuery, setPlaceSearchQuery] = useState('');
   const [placeSearchResults, setPlaceSearchResults] = useState([]);

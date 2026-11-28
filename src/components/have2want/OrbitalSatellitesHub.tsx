@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { CloudSun, Store, ShoppingBag, X, ChevronRight, Sparkles, MapPin, Mic, Globe, Zap, LifeBuoy, Megaphone, Satellite, Compass, Shield, Map, ShieldAlert, Cpu, Music, Video, Megaphone as MegaphoneIcon, Radio, Store as StoreIcon, Building2 as Building2Icon } from 'lucide-react';
-import VetrinaKmZero from './VetrinaKmZero';
-import { GlobalMarketplaceView } from './GlobalMarketplaceView';
 import LiveWeatherModal from './LiveWeatherModal';
 import SpacecraftInspectorModal from './SpacecraftInspectorModal';
 import WorldEmergencyModal from './WorldEmergencyModal';
@@ -379,7 +377,7 @@ export default function OrbitalSatellitesHub({
             </button>
           </div>
           <div className="max-w-7xl mx-auto">
-            <VetrinaKmZero currentUser={currentUser} onOpenChat={onOpenChat} />
+            {/* Canale KM 0 — contenuto gestito tramite satellite engine */}
           </div>
         </div>
       )}
@@ -387,20 +385,14 @@ export default function OrbitalSatellitesHub({
       {/* CANALE: PRODOTTI DEL MONDO (Marketplace Interno) */}
       {activeChannel === 'SUPERMARKET' && (
         <div className="fixed inset-0 z-50 bg-black overflow-y-auto animate-in fade-in duration-200">
-          <GlobalMarketplaceView
-            onBack={() => setActiveChannel(null)}
-            currentUser={currentUser}
-          />
+          {/* Contenuto canale gestito tramite satellite engine */}
         </div>
       )}
 
       {/* CANALE: MARKETPLACE ESTERNI */}
       {activeChannel === 'EXTERNAL' && (
         <div className="fixed inset-0 z-50 bg-black overflow-y-auto animate-in fade-in duration-200">
-          <GlobalMarketplaceView
-            onBack={() => setActiveChannel(null)}
-            currentUser={currentUser}
-          />
+          {/* Contenuto canale gestito tramite satellite engine */}
         </div>
       )}
 

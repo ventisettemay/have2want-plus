@@ -143,8 +143,8 @@ export const TRACKABLE_SATELLITES_METADATA: Record<SatelliteId, SatelliteCatalog
     nonPhysicalReason:
       'Canale logico HAVE2WANT (eBay/Amazon): nessun satellite fisico associato su NORAD/CelesTrak.',
   },
-  BUSINESS_ADS_SAT: {
-    satelliteId: 'BUSINESS_ADS_SAT',
+  CREATOR_ADS_SAT: {
+    satelliteId: 'CREATOR_ADS_SAT',
     noradId: null,
     officialName: 'BEACON-BUSINESS (Creazione Pubblicità Locali)',
     operator: 'HAVE2WANT Network',
@@ -172,6 +172,16 @@ export const TRACKABLE_SATELLITES_METADATA: Record<SatelliteId, SatelliteCatalog
     isPhysicalSpacecraft: false,
     nonPhysicalReason:
       'Canale logico HAVE2WANT (Defiance Pulse): nessun satellite fisico associato su NORAD/CelesTrak.',
+  },
+  PUBLISH_STORE_SAT: {
+    satelliteId: 'PUBLISH_STORE_SAT',
+    noradId: null,
+    officialName: 'BEACON-STORE (Vetrina Pubblica)',
+    operator: 'HAVE2WANT Network',
+    orbitRegime: 'LOGICAL',
+    isPhysicalSpacecraft: false,
+    nonPhysicalReason:
+      'Canale logico HAVE2WANT (Vetrina Pubblica): nessun satellite fisico associato su NORAD/CelesTrak.',
   }
 };
 

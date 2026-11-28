@@ -545,9 +545,9 @@ export function buildEngineeredSpacecraft(
     }
 
     // -------------------------------------------------------------------------
-    // 14. BUSINESS_ADS_SAT: INTELSAT-40E / TEMPO – Piattaforma Spettrometro
+    // 14. CREATOR_ADS_SAT: INTELSAT-40E / TEMPO – Piattaforma Spettrometro
     // -------------------------------------------------------------------------
-    case 'BUSINESS_ADS_SAT': {
+    case 'CREATOR_ADS_SAT': {
       // Piattaforma commerciale geostazionaria Maxar 1300 con lamina Kapton oro
       const bus = new THREE.Mesh(new THREE.BoxGeometry(4.2, 4.2, 4.6), goldFoilMat);
       group.add(bus);

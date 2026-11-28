@@ -80,7 +80,6 @@ import {
   Car,
   Wrench,
   Zap,
-  GraduationCap,
   ExternalLink
 } from 'lucide-react';
 
@@ -133,6 +132,7 @@ function Have2WantPlusMain() {
   const [showFilterMenu, setShowFilterMenu] = useState(false);
 
   // 4. SELETTORE VISTA: 'GLOBO' | 'URBANO_3D' | 'BACHECA'
+// viewMode === 'URBANO_3D' — modalità territorio 3D (OrbitalSatellitesHub)
   const [viewMode, setViewMode] = useState(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -575,7 +575,6 @@ function Have2WantPlusMain() {
               className="px-2.5 py-1.5 rounded-xl text-[11px] font-black tracking-wide flex items-center gap-1.5 cursor-pointer transition-colors bg-zinc-900 hover:bg-zinc-800 text-white hover:text-[#00ff66] border border-zinc-800 active:scale-95"
               title="Apri il Tutor Ufficiale: Guida interattiva e spiegazione delle funzioni"
             >
-              <GraduationCap className="w-4 h-4 text-[#00ff66]" />
               <span className="hidden xs:inline">TUTOR</span>
             </button>
 
@@ -619,7 +618,7 @@ function Have2WantPlusMain() {
             onMouseLeave={() => setIsBarHovered(false)}
             onTouchStart={() => setIsBarHovered(true)}
             onTouchEnd={() => setTimeout(() => setIsBarHovered(false), 2000)}
-            className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto scrollbar-none pt-1 pb-0.5 border-t border-zinc-900 touch-pan-x w-full"
+            className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar pt-1 pb-0.5 border-t border-zinc-900 touch-pan-x w-full"
           >
             {/* 🌍 1. IN PRIMO PIANO: SELETTORE NAZIONE & MONDO (SUBITO VISIBILE A TUTTI) */}
             <button
@@ -674,39 +673,9 @@ function Have2WantPlusMain() {
             <div className="w-[1px] h-5 bg-zinc-800 shrink-0" />
 
             {/* 🛰️ SERVIZI CHIAVE CON CONTORNO LED LUMINOSO (CUORE DELL'APP) — 10 SATELLITI DEFINITIVI */}
-            {/* 1. Km 0: Contorno LED Verde Smeraldo */}
-            <button
-              id="btn-scroll-channel-km0"
-              onClick={() => {
-                setActiveSatelliteChannel(SATELLITE_TO_CHANNEL.KM0_SAT);
-                toast.info("🌿 KM 0 — Filiera Corta & Produttori Locali");
-              }}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-emerald-950/60 border-2 border-[#10b981] shadow-[0_0_12px_rgba(16,185,129,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
-              title="KM 0 — Produttori Locali, Agricoltori, Filiera Corta"
-            >
-              <span className="w-2.5 h-2.5 rounded-full bg-[#10b981] shadow-[0_0_8px_#10b981] animate-pulse shrink-0" />
-              <div className="flex flex-col text-left leading-tight">
-                <span className="text-[12px] font-black text-emerald-300">🌿 KM 0</span>
-                <span className="text-[9px] font-bold text-emerald-400/80 uppercase tracking-tighter">Filiera Corta</span>
-              </div>
-            </button>
 
-            {/* 2. Meteo: Contorno LED Ciano Cielo */}
-            <button
-              id="btn-scroll-channel-meteo"
-              onClick={() => {
-                setActiveSatelliteChannel(SATELLITE_TO_CHANNEL.METEO_SAT);
-                toast.info("⛅ METEO — Clima, Radar & Previsioni Live");
-              }}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-sky-950/60 border-2 border-[#38bdf8] shadow-[0_0_12px_rgba(56,189,248,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
-              title="METEO — Open-Meteo, Radar 3D, Allerte per Ogni Territorio"
-            >
-              <span className="w-2.5 h-2.5 rounded-full bg-[#38bdf8] shadow-[0_0_8px_#38bdf8] animate-pulse shrink-0" />
-              <div className="flex flex-col text-left leading-tight">
-                <span className="text-[12px] font-black text-sky-300">⛅ METEO</span>
-                <span className="text-[9px] font-bold text-sky-400/80 uppercase tracking-tighter">Clima Live</span>
-              </div>
-            </button>
+
+
 
             {/* 3. Prodotti del Mondo (Marketplace Interno): Contorno LED Viola Neon */}
             <button
@@ -725,22 +694,7 @@ function Have2WantPlusMain() {
               </div>
             </button>
 
-            {/* 4. MAP: Contorno LED Ciano / Blu Navigazione */}
-            <button
-              id="btn-scroll-channel-map"
-              onClick={() => {
-                setActiveSatelliteChannel(SATELLITE_TO_CHANNEL.MAP_SAT);
-                toast.info("🗺️ MAP — GPS, Strade/Edifici Reali, Percorsi OSRM, Meteo Integrato, Webcam");
-              }}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-cyan-950/60 border-2 border-[#06b6d4] shadow-[0_0_12px_rgba(6,182,212,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
-              title="MAP — Navigazione Unificata: GPS, MapLibre, OSRM, Meteo su Percorsi, Webcam Live"
-            >
-              <span className="w-2.5 h-2.5 rounded-full bg-[#06b6d4] shadow-[0_0_8px_#06b6d4] animate-pulse shrink-0" />
-              <div className="flex flex-col text-left leading-tight">
-                <span className="text-[12px] font-black text-cyan-300">🗺️ MAP</span>
-                <span className="text-[9px] font-bold text-cyan-400/80 uppercase tracking-tighter">Navigazione Reale</span>
-              </div>
-            </button>
+
 
             {/* 5. Soccorso: Contorno LED Rosso Emergenza */}
             <button
@@ -793,22 +747,7 @@ function Have2WantPlusMain() {
               </div>
             </button>
 
-            {/* 8. DEFIANCE PULSE: Contorno LED Viola Brillante — Pulsante Separato Evidenziato */}
-            <button
-              id="btn-scroll-channel-defiance-pulse"
-              onClick={() => {
-                setActiveSatelliteChannel(SATELLITE_TO_CHANNEL.DEFIANCE_PULSE_SAT);
-                toast.info("⚡ DEFIANCE PULSE — CREATOR, MUSIC, VIDEO, PROMOTION (AI Client-Side)");
-              }}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-violet-950/60 border-2 border-[#8b5cf6] shadow-[0_0_16px_rgba(139,92,246,0.6)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
-              title="DEFIANCE PULSE — 4 Aree: CREATOR (AI Generativa), MUSIC (Basi Locali), VIDEO (Feed Verticale), PROMOTION (ADS Interno)"
-            >
-              <span className="w-2.5 h-2.5 rounded-full bg-[#8b5cf6] shadow-[0_0_12px_#8b5cf6] animate-pulse shrink-0" />
-              <div className="flex flex-col text-left leading-tight">
-                <span className="text-[12px] font-black text-violet-300">⚡ DEFIANCE PULSE</span>
-                <span className="text-[9px] font-bold text-violet-400/80 uppercase tracking-tighter">CREATOR • MUSIC • VIDEO • PROMO</span>
-              </div>
-            </button>
+
 
             {/* 9. PI Chat: Contorno LED Verde Neon */}
             <button
@@ -827,38 +766,14 @@ function Have2WantPlusMain() {
               </div>
             </button>
 
-            {/* 10. ActionFlow: Contorno LED Viola */}
-            <button
-              id="btn-scroll-channel-actionflow"
-              onClick={() => {
-                setActiveSatelliteChannel(SATELLITE_TO_CHANNEL.ACTIONFLOW_SAT);
-                toast.info("🎮 ACTIONFLOW HUB — Centro Missioni, Attività AI, Ricompense, Portal Ecosistema Esterno");
-              }}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-violet-950/60 border-2 border-[#a855f7] shadow-[0_0_12px_rgba(168,85,247,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
-              title="ACTIONFLOW HUB — Portal per Applicazioni Esterne dell'Ecosistema"
-            >
-              <span className="w-2.5 h-2.5 rounded-full bg-[#a855f7] shadow-[0_0_8px_#a855f7] animate-pulse shrink-0" />
-              <div className="flex flex-col text-left leading-tight">
-                <span className="text-[12px] font-black text-violet-300">🎮 ACTIONFLOW</span>
-                <span className="text-[9px] font-bold text-violet-400/80 uppercase tracking-tighter">ActionFlow Hub</span>
-              </div>
-            </button>
+
 
 
 
             {/* Separatore */}
             <div className="w-[1px] h-5 bg-zinc-800 shrink-0" />
 
-            {/* 🎓 TUTOR UFFICIALE (GUIDA & ASSISTENZA DIRETTA) */}
-            <button
-              id="btn-scroll-tutor"
-              onClick={() => setShowTutorModal(true)}
-              className="px-3 py-1.5 rounded-xl text-xs font-black bg-zinc-900 hover:bg-zinc-800 text-white hover:text-[#00ff66] flex items-center gap-1.5 cursor-pointer transition-colors shrink-0 border border-zinc-800"
-              title="Apri il Tutor Ufficiale: Guida interattiva e spiegazione rapida"
-            >
-              <GraduationCap className="w-3.5 h-3.5 text-[#00ff66]" />
-              <span>TUTOR GUIDA</span>
-            </button>
+
 
             {/* ⚙️ PANNELLO IMPOSTAZIONI COMPLETO */}
             <button
@@ -917,20 +832,7 @@ function Have2WantPlusMain() {
             <span>{viewMode === 'BACHECA' ? '🌐 VISTA GLOBO 3D' : '🏠 HOME / TUTTI GLI ANNUNCI'}</span>
           </button>
 
-          {/* 📦 PRODOTTI FISICI MONDO & WALLET USDT */}
-          <button
-            id="btn-nav-global-market"
-            onClick={() => {
-              setActiveFilter('ESTERNI');
-              setViewMode('BACHECA');
-              toast.success('📦 Apertura Catalogo Prodotti Fisici & Wallet Crypto');
-            }}
-            className="px-3 py-1.5 rounded-xl text-xs font-black bg-zinc-900 hover:bg-zinc-800 text-amber-300 border border-amber-500/40 hover:border-amber-400 flex items-center gap-1.5 cursor-pointer transition-colors shrink-0 shadow-sm"
-            title="Sfoglia prodotti fisici spediti a casa, ricevi USDT su wallet privato o converti in baratto"
-          >
-            <span>📦</span>
-            <span>PRODOTTI FISICI & WALLET</span>
-          </button>
+
 
           {/* Separatore */}
           <div className="w-[1px] h-6 bg-zinc-800 shrink-0" />
@@ -1064,25 +966,9 @@ function Have2WantPlusMain() {
             <span>Pi Studio Hub</span>
           </button>
 
-          <button
-            id="btn-open-ad-modal"
-            onClick={handleOpenAdModal}
-            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white flex items-center gap-1.5 cursor-pointer transition-colors shrink-0"
-            title="Pubblicizza la tua attività sulla mappa 3D"
-          >
-            <Store className="w-3.5 h-3.5 text-[#00ff66]" />
-            <span>Negozi Pi</span>
-          </button>
 
-          <button
-            id="btn-open-voice-chat"
-            onClick={handleOpenVoiceChat}
-            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white flex items-center gap-1.5 cursor-pointer transition-colors shrink-0"
-            title="Invia Note Vocali a negozianti e utenti"
-          >
-            <Mic className="w-3.5 h-3.5 text-[#00ff66]" />
-            <span>Note Vocali</span>
-          </button>
+
+
 
           {/* Separatore */}
           <div className="w-[1px] h-5 bg-zinc-800 shrink-0" />
@@ -1211,7 +1097,7 @@ function Have2WantPlusMain() {
             title="Guida Introduttiva, Zero Fiat, Pi SDK, Privacy GDPR e Regolamento Comunità"
           >
             <Scale className="w-3.5 h-3.5 text-emerald-400" />
-            <span>📜 Regolamento & Privacy</span>
+            <span>Regolamento & Privacy</span>
           </button>
 
           <button

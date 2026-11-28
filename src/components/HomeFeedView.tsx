@@ -95,52 +95,9 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
   const voiceRecRef = React.useRef<any>(null);
   const [dictatingField, setDictatingField] = useState<"title" | "description" | "exchange" | null>(null);
 
-  // Auto-scroll morbido per le categorie della bacheca (rotazione continua)
-  const sectionsBarRef = React.useRef<HTMLDivElement>(null);
-  const [isSectionsHovered, setIsSectionsHovered] = useState(false);
-  const sectionsDirectionRef = React.useRef(1);
-  const sectionsPauseRef = React.useRef<any>(null);
-  const sectionsIsPausedRef = React.useRef(false);
 
-  React.useEffect(() => {
-    if (isSectionsHovered) return;
 
-    let animId: number;
-    const runScroll = () => {
-      const el = sectionsBarRef.current;
-      if (el && !sectionsIsPausedRef.current) {
-        const maxScroll = el.scrollWidth - el.clientWidth;
-        if (maxScroll > 10) {
-          if (sectionsDirectionRef.current === 1) {
-            el.scrollLeft += 0.45;
-            if (el.scrollLeft >= maxScroll - 2) {
-              sectionsIsPausedRef.current = true;
-              sectionsPauseRef.current = setTimeout(() => {
-                sectionsDirectionRef.current = -1;
-                sectionsIsPausedRef.current = false;
-              }, 2500);
-            }
-          } else {
-            el.scrollLeft -= 0.55;
-            if (el.scrollLeft <= 2) {
-              sectionsIsPausedRef.current = true;
-              sectionsPauseRef.current = setTimeout(() => {
-                sectionsDirectionRef.current = 1;
-                sectionsIsPausedRef.current = false;
-              }, 2500);
-            }
-          }
-        }
-      }
-      animId = requestAnimationFrame(runScroll);
-    };
 
-    animId = requestAnimationFrame(runScroll);
-    return () => {
-      cancelAnimationFrame(animId);
-      if (sectionsPauseRef.current) clearTimeout(sectionsPauseRef.current);
-    };
-  }, [isSectionsHovered]);
 
   const toggleVoiceSearch = () => {
     const SpeechRecognition =
@@ -1041,11 +998,6 @@ export const HomeFeedView: React.FC<HomeFeedViewProps> = ({
 
             {/* Quick Pills di Switch Sezione (Rotazione Morbida Automatica con Pausa al Tocco) */}
             <div
-              ref={sectionsBarRef}
-              onMouseEnter={() => setIsSectionsHovered(true)}
-              onMouseLeave={() => setIsSectionsHovered(false)}
-              onTouchStart={() => setIsSectionsHovered(true)}
-              onTouchEnd={() => setTimeout(() => setIsSectionsHovered(false), 2000)}
               className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none touch-pan-x"
             >
               {SECTIONS_CATALOG.map((sec) => (
