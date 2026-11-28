@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { COUNTRIES, getCountryForListing } from '@/data/countries';
@@ -581,6 +581,38 @@ export default function Globo3D({
     return { sprite, texture, material: spriteMat };
   };
 
+  // Riferimenti per animazione radar (accessibili anche fuori dal useEffect di setup Three.js)
+  const isRadarPlayingRef = { current: true };
+  const radarRefreshIntervalRef = { current: null };
+  const refreshRealRadarOverlayRef = { current: null };
+
+  // Controllo animazione radar (Play/Pausa) – definito a livello di componente
+  // per essere accessibile dal JSX di rendering (onClick toggle radar)
+  const toggleRadarAnimation = () => {
+    const next = !isRadarPlaying;
+    setIsRadarPlaying(next);
+    isRadarPlayingRef.current = next;
+
+    if (next) {
+      // Riprendi: riavvia intervallo refresh
+      if (!radarRefreshIntervalRef.current) {
+        radarRefreshIntervalRef.current = setInterval(
+          refreshRealRadarOverlayRef.current,
+          5 * 60 * 1000
+        );
+        refreshRealRadarOverlayRef.current?.();
+      }
+      toast.success("▶️ Animazione Radar Ripresa", { duration: 2000 });
+    } else {
+      // Pausa: ferma intervallo refresh
+      if (radarRefreshIntervalRef.current) {
+        clearInterval(radarRefreshIntervalRef.current);
+        radarRefreshIntervalRef.current = null;
+      }
+      toast.info("⏸️ Animazione Radar in Pausa", { duration: 2000 });
+    }
+  };
+
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -962,6 +994,7 @@ export default function Globo3D({
         applyStaticCloudsFallback();
       }
     };
+    refreshRealRadarOverlayRef.current = refreshRealRadarOverlay;
     const radarInitTimeout = setTimeout(refreshRealRadarOverlay, 600);
     const radarRefreshInterval = setInterval(refreshRealRadarOverlay, 5 * 60 * 1000);
 
@@ -972,9 +1005,7 @@ export default function Globo3D({
 
     // Weather state reference inside Three.js
     let weatherEnabled = true;
-    const isRadarPlayingRef = { current: true };
-    const radarRefreshIntervalRef = { current: null };
-    
+
     // Sincronizza isRadarPlaying con isRadarPlayingRef
     useEffect(() => {
       isRadarPlayingRef.current = isRadarPlaying;
@@ -991,30 +1022,6 @@ export default function Globo3D({
         weatherMarkersGroup.visible = next;
       }
       return next;
-    };
-
-    // Controllo animazione radar (Play/Pausa)
-    const toggleRadarAnimation = () => {
-      const next = !isRadarPlaying;
-      setIsRadarPlaying(next);
-      isRadarPlayingRef.current = next;
-      
-      if (next) {
-        // Riprendi: riavvia intervallo refresh
-        if (!radarRefreshIntervalRef.current) {
-          radarRefreshIntervalRef.current = setInterval(refreshRealRadarOverlay, 5 * 60 * 1000);
-          // Refresh immediato
-          refreshRealRadarOverlay();
-        }
-        toast.success("▶️ Animazione Radar Ripresa", { duration: 2000 });
-      } else {
-        // Pausa: ferma intervallo refresh
-        if (radarRefreshIntervalRef.current) {
-          clearInterval(radarRefreshIntervalRef.current);
-          radarRefreshIntervalRef.current = null;
-        }
-        toast.info("⏸️ Animazione Radar in Pausa", { duration: 2000 });
-      }
     };
 
     // 7B. DISSOLVENZA STANDARD ↔ GEOPOLITICO (2 MESH SEPARATI, RAGGIO 60 vs 60.02 ANTI Z-FIGHTING)
