@@ -1387,6 +1387,59 @@ export default function Globo3D({
     // 1. VIOLA E ORO LAMPEGGIANTE: Attività che accettano e utilizzano Pi
     // 2. ORO PURO: Attività che pubblicizzano il proprio esercizio
     // 3. DOPPIO ANELLO: Attività che utilizzano Pi E pubblicizzano
+    // --- INIZIO: PIN SATELLITI 3D (stessa palette colori di badge/LED/satelliti) ---
+    // Ogni satellite ufficiale ha un colore di riferimento (sat.color) usato anche per
+    // le ali su SpacecraftModelsBuilder, i LED nella barra Orbitale e i testi correlati.
+    // I PIN sul Globo usano lo stesso colore così l'utente associa immediatamente il satellite
+    // al suo colore rappresentativo ovunque nell'app.
+    INITIAL_SATELLITES_CATALOG.forEach((sat) => {
+      if (!sat.isActive || !isValidCoord(sat.altitudeKm ?? 0, 0)) return;
+      const satelliteColor = new THREE.Color(sat.color);
+
+      // Coordinate satellite in orbita (usiamo altitudeKm come altezza fissa per il pin)
+      const satPos = convertiCoordinate(sat.altitudeKm ?? 0, 0, raggioGlobo);
+      const satNormal = satPos.clone().normalize();
+
+      const stemHeight = 2.5;
+      const stemGeo = new THREE.CylinderGeometry(0.1, 0.1, stemHeight, 8);
+      const stemMat = new THREE.MeshBasicMaterial({
+        color: satelliteColor,
+        transparent: true,
+        opacity: 0.95,
+      });
+      const stemMesh = new THREE.Mesh(stemGeo, stemMat);
+      const stemPos = satPos.clone().add(satNormal.clone().multiplyScalar(stemHeight * 0.5));
+      stemMesh.position.copy(stemPos);
+      stemMesh.userData = { isSatellitePin: true, satelliteId: sat.id, satelliteColor: sat.color };
+      nationalMarkersGroup.add(stemMesh);
+
+      // 2. Testa del PIN (sfera colorata in cima)
+      const headGeo = new THREE.SphereGeometry(0.5, 12, 12);
+      const headMat = new THREE.MeshBasicMaterial({
+        color: satelliteColor,
+        transparent: true,
+        opacity: 1.0,
+      });
+      const headMesh = new THREE.Mesh(headGeo, headMat);
+      headMesh.position.copy(satPos.clone().add(satNormal.clone().multiplyScalar(stemHeight)));
+      headMesh.userData = { isSatellitePin: true, satelliteId: sat.id, satelliteColor: sat.color };
+      nationalMarkersGroup.add(headMesh);
+
+      // 3. Anello sottile alla base
+      const ringGeo = new THREE.RingGeometry(0.35, 0.6, 16);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: satelliteColor,
+        transparent: true,
+        opacity: 0.8,
+        side: THREE.DoubleSide,
+      });
+      const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+      ringMesh.position.copy(satPos.clone().add(satNormal.clone().multiplyScalar(0.2)));
+      ringMesh.userData = { isSatellitePin: true, satelliteId: sat.id, satelliteColor: sat.color };
+      nationalMarkersGroup.add(ringMesh);
+    });
+    // --- FINE PIN SATELLITI ---
+
     const currentBizList = sponsoredBusinessesRef.current || SPONSORED_BUSINESSES;
     currentBizList.forEach((biz) => {
       if (!isValidCoord(biz.lat, biz.lng)) return;
