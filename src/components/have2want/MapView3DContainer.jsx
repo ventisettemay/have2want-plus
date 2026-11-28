@@ -533,7 +533,7 @@ export default function MapView3DContainer({
   const [isBottomBarCollapsed, setIsBottomBarCollapsed] = useState(true);
   const [showCreativeStudio, setShowCreativeStudio] = useState(false);
   const [showVideoCreator, setShowVideoCreator] = useState(false);
-  const [creativeExportResult, setCreativeExportResult] = useState<any>(null);
+  const [creativeExportResult, setCreativeExportResult] = useState(null);
 
   // Stato allargamento cartina a tutto schermo (Fullscreen immersive mode)
   const [isFullscreenMap, setIsFullscreenMap] = useState(false);
