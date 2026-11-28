@@ -2,7 +2,7 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import fs from 'fs';
-import { defineConfig, type Plugin } from 'vite';
+import { defineConfig, loadEnv, type Plugin } from 'vite';
 import {
   loadTestnetFlatDb,
   parseMultipartTestnetBody,
@@ -188,13 +188,30 @@ function excludeUnusedAiStudioAssetsPlugin(): Plugin {
   };
 }
 
-export default defineConfig(() => {
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+  const cesiumIonToken = process.env.VITE_CESIUM_ION_TOKEN ?? env.VITE_CESIUM_ION_TOKEN ?? '';
+  const googleMapsApiKey = process.env.VITE_GOOGLE_MAPS_API_KEY ?? env.VITE_GOOGLE_MAPS_API_KEY ?? '';
+  const mapillaryAccessToken = process.env.VITE_MAPILLARY_ACCESS_TOKEN ?? env.VITE_MAPILLARY_ACCESS_TOKEN ?? '';
+
   return {
+    define: {
+      'import.meta.env.VITE_CESIUM_ION_TOKEN': JSON.stringify(cesiumIonToken),
+      'import.meta.env.VITE_GOOGLE_MAPS_API_KEY': JSON.stringify(googleMapsApiKey),
+      'import.meta.env.VITE_MAPILLARY_ACCESS_TOKEN': JSON.stringify(mapillaryAccessToken),
+    },
     plugins: [react(), tailwindcss(), testnetDevServerPlugin(), excludeUnusedAiStudioAssetsPlugin()],
     optimizeDeps: {
       exclude: ['maplibre-gl'],
+      esbuildOptions: {
+        target: 'esnext',
+      },
+    },
+    worker: {
+      format: 'es',
     },
     build: {
+      target: 'esnext',
       outDir: 'dist',
       chunkSizeWarningLimit: 1200,
       rollupOptions: {
