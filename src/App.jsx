@@ -6,6 +6,7 @@ import StrettaDiMano from '@/components/have2want/StrettaDiMano';
 import AdRewardHub from '@/components/have2want/AdRewardHub';
 import { CreativeStudio } from '@/components/have2want/CreativeStudio';
 import { VideoCreator } from '@/components/have2want/VideoCreator';
+import ProfileWalletModal from '@/components/have2want/ProfileWalletModal';
 import { HomeFeedView } from '@/components/HomeFeedView';
 import { ClassicEssentialView } from '@/components/have2want/ClassicEssentialView';
 import { CreateListingModal } from '@/components/CreateListingModal';
@@ -194,6 +195,7 @@ function Have2WantPlusMain() {
   const [showDriveExport, setShowDriveExport] = useState(false);
   const [showLegalShield, setShowLegalShield] = useState(false);
   const [showAdHub, setShowAdHub] = useState(false);
+  const [showProfileWalletModal, setShowProfileWalletModal] = useState(false);
   const [showCreativeStudio, setShowCreativeStudio] = useState(false);
   const [showVideoCreator, setShowVideoCreator] = useState(false);
   const [showPiAds, setShowPiAds] = useState(false);
@@ -507,7 +509,7 @@ function Have2WantPlusMain() {
   };
 
   const handleOpenAdHub = () => {
-    setShowAdHub(true);
+    setShowProfileWalletModal(true);
   };
 
   const hasActiveModal = Boolean(
@@ -515,6 +517,7 @@ function Have2WantPlusMain() {
     showCarpoolModal ||
     showEmergencyModal ||
     showAdHub ||
+    showProfileWalletModal ||
     showCreativeStudio ||
     showVideoCreator ||
     showPiAds ||
