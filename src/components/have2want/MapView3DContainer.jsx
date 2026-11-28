@@ -714,7 +714,7 @@ export default function MapView3DContainer({
 
         {/* BARRA SUPERIORE IN URBANO 3D CON TASTO RITORNO, RIDUCI (SE FULLSCREEN) E SCROLL REGIONI */}
         {lodLevel === 'URBANO_3D' && (
-          <div className="absolute top-2.5 left-2.5 right-14 z-20 pointer-events-auto flex items-center gap-1.5 overflow-hidden bg-black/85 backdrop-blur-md p-1 rounded-2xl border border-zinc-800 shadow-2xl">
+          <div className="absolute top-2.5 left-2.5 right-10 z-20 pointer-events-auto flex items-center gap-1.5 bg-black/85 backdrop-blur-md p-1 rounded-2xl border border-zinc-800 shadow-2xl">
             {isFullscreenMap && (
               <button
                 id="btn-exit-fullscreen"

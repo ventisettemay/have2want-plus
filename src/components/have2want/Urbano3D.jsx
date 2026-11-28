@@ -606,17 +606,19 @@ export default function Urbano3D({
       'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
     ];
 
-    // Tile Stradali Esri World Street Map HD (Senza filigrana, Zero API key)
+    // Tile Stradali CartoDB Positron (Copertura globale inclusa Cina/Pechino, Zero API key, OpenStreetMap)
     const esriStreetTiles = [
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+      'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
     ];
 
-    // Tile Notturne Esri Dark Gray Base (Notturno HD pulito, Zero filigrana)
+    // Tile Notturne CartoDB Dark Matter (Notturno HD pulito, Zero filigrana, copertura globale)
     const esriDarkTiles = [
-      'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+      'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
     ];
     const esriDarkLabelsTiles = [
-      'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+      'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
     ];
 
     const isSatellite = mapStyleMode === 'satellite';
@@ -665,7 +667,7 @@ export default function Urbano3D({
             tiles: esriStreetTiles,
             tileSize: 256,
             maxzoom: 19,
-            attribution: '© Esri, HERE, Garmin, USGS, OpenStreetMap',
+            attribution: '© OpenStreetMap contributors',
           },
           'openmaptiles': {
             type: 'vector',
@@ -685,7 +687,7 @@ export default function Urbano3D({
             tiles: esriDarkTiles,
             tileSize: 256,
             maxzoom: 19,
-            attribution: '© Esri, DeLorme, NAVTEQ',
+            attribution: '© OpenStreetMap contributors',
           },
           'night-labels': {
             type: 'raster',

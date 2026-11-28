@@ -162,8 +162,8 @@ export default function StreetView360Modal({
   if (!isOpen) return null;
 
   return (
-    <div className={`fixed inset-0 z-50 bg-black flex flex-col ${isFullscreen ? 'p-0' : 'p-2 sm:p-4'}`}>
-      <div className="relative w-full h-full rounded-2xl overflow-hidden border border-zinc-800 flex flex-col bg-slate-950">
+    <div className={`fixed inset-0 z-[60] bg-black flex flex-col p-0`}>
+      <div className="relative w-full h-full flex flex-col bg-slate-950">
         {/* Top Navigation Bar: Google Street View style */}
         <div className="absolute top-3 left-3 right-3 z-30 flex items-center justify-between pointer-events-none">
           {/* Street & City Info Box */}
