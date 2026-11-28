@@ -150,9 +150,9 @@ export default function OrbitalSatellitesHub({
       name: 'DEFIANCE PULSE — Multimedia AI (Creator, Music, Video)',
       desc: 'Canale video, musica e creazione video AI (senza pubblicità commerciale)',
       icon: Cpu,
-      color: 'from-violet-500 to-pink-600',
+      color: 'from-rose-500 to-pink-600',
       badge: 'AI CREATOR • MUSIC • VIDEO',
-      badgeColor: 'bg-violet-500/20 text-violet-300 border-violet-500/40',
+      badgeColor: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
     },
     {
       id: 'ACTIONFLOW' as const,
@@ -180,9 +180,9 @@ export default function OrbitalSatellitesHub({
       name: 'CREATOR ADS — Pubblicità VIP a Pagamento',
       desc: 'Area VIP a pagamento per creare pubblicità, volantini e PIN luminosi (anche con AI)',
       icon: MegaphoneIcon,
-      color: 'from-rose-500 to-pink-600',
+      color: 'from-amber-500 to-yellow-600',
       badge: 'CREATOR ADS VIP',
-      badgeColor: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+      badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
     },
     {
       id: 'PUBLISH_STORE' as const,
@@ -190,9 +190,9 @@ export default function OrbitalSatellitesHub({
       name: 'PUBLISH & STORE — Vetrina Pubblica',
       desc: 'Vetrina pubblica per visionare negozi, professionisti e attività sul globo',
       icon: StoreIcon,
-      color: 'from-emerald-500 to-teal-600',
+      color: 'from-violet-500 to-amber-500',
       badge: 'VETRINA PUBBLICA',
-      badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+      badgeColor: 'bg-violet-500/20 text-violet-300 border-violet-500/40',
     },
   ];
 

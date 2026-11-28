@@ -4,6 +4,8 @@ import { Toaster, toast } from 'sonner';
 import MapView3DContainer from '@/components/have2want/MapView3DContainer';
 import StrettaDiMano from '@/components/have2want/StrettaDiMano';
 import AdRewardHub from '@/components/have2want/AdRewardHub';
+import { CreativeStudio } from '@/components/have2want/CreativeStudio';
+import { VideoCreator } from '@/components/have2want/VideoCreator';
 import { HomeFeedView } from '@/components/HomeFeedView';
 import { ClassicEssentialView } from '@/components/have2want/ClassicEssentialView';
 import { CreateListingModal } from '@/components/CreateListingModal';
@@ -192,6 +194,9 @@ function Have2WantPlusMain() {
   const [showDriveExport, setShowDriveExport] = useState(false);
   const [showLegalShield, setShowLegalShield] = useState(false);
   const [showAdHub, setShowAdHub] = useState(false);
+  const [showCreativeStudio, setShowCreativeStudio] = useState(false);
+  const [showVideoCreator, setShowVideoCreator] = useState(false);
+  const [showPiAds, setShowPiAds] = useState(false);
   const [showAuthorshipModal, setShowAuthorshipModal] = useState(false);
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const [showCarpoolModal, setShowCarpoolModal] = useState(false);
@@ -510,6 +515,9 @@ function Have2WantPlusMain() {
     showCarpoolModal ||
     showEmergencyModal ||
     showAdHub ||
+    showCreativeStudio ||
+    showVideoCreator ||
+    showPiAds ||
     showAIAssistant ||
     showMeetingPoints ||
     showGuides ||
@@ -672,39 +680,107 @@ function Have2WantPlusMain() {
             {/* Separatore */}
             <div className="w-[1px] h-5 bg-zinc-800 shrink-0" />
 
-            {/* 🛰️ SERVIZI CHIAVE CON CONTORNO LED LUMINOSO (CUORE DELL'APP) — 10 SATELLITI DEFINITIVI */}
+            {/* 🛰️ 11 SATELLITI UFFICIALI CON STILE LED (colori coordinati a pin/barra) */}
 
 
 
 
-            {/* 3. Prodotti del Mondo (Marketplace Interno): Contorno LED Viola Neon */}
+            {/* Mappa 3D → LED Ciano #06b6d4 */}
             <button
-              id="btn-scroll-channel-prodotti-mondo"
+              id="btn-scroll-channel-mappa-3d"
               onClick={() => {
-                setActiveSatelliteChannel(SATELLITE_TO_CHANNEL.GLOBAL_MARKET_SAT);
-                toast.info("🌐 PRODOTTI DEL MONDO — Marketplace Interno Utenti");
+                setActiveSatelliteChannel('MAP');
+                toast.info("🛰️ MAPPA 3D — Navigazione & Territorio");
               }}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-purple-950/60 border-2 border-[#a855f7] shadow-[0_0_12px_rgba(168,85,247,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
-              title="PRODOTTI DEL MONDO — Annunci Utenti HAVE2WANT, Compravendita P2P, Pagamenti Pi"
+              className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-cyan-950/60 border-2 border-[#06b6d4] shadow-[0_0_12px_rgba(6,182,212,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
+              title="MAPPA 3D — GPS, Strade/Edifici Reali, OSRM, Meteo Integrato, Webcam"
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-[#06b6d4] shadow-[0_0_8px_#06b6d4] animate-pulse shrink-0" />
+              <div className="flex flex-col text-left leading-tight">
+                <span className="text-[12px] font-black text-cyan-300">🛰️ MAPPA 3D</span>
+                <span className="text-[9px] font-bold text-cyan-400/80 uppercase tracking-tighter">Navigazione Reale</span>
+              </div>
+            </button>
+
+            {/* Meteo Live → LED Azzurro #38bdf8 */}
+            <button
+              id="btn-scroll-channel-meteo-live"
+              onClick={() => {
+                setActiveSatelliteChannel('WEATHER');
+                toast.info("🌤️ METEO LIVE — Previsioni & Radar");
+              }}
+              className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-sky-950/60 border-2 border-[#38bdf8] shadow-[0_0_12px_rgba(56,223,248,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
+              title="METEO LIVE — Previsioni Open-Meteo, radar 3D, allerte"
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-[#38bdf8] shadow-[0_0_8px_#38bdf8] animate-pulse shrink-0" />
+              <div className="flex flex-col text-left leading-tight">
+                <span className="text-[12px] font-black text-sky-300">🌤️ METEO LIVE</span>
+                <span className="text-[9px] font-bold text-sky-400/80 uppercase tracking-tighter">Clima & Radar</span>
+              </div>
+            </button>
+
+            {/* Km 0 → LED Verde Smeraldo #10b981 */}
+            <button
+              id="btn-scroll-channel-km-0"
+              onClick={() => {
+                setActiveSatelliteChannel('KMZERO');
+                toast.info("🌾 KM 0 — Filiera Corta & Agricoltori");
+              }}
+              className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-emerald-950/60 border-2 border-[#10b981] shadow-[0_0_12px_rgba(16,185,129,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
+              title="KM 0 — Produttori locali, filiera corta a chilometro zero"
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-[#10b981] shadow-[0_0_8px_#10b981] animate-pulse shrink-0" />
+              <div className="flex flex-col text-left leading-tight">
+                <span className="text-[12px] font-black text-emerald-300">🌾 KM 0</span>
+                <span className="text-[9px] font-bold text-emerald-400/80 uppercase tracking-tighter">Filiera Corta</span>
+              </div>
+            </button>
+
+            {/* Marketplace → LED Viola #a855f7 */}
+            <button
+              id="btn-scroll-channel-marketplace"
+              onClick={() => {
+                setActiveSatelliteChannel('SUPERMARKET');
+                toast.info("🛒 MARKETPLACE — Compravendita P2P, Pagamenti Pi");
+              }}
+              className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-amber-950/60 border-2 border-[#a855f7] shadow-[0_0_12px_rgba(168,85,247,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
+              title="MARKETPLACE — Annunci Utenti, Compravendita P2P, Pagamenti Pi"
             >
               <span className="w-2.5 h-2.5 rounded-full bg-[#a855f7] shadow-[0_0_8px_#a855f7] animate-pulse shrink-0" />
               <div className="flex flex-col text-left leading-tight">
-                <span className="text-[12px] font-black text-purple-300">🌐 PRODOTTI MONDO</span>
-                <span className="text-[9px] font-bold text-purple-400/80 uppercase tracking-tighter">Marketplace Interno</span>
+                <span className="text-[12px] font-black text-purple-300">🛒 MARKETPLACE</span>
+                <span className="text-[9px] font-bold text-purple-400/80 uppercase tracking-tighter">Interno Utenti</span>
               </div>
             </button>
 
 
 
-            {/* 5. Soccorso: Contorno LED Rosso Emergenza */}
+            {/* Chat & Video → LED Verde #22c55e */}
+            <button
+              id="btn-scroll-channel-chat-video"
+              onClick={() => {
+                setActiveSatelliteChannel('CHAT');
+                toast.info("🎙️ PI CHAT — Messaggistica, Note Vocali, Videochiamata");
+              }}
+              className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-emerald-950/60 border-2 border-[#22c55e] shadow-[0_0_12px_rgba(34,197,94,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
+              title="PI CHAT — Chat Vocale & Video, Gruppi Quartiere"
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-[#22c55e] shadow-[0_0_8px_#22c55e] animate-pulse shrink-0" />
+              <div className="flex flex-col text-left leading-tight">
+                <span className="text-[12px] font-black text-emerald-300">🎙️ PI CHAT</span>
+                <span className="text-[9px] font-bold text-emerald-400/80 uppercase tracking-tighter">Chat & Video</span>
+              </div>
+            </button>
+
+            {/* Soccorso → LED Rosso #ef4444 */}
             <button
               id="btn-scroll-channel-soccorso"
               onClick={() => {
-                setActiveSatelliteChannel(SATELLITE_TO_CHANNEL.SOCCORSO_SAT);
-                toast.info("🆘 SOCCORSO — Emergenze Mondiali, Carpooling Solidale, Punti Incontro Certificati");
+                setActiveSatelliteChannel('EMERGENCY');
+                toast.info("🆘 SOCCORSO — Emergenze & Mutuo Aiuto");
               }}
               className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-red-950/60 border-2 border-[#ef4444] shadow-[0_0_12px_rgba(239,68,68,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
-              title="SOCCORSO — Numeri Emergenza Globali, Mutuo Aiuto, Presidi Civici — SEPARATO da Chat/Video"
+              title="SOCCORSO — Emergenze Mondiali, Mutuo Aiuto, Presidi Civici"
             >
               <span className="w-2.5 h-2.5 rounded-full bg-[#ef4444] shadow-[0_0_8px_#ef4444] animate-pulse shrink-0" />
               <div className="flex flex-col text-left leading-tight">
@@ -713,32 +789,51 @@ function Have2WantPlusMain() {
               </div>
             </button>
 
-            {/* 6. Creazione Pubblicità: Contorno LED Viola/Fucsia */}
+            {/* Defiance Pulse → LED Rosa #ec4899 */}
             <button
-              id="btn-scroll-channel-creazione-pubblicita"
+              id="btn-scroll-channel-defiance-pulse"
               onClick={() => {
-                setActiveSatelliteChannel(SATELLITE_TO_CHANNEL.BUSINESS_ADS_SAT);
-                toast.info("🏪 CREAZIONE PUBBLICITÀ — Vetrine Sponsorizzate 7gg Pi + AI Creator");
+                setActiveSatelliteChannel('DEFIANCE_PULSE');
+                toast.info("⚡ DEFiance PULSE — Creator, Music, Video");
               }}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-purple-950/60 border-2 border-[#e11d48] shadow-[0_0_12px_rgba(225,29,72,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
-              title="CREAZIONE PUBBLICITÀ — Pubblicità Commercianti, AI Creator per Contenuti, Vetrine Geolocalizzate"
+              className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-rose-950/60 border-2 border-[#ec4899] shadow-[0_0_12px_rgba(236,72,153,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
+              title="DEFiance PULSE — Multimedia AI (Creator, Music, Video)"
             >
-              <span className="w-2.5 h-2.5 rounded-full bg-[#e11d48] shadow-[0_0_8px_#e11d48] animate-pulse shrink-0" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#ec4899] shadow-[0_0_8px_#ec4899] animate-pulse shrink-0" />
               <div className="flex flex-col text-left leading-tight">
-                <span className="text-[12px] font-black text-pink-300">🏪 CREAZIONE ADS</span>
-                <span className="text-[9px] font-bold text-pink-400/80 uppercase tracking-tighter">Vetrine + AI</span>
+                <span className="text-[12px] font-black text-rose-300">⚡ DEFiance PULSE</span>
+                <span className="text-[9px] font-bold text-rose-400/80 uppercase tracking-tighter">Creator & Video</span>
               </div>
             </button>
 
-            {/* 7. Marketplace Esterni: Contorno LED Arancione */}
+            {/* ActionFlow → LED Indaco #8b5cf6 */}
             <button
-              id="btn-scroll-channel-marketplace-esterni"
+              id="btn-scroll-channel-actionflow"
               onClick={() => {
-                setActiveSatelliteChannel(SATELLITE_TO_CHANNEL.EXTERNAL_MARKET_SAT);
-                toast.info("🛒 MARKETPLACE ESTERNI — Amazon, eBay, AliExpress, Link Affiliati, Commissioni Crypto");
+                setActiveSatelliteChannel('ACTIONFLOW');
+                toast.info("🎮 ACTIONFLOW HUB — Portal App Esterne");
+              }}
+              className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-violet-950/60 border-2 border-[#8b5cf6] shadow-[0_0_12px_rgba(139,92,246,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
+              title="ACTIONFLOW HUB — Ponte per collegare fino a 3 app esterne"
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-[#8b5cf6] shadow-[0_0_8px_#8b5cf6] animate-pulse shrink-0" />
+              <div className="flex flex-col text-left leading-tight">
+                <span className="text-[12px] font-black text-violet-300">🎮 ACTIONFLOW</span>
+                <span className="text-[9px] font-bold text-violet-400/80 uppercase tracking-tighter">Portal App</span>
+              </div>
+            </button>
+
+
+
+            {/* Market Esterni → LED Arancione #f97316 */}
+            <button
+              id="btn-scroll-channel-market-esterni"
+              onClick={() => {
+                setActiveSatelliteChannel('EXTERNAL');
+                toast.info("🛒 MARKET ESTERNI — Amazon, eBay, AliExpress, Crypto");
               }}
               className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-amber-950/60 border-2 border-[#f97316] shadow-[0_0_12px_rgba(249,115,22,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
-              title="MARKETPLACE ESTERNI — Ricerca Prodotti Esterni, Link Affiliati Tracciati, Pagamento Criptovaluta"
+              title="MARKET ESTERNI — Amazon, eBay, AliExpress, Commissioni Crypto"
             >
               <span className="w-2.5 h-2.5 rounded-full bg-[#f97316] shadow-[0_0_8px_#f97316] animate-pulse shrink-0" />
               <div className="flex flex-col text-left leading-tight">
@@ -748,27 +843,62 @@ function Have2WantPlusMain() {
             </button>
 
 
+            {/* Separatore */}
+            <div className="w-[1px] h-5 bg-zinc-800 shrink-0" />
 
-            {/* 9. PI Chat: Contorno LED Verde Neon */}
+            {/* Pubblicità H2W → LED Oro #ffd700 */}
             <button
-              id="btn-scroll-channel-pi-chat"
+              id="btn-scroll-channel-creazione-pubblicita-h2w"
               onClick={() => {
-                setActiveSatelliteChannel(SATELLITE_TO_CHANNEL.PI_CHAT_SAT);
-                toast.info("🎙️ PI CHAT — Messaggistica, Note Vocali, Videochiamata, Gruppi Comunità/Quartiere");
+                setActiveSatelliteChannel('CREATOR_ADS');
+                toast.info("🏪 CREAZIONE PUBBLICITÀ H2W — Vetrine Sponsorizzate + AI Creator");
               }}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-emerald-950/60 border-2 border-[#10b981] shadow-[0_0_12px_rgba(16,185,129,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
-              title="PI CHAT — Chat Vocale & Video, Gruppi Comunità/Quartiere — SEPARATO da SOCCORSO"
+              className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-amber-950/60 border-2 border-[#ffd700] shadow-[0_0_12px_rgba(255,215,0,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
+              title="CREAZIONE PUBBLICITÀ H2W — Banner/Volantini/Spot per Pin e Vetrine"
             >
-              <span className="w-2.5 h-2.5 rounded-full bg-[#10b981] shadow-[0_0_8px_#10b981] animate-pulse shrink-0" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#ffd700] shadow-[0_0_8px_#ffd700] animate-pulse shrink-0" />
               <div className="flex flex-col text-left leading-tight">
-                <span className="text-[12px] font-black text-emerald-300">🎙️ PI CHAT</span>
-                <span className="text-[9px] font-bold text-emerald-400/80 uppercase tracking-tighter">Chat & Video</span>
+                <span className="text-[12px] font-black text-amber-300">🏪 PUBBLICITÀ H2W</span>
+                <span className="text-[9px] font-bold text-amber-400/80 uppercase tracking-tighter">CreativeStudio</span>
               </div>
             </button>
 
+            {/* Vetrine & Negozi → LED Viola/Oro #8b5cf6/#ffd700 */}
+            <button
+              id="btn-scroll-channel-vetrine-negozi"
+              onClick={() => {
+                setActiveSatelliteChannel('PUBLISH_STORE');
+                toast.info("📡 VETRINE & NEGOZI — MerchantDetailModal, attività paganti");
+              }}
+              className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-purple-950/60 border-2 border-[#8b5cf6] shadow-[0_0_12px_rgba(139,92,246,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
+              title="VETRINE & NEGOZI — Vetrina Pubblica, attività sul Globo"
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-[#8b5cf6] shadow-[0_0_8px_#8b5cf6] animate-pulse shrink-0" />
+              <div className="flex flex-col text-left leading-tight">
+                <span className="text-[12px] font-black text-purple-300">📡 VETRINE & NEGOZI</span>
+                <span className="text-[9px] font-bold text-purple-400/80 uppercase tracking-tighter">MerchantDetail</span>
+              </div>
+            </button>
 
+            {/* Separatore */}
+            <div className="w-[1px] h-5 bg-zinc-800 shrink-0" />
 
-
+            {/* 📡 Pi Ads → Pulsante autonomo separato da Pubblicità H2W */}
+            <button
+              id="btn-pi-ads"
+              onClick={() => {
+                setShowPiAds(true);
+                toast.info("📡 PI ADS — Canale pubblicitario autonomo Pi Network");
+              }}
+              className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-zinc-950 hover:bg-amber-950/60 border-2 border-[#ffd700] shadow-[0_0_12px_rgba(255,215,0,0.45)] text-white flex items-center gap-2 cursor-pointer transition-all shrink-0 active:scale-95"
+              title="Pi Ads — Canale pubblicitario autonomo, distinto da Pubblicità H2W"
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-[#ffd700] shadow-[0_0_8px_#ffd700] animate-pulse shrink-0" />
+              <div className="flex flex-col text-left leading-tight">
+                <span className="text-[12px] font-black text-amber-300">📡 PI ADS</span>
+                <span className="text-[9px] font-bold text-amber-400/80 uppercase tracking-tighter">Canale Autonomo</span>
+              </div>
+            </button>
 
             {/* Separatore */}
             <div className="w-[1px] h-5 bg-zinc-800 shrink-0" />
@@ -1585,6 +1715,51 @@ function Have2WantPlusMain() {
           <div className="relative w-full max-w-md">
             <button
               onClick={() => setShowAdHub(false)}
+              className="absolute -top-3 -right-3 z-10 p-2 rounded-full bg-[#070b19] hover:bg-slate-800 text-slate-200 border border-slate-700 shadow-xl cursor-pointer"
+            >
+              ✕
+            </button>
+            <AdRewardHub />
+          </div>
+        </div>
+      )}
+
+      {/* CREATIVE STUDIO MODAL — Pubblicità H2W */}
+      {showCreativeStudio && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
+          <div className="relative w-full max-w-2xl">
+            <button
+              onClick={() => setShowCreativeStudio(false)}
+              className="absolute -top-3 -right-3 z-10 p-2 rounded-full bg-[#070b19] hover:bg-slate-800 text-slate-200 border border-slate-700 shadow-xl cursor-pointer"
+            >
+              ✕
+            </button>
+            <CreativeStudio isOpen={showCreativeStudio} onClose={() => setShowCreativeStudio(false)} />
+          </div>
+        </div>
+      )}
+
+      {/* VIDEO CREATOR MODAL — Defiance Pulse */}
+      {showVideoCreator && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
+          <div className="relative w-full max-w-2xl">
+            <button
+              onClick={() => setShowVideoCreator(false)}
+              className="absolute -top-3 -right-3 z-10 p-2 rounded-full bg-[#070b19] hover:bg-slate-800 text-slate-200 border border-slate-700 shadow-xl cursor-pointer"
+            >
+              ✕
+            </button>
+            <VideoCreator isOpen={showVideoCreator} onClose={() => setShowVideoCreator(false)} />
+          </div>
+        </div>
+      )}
+
+      {/* PI ADS MODAL — Canale autonomo separato da Pubblicità H2W */}
+      {showPiAds && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
+          <div className="relative w-full max-w-md">
+            <button
+              onClick={() => setShowPiAds(false)}
               className="absolute -top-3 -right-3 z-10 p-2 rounded-full bg-[#070b19] hover:bg-slate-800 text-slate-200 border border-slate-700 shadow-xl cursor-pointer"
             >
               ✕

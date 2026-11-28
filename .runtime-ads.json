@@ -1,18 +1,18 @@
 {
   "campaigns": {},
   "creatives": {
-    "creative_link_1795881979017": {
-      "id": "creative_link_1795881979017",
+    "creative_link_1795886078572": {
+      "id": "creative_link_1795886078572",
       "campaignId": "camp_link",
       "type": "banner",
       "title": "Creative linkata",
       "fileUrl": "/ads/creative.png",
       "format": "png",
       "status": "approved",
-      "updatedAt": 1795881979017
+      "updatedAt": 1795886078572
     },
-    "creative_pending_1795881979018": {
-      "id": "creative_pending_1795881979018",
+    "creative_pending_1795886078573": {
+      "id": "creative_pending_1795886078573",
       "campaignId": "camp_link2",
       "type": "banner",
       "title": "Creative pendente"
@@ -26,12 +26,12 @@
     "user_test_rl": {
       "key": "user_test_rl",
       "count": 10,
-      "windowStart": 1795881979029
+      "windowStart": 1795886078583
     },
-    "rl_test_1795881979031": {
-      "key": "rl_test_1795881979031",
+    "rl_test_1795886078585": {
+      "key": "rl_test_1795886078585",
       "count": 70,
-      "windowStart": 1795881979031
+      "windowStart": 1795886078585
     }
   }
 }

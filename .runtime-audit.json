@@ -178,5 +178,20 @@
     "details": {
       "test": true
     }
+  },
+  {
+    "id": "mx0o7at9-d642a75c",
+    "timestamp": 1795886078590,
+    "action": "test_action",
+    "userId": "user_audit",
+    "role": "advertiser",
+    "ip": "1.2.3.4",
+    "path": "/api/ads/test",
+    "method": "POST",
+    "status": 200,
+    "success": true,
+    "details": {
+      "test": true
+    }
   }
 ]

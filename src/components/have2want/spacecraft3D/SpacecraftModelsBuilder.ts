@@ -313,6 +313,17 @@ export function buildEngineeredSpacecraft(
     ionPlasmaMat,
   } = materials;
 
+  // Materiale ali fotovoltaiche per-satellite: colore identificativo + emissive LED pulsante
+  const wingMat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(sat.color),
+    emissive: new THREE.Color(sat.color),
+    emissiveIntensity: 0.8,
+    metalness: 0.88,
+    roughness: 0.16,
+    ...(solarCellMat.map ? { map: solarCellMat.map } : {}),
+  });
+  wingMat.userData = { pulseLed: true, baseColor: sat.color };
+
   const lightMode = getSatelliteLightMode(sat.id);
   const neonEmissiveIntensity =
     lightMode === 'BRIGHT' ? 2.2 : lightMode === 'BLINKING' ? 1.5 : 0.35;
@@ -361,7 +372,7 @@ export function buildEngineeredSpacecraft(
       const yoke = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 2.6, 8), titaniumMat);
       yoke.rotation.z = Math.PI / 2;
       yoke.position.set(-2.8, 0, 0);
-      const wing = new THREE.Mesh(new THREE.BoxGeometry(7.6, 3.2, 0.22), solarCellMat);
+      const wing = new THREE.Mesh(new THREE.BoxGeometry(7.6, 3.2, 0.22), wingMat);
       wing.position.set(-7.5, 0, 0);
       group.add(yoke, wing);
       clickables.push(wing);
@@ -413,7 +424,7 @@ export function buildEngineeredSpacecraft(
       const solarArm = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 2.2, 8), titaniumMat);
       solarArm.rotation.z = Math.PI / 2;
       solarArm.position.set(-3.2, 0, 0);
-      const solarPanel = new THREE.Mesh(new THREE.BoxGeometry(6.4, 2.8, 0.2), solarCellMat);
+      const solarPanel = new THREE.Mesh(new THREE.BoxGeometry(6.4, 2.8, 0.2), wingMat);
       solarPanel.position.set(-7.2, 0, 0);
       group.add(solarArm, solarPanel);
       clickables.push(solarPanel);
@@ -463,9 +474,9 @@ export function buildEngineeredSpacecraft(
       clickables.push(dishL, dishR);
 
       // Ali fotovoltaiche bilaterali
-      const wingL = new THREE.Mesh(new THREE.BoxGeometry(5.2, 2.4, 0.18), solarCellMat);
+      const wingL = new THREE.Mesh(new THREE.BoxGeometry(5.2, 2.4, 0.18), wingMat);
       wingL.position.set(-5.6, 0, 0);
-      const wingR = new THREE.Mesh(new THREE.BoxGeometry(5.2, 2.4, 0.18), solarCellMat);
+      const wingR = new THREE.Mesh(new THREE.BoxGeometry(5.2, 2.4, 0.18), wingMat);
       wingR.position.set(5.6, 0, 0);
       group.add(wingL, wingR);
       clickables.push(wingL, wingR);
@@ -495,9 +506,9 @@ export function buildEngineeredSpacecraft(
       clickables.push(bigMeshDish);
 
       // Ali solari ad altissimo rendimento energetico
-      const wingL = new THREE.Mesh(new THREE.BoxGeometry(6.8, 3.2, 0.22), solarCellMat);
+      const wingL = new THREE.Mesh(new THREE.BoxGeometry(6.8, 3.2, 0.22), wingMat);
       wingL.position.set(-6.8, 0, 0);
-      const wingR = new THREE.Mesh(new THREE.BoxGeometry(6.8, 3.2, 0.22), solarCellMat);
+      const wingR = new THREE.Mesh(new THREE.BoxGeometry(6.8, 3.2, 0.22), wingMat);
       wingR.position.set(6.8, 0, 0);
       group.add(wingL, wingR);
       clickables.push(wingL, wingR);
@@ -532,9 +543,9 @@ export function buildEngineeredSpacecraft(
       });
 
       // Ali fotovoltaiche con concentratori solari laterali
-      const wingL = new THREE.Mesh(new THREE.BoxGeometry(6.6, 3.0, 0.2), solarCellMat);
+      const wingL = new THREE.Mesh(new THREE.BoxGeometry(6.6, 3.0, 0.2), wingMat);
       wingL.position.set(-6.8, 0, 0);
-      const wingR = new THREE.Mesh(new THREE.BoxGeometry(6.6, 3.0, 0.2), solarCellMat);
+      const wingR = new THREE.Mesh(new THREE.BoxGeometry(6.6, 3.0, 0.2), wingMat);
       wingR.position.set(6.8, 0, 0);
       group.add(wingL, wingR);
       clickables.push(wingL, wingR);
@@ -575,9 +586,9 @@ export function buildEngineeredSpacecraft(
       clickables.push(dishL, dishR);
 
       // Ali solari a 5 segmenti ad altissima ampiezza
-      const wingL = new THREE.Mesh(new THREE.BoxGeometry(7.6, 3.2, 0.22), solarCellMat);
+      const wingL = new THREE.Mesh(new THREE.BoxGeometry(7.6, 3.2, 0.22), wingMat);
       wingL.position.set(-7.8, 0, 0);
-      const wingR = new THREE.Mesh(new THREE.BoxGeometry(7.6, 3.2, 0.22), solarCellMat);
+      const wingR = new THREE.Mesh(new THREE.BoxGeometry(7.6, 3.2, 0.22), wingMat);
       wingR.position.set(7.8, 0, 0);
       group.add(wingL, wingR);
       clickables.push(wingL, wingR);
@@ -601,7 +612,7 @@ export function buildEngineeredSpacecraft(
       // 3 moduli ponte esterni simbolici (slot App Esterne ActionFlow)
       for (let i = 0; i < 3; i++) {
         const angle = (i * Math.PI * 2) / 3;
-        const arm = new THREE.Mesh(new THREE.BoxGeometry(4.4, 1.8, 0.22), solarCellMat);
+        const arm = new THREE.Mesh(new THREE.BoxGeometry(4.4, 1.8, 0.22), wingMat);
         arm.position.set(Math.cos(angle) * 4.4, Math.sin(angle) * 4.4, 0);
         arm.rotation.z = angle;
         group.add(arm);
@@ -623,9 +634,9 @@ export function buildEngineeredSpacecraft(
       group.add(pulseCore, harmonicRing);
       clickables.push(pulseCore, harmonicRing);
 
-      const sailL = new THREE.Mesh(new THREE.BoxGeometry(6.2, 2.8, 0.2), solarCellMat);
+      const sailL = new THREE.Mesh(new THREE.BoxGeometry(6.2, 2.8, 0.2), wingMat);
       sailL.position.set(-6.4, 0, 0);
-      const sailR = new THREE.Mesh(new THREE.BoxGeometry(6.2, 2.8, 0.2), solarCellMat);
+      const sailR = new THREE.Mesh(new THREE.BoxGeometry(6.2, 2.8, 0.2), wingMat);
       sailR.position.set(6.4, 0, 0);
       group.add(sailL, sailR);
       clickables.push(sailL, sailR);
@@ -688,9 +699,9 @@ export function buildEngineeredSpacecraft(
       frameLMesh.position.set(-frameL / 2 - 0.3, 0, 0);
       const frameRMesh = new THREE.Mesh(new THREE.BoxGeometry(frameL, frameH, frameW), titaniumMat);
       frameRMesh.position.set(frameL / 2 + 0.3, 0, 0);
-      const wingL = new THREE.Mesh(new THREE.BoxGeometry(cellW, cellH, 0.14), solarCellMat);
+      const wingL = new THREE.Mesh(new THREE.BoxGeometry(cellW, cellH, 0.14), wingMat);
       wingL.position.set(-5.35, 0, 0);
-      const wingR = new THREE.Mesh(new THREE.BoxGeometry(cellW, cellH, 0.14), solarCellMat);
+      const wingR = new THREE.Mesh(new THREE.BoxGeometry(cellW, cellH, 0.14), wingMat);
       wingR.position.set(5.35, 0, 0);
       group.add(frameLMesh, frameRMesh, wingL, wingR);
       clickables.push(frameLMesh, frameRMesh, wingL, wingR);
@@ -751,10 +762,10 @@ export function buildEngineeredSpacecraft(
       clickables.push(avionicsBus);
 
       // Pannelli solari ad angolo per massimizzare la ricarica in orbita eliosincrona
-      const wingL = new THREE.Mesh(new THREE.BoxGeometry(5.2, 2.8, 0.2), solarCellMat);
+      const wingL = new THREE.Mesh(new THREE.BoxGeometry(5.2, 2.8, 0.2), wingMat);
       wingL.position.set(-5.2, 0, -1.6);
       wingL.rotation.y = 0.25;
-      const wingR = new THREE.Mesh(new THREE.BoxGeometry(5.2, 2.8, 0.2), solarCellMat);
+      const wingR = new THREE.Mesh(new THREE.BoxGeometry(5.2, 2.8, 0.2), wingMat);
       wingR.position.set(5.2, 0, -1.6);
       wingR.rotation.y = -0.25;
       group.add(wingL, wingR);
@@ -807,9 +818,9 @@ export function buildEngineeredSpacecraft(
       clickables.push(handshakePod);
 
       // Ali solari ad alta efficienza per operatività continua emergenza
-      const wingL = new THREE.Mesh(new THREE.BoxGeometry(5.6, 3.0, 0.2), solarCellMat);
+      const wingL = new THREE.Mesh(new THREE.BoxGeometry(5.6, 3.0, 0.2), wingMat);
       wingL.position.set(-5.8, 0, 0);
-      const wingR = new THREE.Mesh(new THREE.BoxGeometry(5.6, 3.0, 0.2), solarCellMat);
+      const wingR = new THREE.Mesh(new THREE.BoxGeometry(5.6, 3.0, 0.2), wingMat);
       wingR.position.set(5.8, 0, 0);
       group.add(wingL, wingR);
       clickables.push(wingL, wingR);
