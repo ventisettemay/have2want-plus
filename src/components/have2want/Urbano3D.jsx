@@ -595,15 +595,21 @@ export default function Urbano3D({
   useEffect(() => {
     if (!mapContainerRef.current || !hasValidCoords) return;
 
-    // Tile Raster Satellitari HD (Esri World Imagery)
+    // Tile Raster Satellitari HD (Esri World Imagery - maxzoom limitato per evitare tile inesistenti allo zoom urbano)
     const esriSatelliteTiles = [
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     ];
+    // Etichette stradali OpenStreetMap/OpenFreeMap (copertura globale,zero API key) - usate come overlay sulla vista satellitare
     const esriRoadsTiles = [
-      'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',
+      'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
     ];
+    // Etichette luoghi OpenStreetMap/OpenFreeMap (copertura globale, zero API key)
     const esriPlacesTiles = [
-      'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+      'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
     ];
 
     // Tile Stradali CartoDB Positron (Copertura globale inclusa Cina/Pechino, Zero API key, OpenStreetMap)
@@ -633,14 +639,14 @@ export default function Urbano3D({
             type: 'raster',
             tiles: esriSatelliteTiles,
             tileSize: 256,
-            maxzoom: 20,
+            maxzoom: 16,
             attribution: '© Esri, Maxar',
           },
           'roads-overlay': {
             type: 'raster',
             tiles: esriRoadsTiles,
             tileSize: 256,
-            maxzoom: 20,
+            maxzoom: 16,
           },
           'openmaptiles': {
             type: 'vector',
@@ -650,7 +656,7 @@ export default function Urbano3D({
             type: 'raster',
             tiles: esriPlacesTiles,
             tileSize: 256,
-            maxzoom: 20,
+            maxzoom: 16,
           },
           'terrain-dem': {
             type: 'raster-dem',
@@ -2527,7 +2533,7 @@ export default function Urbano3D({
       </div>
 
       {/* FOOTER INFORMATIVO & TELEMETRIA 3D IN BASSO A SINISTRA */}
-      <div className="absolute bottom-2 left-4 z-20 pointer-events-auto text-[10px] text-slate-300 font-medium flex flex-wrap items-center gap-2 bg-slate-950/90 px-3.5 py-1.5 rounded-2xl backdrop-blur-md border border-slate-800 shadow-2xl">
+      <div className="absolute bottom-10 left-4 z-40 pointer-events-auto text-[10px] text-slate-300 font-medium flex flex-wrap items-center gap-2 bg-slate-950/90 px-3.5 py-1.5 rounded-2xl backdrop-blur-md border border-slate-800 shadow-2xl">
         <span className="flex items-center gap-1.5 font-bold text-white">
           <span className="text-xs">{currentPlace.flag || '📍'}</span>
           <span>{currentPlace.name}</span>
