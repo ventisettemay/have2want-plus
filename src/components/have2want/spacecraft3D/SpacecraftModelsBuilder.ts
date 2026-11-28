@@ -259,16 +259,16 @@ export function createCraftBadge(
       ctx.strokeRect(x, y, w, h);
     }
 
-    // Nome Canale HAVE2WANT (grande e immediato anche su mobile)
+    // Nome Canale HAVE2WANT (grande e immediato anche su mobile, mai troncato ai lati)
     ctx.fillStyle = '#ffffff';
     ctx.font = '900 60px "Inter", -apple-system, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(`${icon} ${h2wName.toUpperCase()}`, 384, 96);
+    ctx.fillText(`${icon} ${h2wName.toUpperCase()}`, 384, 96, 700);
 
-    // Codice identificativo orbitale / missione
+    // Codice identificativo orbitale / missione (mai troncato ai lati)
     ctx.fillStyle = colorHex;
     ctx.font = '800 36px "Inter", -apple-system, sans-serif';
-    ctx.fillText(codeName.toUpperCase(), 384, 158);
+    ctx.fillText(codeName.toUpperCase(), 384, 158, 700);
   }
 
   const texture = new THREE.CanvasTexture(canvas);
@@ -859,11 +859,11 @@ export function buildEngineeredSpacecraft(
 
   // Alone luminoso ai fari laterali e corona orbitale per riconoscere i satelliti a colpo d'occhio
   if (isBright) {
-    const haloGeo = new THREE.SphereGeometry(1.75, 12, 12);
+    const haloGeo = new THREE.SphereGeometry(1.15, 12, 12);
     const haloMat = new THREE.MeshBasicMaterial({
       color: new THREE.Color(sat.color),
       transparent: true,
-      opacity: 0.48,
+      opacity: 0.34,
       depthWrite: false,
     });
     const leftHalo = new THREE.Mesh(haloGeo, haloMat);
@@ -873,12 +873,12 @@ export function buildEngineeredSpacecraft(
     group.add(leftHalo, rightHalo);
   }
 
-  // Corona luminosa centrale attorno al satellite (AdditiveBlending)
-  const coronaGeo = new THREE.SphereGeometry(9.0, 16, 16);
+  // Corona luminosa centrale attorno al satellite (AdditiveBlending) — contenuta, non copre la struttura
+  const coronaGeo = new THREE.SphereGeometry(5.0, 16, 16);
   const coronaMat = new THREE.MeshBasicMaterial({
     color: new THREE.Color(sat.color),
     transparent: true,
-    opacity: isBright ? 0.26 : isBlinking ? 0.22 : 0.16,
+    opacity: isBright ? 0.16 : isBlinking ? 0.14 : 0.10,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
   });
@@ -892,12 +892,12 @@ export function buildEngineeredSpacecraft(
   craftGroup.add(hitSphere);
   clickables.push(hitSphere);
 
-  // Anello radar luminoso ben visibile attorno al satellite in orbita
-  const pulseGeo = new THREE.RingGeometry(8.2, isBright ? 10.4 : 9.6, 32);
+  // Anello radar luminoso attorno al satellite in orbita — proporzionato al veicolo spaziale
+  const pulseGeo = new THREE.RingGeometry(5.0, isBright ? 6.8 : 6.0, 32);
   const pulseMat = new THREE.MeshBasicMaterial({
     color: new THREE.Color(sat.color),
     transparent: true,
-    opacity: isBright ? 0.6 : isBlinking ? 0.5 : 0.3,
+    opacity: isBright ? 0.42 : isBlinking ? 0.34 : 0.22,
     side: THREE.DoubleSide,
     depthWrite: false,
   });

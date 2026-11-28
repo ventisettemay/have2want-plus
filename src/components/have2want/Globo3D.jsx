@@ -506,8 +506,8 @@ export default function Globo3D({
   // Helper per creare badge meteo live leggibile sul globo (Sole, Nubi, Pioggia, Neve, Temporale)
   const createWeatherHubSprite = (snap) => {
     const canvas = document.createElement('canvas');
-    canvas.width = 200;
-    canvas.height = 52;
+    canvas.width = 320;
+    canvas.height = 72;
     const ctx = canvas.getContext('2d');
 
     const borderColor =
@@ -523,9 +523,9 @@ export default function Globo3D({
 
     ctx.fillStyle = 'rgba(6, 11, 20, 0.92)';
     ctx.strokeStyle = borderColor;
-    ctx.lineWidth = 2.6;
+    ctx.lineWidth = 3.4;
 
-    const x = 3, y = 3, w = 194, h = 46, r = 10;
+    const x = 6, y = 6, w = 308, h = 60, r = 14;
     ctx.beginPath();
     ctx.moveTo(x + r, y);
     ctx.lineTo(x + w - r, y);
@@ -540,25 +540,25 @@ export default function Globo3D({
     ctx.fill();
     ctx.stroke();
 
-    ctx.font = '21px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+    ctx.font = '30px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(snap.icon || '🌤️', 10, 26);
+    ctx.fillText(snap.icon || '🌤️', 16, 38);
 
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
-    const cityName = (snap.name || '').length > 10 ? snap.name.slice(0, 9) + '…' : (snap.name || '');
-    ctx.fillText(cityName, 40, 18);
+    ctx.font = 'bold 18px system-ui, -apple-system, sans-serif';
+    const cityName = (snap.name || '').length > 14 ? snap.name.slice(0, 13) + '…' : (snap.name || '');
+    ctx.fillText(cityName, 60, 26);
 
     ctx.fillStyle = borderColor;
-    ctx.font = '900 13px system-ui, -apple-system, sans-serif';
+    ctx.font = '900 20px system-ui, -apple-system, sans-serif';
     ctx.textAlign = 'right';
-    ctx.fillText(`${snap.temp}°`, 188, 18);
+    ctx.fillText(`${snap.temp}°`, 300, 26);
 
     ctx.textAlign = 'left';
     ctx.fillStyle = borderColor;
-    ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
-    ctx.fillText(snap.shortLabel || 'Meteo', 40, 36);
+    ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
+    ctx.fillText(snap.shortLabel || 'Meteo', 60, 52);
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.minFilter = THREE.LinearFilter;
@@ -570,7 +570,7 @@ export default function Globo3D({
       opacity: 0.96,
     });
     const sprite = new THREE.Sprite(spriteMat);
-    sprite.scale.set(3.4, 0.88, 1);
+    sprite.scale.set(5.2, 1.3, 1);
     sprite.userData = {
       isWeatherMarker: true,
       weather: snap,
@@ -717,6 +717,7 @@ export default function Globo3D({
         uSunDirection: { value: sunNormalizedDir },
         uCameraWorldPos: { value: camera.position.clone() },
         uOpacity: { value: initialGeo ? 0.0 : 1.0 },
+        uTime: { value: 0 },
       },
       vertexShader: `
         varying vec2 vUv;
@@ -741,6 +742,7 @@ export default function Globo3D({
         uniform vec3 uSunDirection;
         uniform vec3 uCameraWorldPos;
         uniform float uOpacity;
+        uniform float uTime;
 
         varying vec2 vUv;
         varying vec3 vWorldNormal;
@@ -755,6 +757,18 @@ export default function Globo3D({
           vec3 perturbedNormal = normalize(worldNormal + bump * 0.20);
           if (length(perturbedNormal) < 0.05) {
             perturbedNormal = worldNormal;
+          }
+
+          // Onde e mare mosso su oceani (peturbazione normale procedurale animata)
+          float specMask = texture2D(uSpecularMap, vUv).r;
+          float oceanMask = smoothstep(0.10, 0.50, specMask);
+          if (oceanMask > 0.02) {
+            vec2 noiseUv = vUv * vec2(2.6, 1.9);
+            float n1 = fract(sin(dot(noiseUv, vec2(12.9898, 78.233))) * 43758.5453);
+            float n2 = fract(sin(dot(noiseUv * 2.1, vec2(3.1415, 2.718))) * 43758.5453);
+            float swell = sin((n1 + n2) * 6.28318 + uTime * 0.7) * 0.14;
+            vec3 swellBump = normalize(vec3(n1 * 2.0 - 1.0, swell, n2 * 2.0 - 1.0)) * 0.11;
+            perturbedNormal = normalize(perturbedNormal + swellBump * oceanMask * 0.55);
           }
 
           // Orientamento solare
@@ -877,14 +891,12 @@ export default function Globo3D({
     const softCloudsMat = new THREE.MeshStandardMaterial({
       map: softCloudsTexture,
       transparent: true,
-      opacity: 0.38,
+      opacity: 0.50,
       blending: THREE.NormalBlending,
       depthWrite: false,
     });
     const softCloudsMesh = new THREE.Mesh(softCloudsGeo, softCloudsMat);
-    if (initialGeo) {
-      softCloudsMesh.visible = false;
-    }
+    softCloudsMesh.visible = !initialGeo;
     globeGroup.add(softCloudsMesh);
 
     const radarCanvas = document.createElement('canvas');
@@ -910,7 +922,7 @@ export default function Globo3D({
         staticCloudsTexture.colorSpace = THREE.SRGBColorSpace;
       }
       cloudsMat.map = staticCloudsTexture;
-      cloudsMat.opacity = 0.24;
+      cloudsMat.opacity = 0.42;
       cloudsMat.needsUpdate = true;
     };
 
@@ -923,9 +935,9 @@ export default function Globo3D({
       depthWrite: false,
     });
     const cloudsMesh = new THREE.Mesh(cloudsGeo, cloudsMat);
-    if (initialGeo) {
-      cloudsMesh.visible = false;
-    }
+    // Nuvole sempre visibili di default (fallback statico applicato subito sotto);
+    // vengono nascoste solo nella vista politica/geo tramite il crossfade.
+    cloudsMesh.visible = !initialGeo;
     globeGroup.add(cloudsMesh);
 
     // Mostra subito nuvole statiche pulite mentre RainViewer carica i tasselli radar
@@ -955,9 +967,7 @@ export default function Globo3D({
 
     // Gruppo badge meteo live (☀️ Sole, ☁️ Nubi, 🌧️ Pioggia, ❄️ Neve, ⛈️ Temporale)
     const weatherMarkersGroup = new THREE.Group();
-    if (initialGeo) {
-      weatherMarkersGroup.visible = false;
-    }
+    weatherMarkersGroup.visible = !initialGeo;
     globeGroup.add(weatherMarkersGroup);
 
     // Weather state reference inside Three.js
@@ -1166,7 +1176,7 @@ export default function Globo3D({
       const orbitMat = new THREE.LineBasicMaterial({
         color: new THREE.Color(sat.color),
         transparent: true,
-        opacity: 0.12,
+        opacity: 0.04,
       });
       const orbitLine = new THREE.LineLoop(orbitGeo, orbitMat);
       globeGroup.add(orbitLine);
@@ -2143,6 +2153,9 @@ export default function Globo3D({
       if (globoMat.uniforms.uCameraWorldPos) {
         globoMat.uniforms.uCameraWorldPos.value.copy(camera.position);
       }
+      if (globoMat.uniforms.uTime) {
+        globoMat.uniforms.uTime.value = performance.now() * 0.001;
+      }
       if (atmosMat.uniforms.uSunDirection) {
         atmosMat.uniforms.uSunDirection.value.copy(liveSunDir);
       }
@@ -2158,8 +2171,8 @@ export default function Globo3D({
       // Dissolvenza morbida del radar allo zoom ravvicinato per evitare blocchi pixelati giganti
       const radarZoomFade = THREE.MathUtils.clamp((currentCameraDist - 85) / 35, 0.14, 1.0);
       if (weatherEnabled && !isPoliticalActiveRef.current) {
-        cloudsMat.opacity = (hasRadarTiles ? 0.72 : 0.22) * radarZoomFade;
-        softCloudsMat.opacity = 0.38 * (0.45 + 0.55 * radarZoomFade);
+        cloudsMat.opacity = (hasRadarTiles ? 0.72 : 0.42) * radarZoomFade;
+        softCloudsMat.opacity = 0.50 * (0.45 + 0.55 * radarZoomFade);
       }
 
       // Lo strato radar reale RainViewer resta ancorato alle coordinate geografiche di globeGroup
